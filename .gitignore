@@ -1,0 +1,10 @@
+# Runtime artifacts (auto-created by car_watch.py)
+seen.db
+car_watch.log
+
+# Local secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
