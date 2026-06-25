@@ -76,7 +76,11 @@ DAP_KEYWORDS = ["Driving Assistance Professional", "Highway Assistant"]
 
 # --- Email (SendGrid) ------------------------------------------------------
 FROM_EMAIL = "car-watch@example.com"          # must be a SendGrid-verified sender
-TO_EMAIL = "calexander@synergymedicalstaffing.com"
+# Everyone who should receive the alert. Add/remove addresses freely.
+TO_EMAILS = [
+    "calexander@synergymedicalstaffing.com",
+    "susan@synergymedicalstaffing.com",
+]
 SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send"
 
 # --- Local files -----------------------------------------------------------
@@ -433,7 +437,10 @@ def send_email(api_key, matches):
     body_html = render_email_html(matches)
 
     payload = {
-        "personalizations": [{"to": [{"email": TO_EMAIL}]}],
+        # One "to" entry per recipient; all addresses get the same email.
+        "personalizations": [
+            {"to": [{"email": addr} for addr in TO_EMAILS]}
+        ],
         "from": {"email": FROM_EMAIL},
         "subject": subject,
         "content": [{"type": "text/html", "value": body_html}],
@@ -449,7 +456,7 @@ def send_email(api_key, matches):
     if resp.status_code not in (200, 201, 202):
         raise RuntimeError(
             "SendGrid HTTP {}: {}".format(resp.status_code, resp.text[:1000]))
-    log.info("Email sent to %s (subject=%r)", TO_EMAIL, subject)
+    log.info("Email sent to %s (subject=%r)", ", ".join(TO_EMAILS), subject)
 
 
 # ---------------------------------------------------------------------------

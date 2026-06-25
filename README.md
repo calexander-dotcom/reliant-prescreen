@@ -74,7 +74,10 @@ You must also set two constants at the top of `car_watch.py`:
 
 ```python
 FROM_EMAIL = "car-watch@example.com"   # a SendGrid-verified sender
-TO_EMAIL   = "you@example.com"         # where alerts go
+TO_EMAILS  = [                         # everyone who gets the alert
+    "you@example.com",
+    "someone-else@example.com",
+]
 ```
 
 ### 3. How to get a MarketCheck API key
