@@ -46,33 +46,79 @@ except ImportError:  # pragma: no cover - environment setup issue
 MARKETCHECK_BASE_URL = "https://mc-api.marketcheck.com"
 MARKETCHECK_ENDPOINT = "/v2/search/car/active"
 
-# --- Search criteria -------------------------------------------------------
-MAKE = "BMW"
-MODEL = "iX"
-# The API generally wants one trim per call; we query each and merge results.
-TRIMS = ["xDrive50", "M60"]
-
-EXTERIOR_COLOR = "Black Sapphire Metallic"
-YEAR_MIN = 2023
-MILES_MAX = 30000
-PRICE_MAX = 55000
-
+# --- Location (shared by every search) -------------------------------------
 # Location: within RADIUS_MILES of ZIP_CODE.
 ZIP_CODE = "33544"          # Wesley Chapel, FL
 RADIUS_MILES = 250
 
-# How many rows to request per trim (API max is typically 50 per page).
+# How many rows to request per query (API max is typically 50 per page).
 ROWS = 50
 
-# When STRICT_COLOR is False, the color filter is dropped from the query so you
-# can widen the net (handy for testing). DAP detection and all other filters
-# still apply.
+# Master color switch. When False, the exterior-color filter is dropped from
+# EVERY search so you can widen the net (handy for testing). Per-search
+# "strict_color" still applies when this is True. All other filters and the
+# option-package detection are unaffected.
 STRICT_COLOR = True
 
-# --- Option-package (DAP) detection ----------------------------------------
-# If a listing's description/options/features text contains ANY of these
-# (case-insensitive), we mark dap_status="confirmed"; otherwise "verify".
-DAP_KEYWORDS = ["Driving Assistance Professional", "Highway Assistant"]
+# --- Searches --------------------------------------------------------------
+# Each entry is one independent vehicle configuration. They're queried in turn
+# and the results merged (deduped by VIN). Any field left as None is simply
+# omitted from the API query — i.e. no filter on that attribute.
+#
+#   trims             list of trims to query (one request each); [] = any trim
+#   year_min/year_max inclusive year bounds (set both equal for an exact year)
+#   miles_max         mileage ceiling
+#   price_max         price ceiling
+#   exterior_color    exact color string; only applied when strict_color is True
+#   package_label     human-readable name of the option package we care about
+#   package_keywords  if ANY appears in a listing's text (case-insensitive) the
+#                     listing is flagged package "confirmed", else "verify"
+SEARCHES = [
+    {
+        "label": "BMW iX",
+        "make": "BMW",
+        "model": "iX",
+        "trims": ["xDrive50", "M60"],
+        "year_min": 2023,
+        "year_max": None,
+        "miles_max": 30000,
+        "price_max": 55000,
+        "exterior_color": "Black Sapphire Metallic",
+        "strict_color": True,
+        "package_label": "Driving Assistance Professional",
+        "package_keywords": ["Driving Assistance Professional",
+                             "Highway Assistant"],
+    },
+    {
+        "label": "BMW X5",
+        "make": "BMW",
+        "model": "X5",
+        "trims": [],                 # any trim
+        "year_min": 2025,
+        "year_max": 2025,            # 2025 model year only
+        "miles_max": None,
+        "price_max": None,
+        "exterior_color": None,
+        "strict_color": False,
+        "package_label": "Professional Package",
+        "package_keywords": ["Professional Package",
+                             "Driving Assistance Professional"],
+    },
+    {
+        "label": "Genesis GV80",
+        "make": "Genesis",
+        "model": "GV80",
+        "trims": ["3.5T Advanced"],
+        "year_min": None,
+        "year_max": None,
+        "miles_max": None,
+        "price_max": None,
+        "exterior_color": None,
+        "strict_color": False,
+        "package_label": "Advanced",
+        "package_keywords": ["Advanced"],
+    },
+]
 
 # --- Email (SendGrid) ------------------------------------------------------
 FROM_EMAIL = "car-watch@example.com"          # must be a SendGrid-verified sender
@@ -174,77 +220,85 @@ def db_reset():
 # MARKETCHECK QUERY + PARSING
 # ---------------------------------------------------------------------------
 
-def build_params(api_key, trim):
+def build_params(api_key, search, trim=None):
     """
-    Build the MarketCheck query params for a single trim.
+    Build the MarketCheck query params for one search (and optional trim).
 
     The parameter names follow MarketCheck's documented active-listings
     pattern. If their schema differs from what we expect, the request building
     stays defensive (we log the raw response on a non-200) so it's easy to
     adjust the names here without touching the rest of the code.
+
+    Any per-search field left as None is omitted from the query so it acts as
+    "no filter" rather than sending an empty value.
     """
     params = {
         "api_key": api_key,
-        "make": MAKE,
-        "model": MODEL,
-        "trim": trim,
-        "year_min": YEAR_MIN,
-        "miles_max": MILES_MAX,
-        "price_max": PRICE_MAX,
+        "make": search["make"],
+        "model": search["model"],
         "zip": ZIP_CODE,
         "radius": RADIUS_MILES,
         "rows": ROWS,
         "start": 0,
     }
-    # Color filter is optional so STRICT_COLOR=False can widen the search.
-    if STRICT_COLOR:
-        params["exterior_color"] = EXTERIOR_COLOR
+    if trim:
+        params["trim"] = trim
+    for src, dst in (("year_min", "year_min"), ("year_max", "year_max"),
+                     ("miles_max", "miles_max"), ("price_max", "price_max")):
+        if search.get(src) is not None:
+            params[dst] = search[src]
+    # Color filter is optional: applied only when the master switch AND the
+    # per-search flag are on and a color is configured.
+    if STRICT_COLOR and search.get("strict_color") and search.get("exterior_color"):
+        params["exterior_color"] = search["exterior_color"]
     return params
 
 
-def fetch_listings(api_key, trim, session=None):
+def fetch_listings(api_key, search, trim=None, session=None):
     """
-    Query MarketCheck for one trim and return the raw `listings` list.
+    Query MarketCheck for one search (optionally scoped to a trim) and return
+    the raw `listings` list.
 
     Returns [] on any non-200 or unexpected payload (and logs the detail),
-    so a single bad trim never aborts the whole run.
+    so a single bad query never aborts the whole run.
     """
     url = MARKETCHECK_BASE_URL + MARKETCHECK_ENDPOINT
-    params = build_params(api_key, trim)
+    params = build_params(api_key, search, trim)
     http = session or requests
+    label = "%s%s" % (search["label"], " trim=%s" % trim if trim else "")
 
     # Log the request without leaking the API key.
     safe_params = {k: v for k, v in params.items() if k != "api_key"}
-    log.info("Querying MarketCheck trim=%s params=%s", trim, safe_params)
+    log.info("Querying MarketCheck %s params=%s", label, safe_params)
 
     resp = http.get(url, params=params, timeout=HTTP_TIMEOUT)
 
     if resp.status_code != 200:
         # Log the raw response body so a schema/param mismatch is debuggable.
         log.error(
-            "MarketCheck returned HTTP %s for trim=%s. Raw response: %s",
-            resp.status_code, trim, resp.text[:2000],
+            "MarketCheck returned HTTP %s for %s. Raw response: %s",
+            resp.status_code, label, resp.text[:2000],
         )
         return []
 
     try:
         data = resp.json()
     except ValueError:
-        log.error("MarketCheck response was not valid JSON for trim=%s: %s",
-                  trim, resp.text[:2000])
+        log.error("MarketCheck response was not valid JSON for %s: %s",
+                  label, resp.text[:2000])
         return []
 
     listings = data.get("listings")
     if not isinstance(listings, list):
-        log.warning("No 'listings' array in response for trim=%s. Keys: %s",
-                    trim, list(data.keys()))
+        log.warning("No 'listings' array in response for %s. Keys: %s",
+                    label, list(data.keys()))
         return []
 
-    log.info("trim=%s returned %d raw listing(s)", trim, len(listings))
+    log.info("%s returned %d raw listing(s)", label, len(listings))
     return listings
 
 
-def _extract_text_for_dap(raw):
+def _extract_package_text(raw):
     """
     Gather every text blob from a raw listing that might mention the option
     package: description, options, and high-value/installed features. APIs are
@@ -277,23 +331,25 @@ def _extract_text_for_dap(raw):
     return " \n ".join(parts)
 
 
-def detect_dap(raw):
-    """Return 'confirmed' if any DAP keyword appears in the text, else 'verify'."""
-    text = _extract_text_for_dap(raw).lower()
-    for kw in DAP_KEYWORDS:
+def detect_package(raw, search):
+    """Return 'confirmed' if any of the search's package keywords appears in the
+    listing text, else 'verify'."""
+    text = _extract_package_text(raw).lower()
+    for kw in search.get("package_keywords", []):
         if kw.lower() in text:
             return "confirmed"
     return "verify"
 
 
-def normalize_listing(raw):
+def normalize_listing(raw, search):
     """
     Convert a raw MarketCheck listing into the flat dict the rest of the
     program uses. Returns None if there's no VIN (can't dedupe without one).
 
     MarketCheck nests vehicle attributes under "build" and dealer/seller info
     under "dealer". We pull defensively with .get() so missing fields become
-    sane defaults rather than KeyErrors.
+    sane defaults rather than KeyErrors. `search` supplies the make/model
+    fallbacks and the option package we're looking for.
     """
     vin = raw.get("vin")
     if not vin:
@@ -305,8 +361,8 @@ def normalize_listing(raw):
     return {
         "vin": vin,
         "year": build.get("year") or raw.get("year"),
-        "make": build.get("make") or raw.get("make") or MAKE,
-        "model": build.get("model") or raw.get("model") or MODEL,
+        "make": build.get("make") or raw.get("make") or search["make"],
+        "model": build.get("model") or raw.get("model") or search["model"],
         "trim": build.get("trim") or raw.get("trim"),
         "exterior_color": raw.get("exterior_color") or build.get("exterior_color"),
         "miles": raw.get("miles"),
@@ -315,7 +371,9 @@ def normalize_listing(raw):
         "dealer_city": dealer.get("city"),
         "dealer_state": dealer.get("state"),
         "url": raw.get("vdp_url") or raw.get("url"),
-        "dap_status": detect_dap(raw),
+        "search_label": search["label"],
+        "package_label": search["package_label"],
+        "package_status": detect_package(raw, search),
     }
 
 
@@ -346,16 +404,17 @@ def render_email_html(matches):
     order = {"confirmed": 0, "verify": 1}
     matches = sorted(
         matches,
-        key=lambda m: (order.get(m["dap_status"], 2),
+        key=lambda m: (order.get(m["package_status"], 2),
                        m["price"] if m["price"] is not None else float("inf")),
     )
 
     def card(m):
-        confirmed = m["dap_status"] == "confirmed"
+        confirmed = m["package_status"] == "confirmed"
         border = "#1a7f37" if confirmed else "#9a6700"
         badge_bg = "#1a7f37" if confirmed else "#9a6700"
-        badge_text = ("✅ DAP CONFIRMED" if confirmed
-                      else "⚠️ DAP — VERIFY MANUALLY")
+        pkg = m.get("package_label") or "Option package"
+        badge_text = ("✅ {} CONFIRMED".format(pkg) if confirmed
+                      else "⚠️ {} — VERIFY MANUALLY".format(pkg))
 
         # html.escape every piece of listing-supplied text.
         def e(v):
@@ -413,7 +472,7 @@ def render_email_html(matches):
     return """
     <html><body style="background:#ffffff;padding:8px;">
       <h2 style="font-family:Arial,Helvetica,sans-serif;color:#24292f;">
-        {n} new BMW {model} match(es) near {zip}
+        {n} new car match(es) near {zip}
       </h2>
       <p style="font-family:Arial,Helvetica,sans-serif;color:#57606a;
                 font-size:13px;">
@@ -423,7 +482,7 @@ def render_email_html(matches):
       <p style="font-family:Arial,Helvetica,sans-serif;color:#8b949e;
                 font-size:12px;">Sent by car_watch.py</p>
     </body></html>
-    """.format(n=len(matches), model=MODEL, zip=ZIP_CODE, cards=cards)
+    """.format(n=len(matches), zip=ZIP_CODE, cards=cards)
 
 
 def send_email(api_key, matches):
@@ -432,8 +491,7 @@ def send_email(api_key, matches):
     mark the listings as seen.
     """
     n = len(matches)
-    subject = "🚗 {n} new BMW {model} match(es) near {zip}".format(
-        n=n, model=MODEL, zip=ZIP_CODE)
+    subject = "🚗 {n} new car match(es) near {zip}".format(n=n, zip=ZIP_CODE)
     body_html = render_email_html(matches)
 
     payload = {
@@ -468,12 +526,14 @@ def print_matches(matches):
     order = {"confirmed": 0, "verify": 1}
     matches = sorted(
         matches,
-        key=lambda m: (order.get(m["dap_status"], 2),
+        key=lambda m: (order.get(m["package_status"], 2),
                        m["price"] if m["price"] is not None else float("inf")),
     )
     print("\n=== {} new match(es) ===".format(len(matches)))
     for m in matches:
-        flag = "[DAP CONFIRMED]" if m["dap_status"] == "confirmed" else "[VERIFY DAP]"
+        pkg = m.get("package_label") or "package"
+        flag = ("[{} CONFIRMED]".format(pkg) if m["package_status"] == "confirmed"
+                else "[VERIFY {}]".format(pkg))
         print("\n{flag} {year} {make} {model} {trim}".format(
             flag=flag, year=m["year"], make=m["make"], model=m["model"],
             trim=m["trim"]))
@@ -492,18 +552,22 @@ def print_matches(matches):
 
 def gather_matches(api_key, session=None):
     """
-    Query every trim, normalize, and merge into a single list of matches
-    keyed by VIN (so the same car listed under two trims isn't duplicated).
+    Query every search (and every trim within it), normalize, and merge into a
+    single list of matches keyed by VIN (so the same car surfaced by more than
+    one query isn't duplicated).
     """
     by_vin = {}
-    for trim in TRIMS:
-        raw_listings = fetch_listings(api_key, trim, session=session)
-        for raw in raw_listings:
-            norm = normalize_listing(raw)
-            if norm is None:
-                continue
-            # First occurrence wins; merge is by VIN.
-            by_vin.setdefault(norm["vin"], norm)
+    for search in SEARCHES:
+        # An empty trims list means "any trim" — a single query with no trim.
+        trims = search.get("trims") or [None]
+        for trim in trims:
+            raw_listings = fetch_listings(api_key, search, trim, session=session)
+            for raw in raw_listings:
+                norm = normalize_listing(raw, search)
+                if norm is None:
+                    continue
+                # First occurrence wins; merge is by VIN.
+                by_vin.setdefault(norm["vin"], norm)
     return list(by_vin.values())
 
 
@@ -578,7 +642,7 @@ def run(dry_run=False, session=None):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Monitor BMW iX listings and email new matches.")
+        description="Monitor configured car searches and email new matches.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Do everything except send email; print matches "
                              "to stdout and do not write to the dedupe DB.")

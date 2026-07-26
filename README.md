@@ -7,10 +7,11 @@ hourly from cron on an Ubuntu box.
 
 It will:
 
-1. Query MarketCheck for vehicles matching your criteria (one request per trim,
-   results merged).
-2. Scan each listing's text for a specific option package (the *Driving
-   Assistance Professional* / *Highway Assistant* keywords) and flag it as
+1. Query MarketCheck for every configured **search** — each search is one
+   vehicle configuration (make/model/trims/year/price/package), queried in turn
+   and merged.
+2. Scan each listing's text for that search's option package (e.g. *Driving
+   Assistance Professional*, *Professional Package*, *Advanced*) and flag it as
    `confirmed` or `verify`.
 3. Dedupe against a local SQLite DB (`seen.db`) so you only get alerted once per
    car (keyed by VIN).
@@ -22,22 +23,35 @@ It will:
 
 ## What you're searching for
 
-All of this lives as editable constants at the top of `car_watch.py`:
+Searches live in the `SEARCHES` list at the top of `car_watch.py`. Each entry
+is one independent vehicle configuration; add, remove, or edit entries freely.
+Any field left as `None` is simply omitted from the query (no filter on that
+attribute). The three shipped searches are:
 
-| Setting          | Default                          |
-|------------------|----------------------------------|
-| Make             | BMW                              |
-| Model            | iX                               |
-| Trims            | `xDrive50`, `M60`                |
-| Exterior color   | Black Sapphire Metallic          |
-| Year             | ≥ 2023                           |
-| Mileage          | < 30,000                         |
-| Price            | ≤ $55,000                        |
-| Location         | within 250 mi of ZIP 33544       |
-| `STRICT_COLOR`   | `True`                           |
+| Search        | Make/Model    | Trims               | Year    | Mileage    | Price     | Color                   | Option package                    |
+|---------------|---------------|---------------------|---------|------------|-----------|-------------------------|-----------------------------------|
+| BMW iX        | BMW iX        | `xDrive50`, `M60`   | ≥ 2023  | < 30,000   | ≤ $55,000 | Black Sapphire Metallic | Driving Assistance Professional   |
+| BMW X5        | BMW X5        | any                 | 2025    | —          | —         | any                     | Professional Package              |
+| Genesis GV80  | Genesis GV80  | `3.5T Advanced`     | any     | —          | —         | any                     | Advanced                          |
 
-Set `STRICT_COLOR = False` to drop the color filter and widen the net (handy
-for testing). DAP detection and all other filters still apply.
+Location is shared by every search: within `RADIUS_MILES` (250) of `ZIP_CODE`
+(33544, Wesley Chapel FL).
+
+Per-search fields:
+
+| Field              | Meaning                                                                    |
+|--------------------|----------------------------------------------------------------------------|
+| `trims`            | Trims to query (one request each); `[]` means "any trim" (a single query). |
+| `year_min`/`year_max` | Inclusive year bounds; set both equal for an exact model year.          |
+| `miles_max`        | Mileage ceiling.                                                           |
+| `price_max`        | Price ceiling.                                                             |
+| `exterior_color`   | Exact color; applied only when `STRICT_COLOR` **and** the search's `strict_color` are `True`. |
+| `package_label`    | Human-readable name of the option package shown in the alert.              |
+| `package_keywords` | If **any** appears in a listing's text (case-insensitive), the listing is flagged `confirmed`, else `verify`. |
+
+`STRICT_COLOR` (module-level) is a master switch: set it to `False` to drop the
+color filter from **every** search and widen the net (handy for testing). All
+other filters and package detection still apply.
 
 The base URL and endpoint are also constants (`MARKETCHECK_BASE_URL`,
 `MARKETCHECK_ENDPOINT`) so they're easy to swap later.
@@ -117,9 +131,10 @@ through the whole pipeline with `STRICT_COLOR=False`:
 python3 test_dry_run.py
 ```
 
-You should see 3 sample matches print (2 DAP-confirmed, 1 to verify), the email
-HTML render with confirmed cars first, and the dedupe DB record all 3 VINs so a
-re-check yields 0 new.
+You should see 5 sample matches print (4 package-confirmed, 1 to verify) across
+the BMW iX, BMW X5, and Genesis GV80 searches, the email HTML render with
+confirmed cars first, and the dedupe DB record all 5 VINs so a re-check yields
+0 new.
 
 ---
 
@@ -170,14 +185,15 @@ the `>> car_watch.log` redirect simply captures anything else cron prints.
 MarketCheck (like most listing APIs) doesn't reliably filter on option
 packages, so the script does its own keyword scan over whatever text the API
 returns for each listing — description, options, and high-value/installed
-features:
+features. Each search brings its own keyword list:
 
-- `dap_status = "confirmed"` if the text contains **"Driving Assistance
-  Professional"** or **"Highway Assistant"** (case-insensitive).
-- `dap_status = "verify"` otherwise — meaning *you should check the listing
+- `package_status = "confirmed"` if the text contains **any** of that search's
+  `package_keywords` (case-insensitive).
+- `package_status = "verify"` otherwise — meaning *you should check the listing
   manually*; the package may still be present but unlisted in the API text.
 
-Edit `DAP_KEYWORDS` at the top of the file to change what counts as confirmed.
+Edit a search's `package_keywords` / `package_label` in the `SEARCHES` list to
+change what counts as confirmed and how it's labeled in the alert.
 
 ---
 
