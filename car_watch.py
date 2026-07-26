@@ -22,6 +22,7 @@ import html
 import json
 import logging
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -134,15 +135,22 @@ SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send"
 # fails it's logged but never blocks the email or re-alerting (email is the
 # system of record for what's been "seen").
 #
-# Credentials come from the environment (nothing sensitive hardcoded):
+# Everything below comes from the environment so no phone number or secret is
+# ever committed to the code (recipient numbers are personal data — keep them
+# out of source control). Set these on the box, alongside the Twilio creds:
 #   TWILIO_ACCOUNT_SID   your Twilio Account SID
 #   TWILIO_AUTH_TOKEN    your Twilio Auth Token
-# Set the sending number below (a Twilio number you own, E.164 format), and add
-# recipient numbers to SMS_TO_NUMBERS. Leave SMS_TO_NUMBERS empty to disable
-# texting entirely (the run just skips it and logs that it's off).
-TWILIO_FROM_NUMBER = "+10000000000"    # your Twilio sending number (E.164)
+#   TWILIO_FROM_NUMBER   your Twilio sending number, E.164 (e.g. +18135550000)
+#   SMS_TO_NUMBERS       recipient number(s), comma-separated, E.164
+#                        (e.g. "+18135551234,+18135555678")
+#
+# As a fallback you may hardcode numbers in the lists below, but the env vars
+# take precedence when set. Leave both empty to disable texting entirely (the
+# run just skips it and logs that it's off).
+TWILIO_FROM_NUMBER = ""                # optional fallback; prefer the env var
 SMS_TO_NUMBERS = [
-    # Rex — add his mobile number here in E.164 format, e.g. "+18135551234"
+    # Optional fallback recipients, e.g. "+18135551234". Prefer SMS_TO_NUMBERS
+    # in the environment so personal numbers stay out of the repo.
 ]
 TWILIO_API_URL = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
 
@@ -568,41 +576,102 @@ def render_sms_text(matches):
     return "\n".join(lines)
 
 
+def _normalize_number(raw):
+    """
+    Best-effort E.164 normalization. Keeps a leading '+', strips spaces, dashes,
+    parentheses, etc. A bare 10-digit US number becomes +1XXXXXXXXXX and a
+    leading-1 11-digit number gets a '+'. Returns None for empty/garbage input.
+    """
+    if not raw:
+        return None
+    s = str(raw).strip()
+    plus = s.startswith("+")
+    digits = re.sub(r"\D", "", s)
+    if not digits:
+        return None
+    if plus:
+        return "+" + digits
+    if len(digits) == 10:                 # assume US/Canada
+        return "+1" + digits
+    if len(digits) == 11 and digits.startswith("1"):
+        return "+" + digits
+    return "+" + digits                   # last resort; let Twilio validate
+
+
+def sms_recipients():
+    """
+    Resolve recipient numbers: the SMS_TO_NUMBERS env var (comma/whitespace
+    separated) when set, otherwise the in-code SMS_TO_NUMBERS list. Normalized
+    to E.164 and de-duplicated, preserving order.
+    """
+    env = os.environ.get("SMS_TO_NUMBERS")
+    raw = re.split(r"[,\s]+", env.strip()) if env and env.strip() else SMS_TO_NUMBERS
+    out = []
+    for item in raw:
+        num = _normalize_number(item)
+        if num and num not in out:
+            out.append(num)
+    return out
+
+
+def sms_from_number():
+    """The Twilio sending number: env TWILIO_FROM_NUMBER when set, else the
+    in-code constant. Normalized to E.164."""
+    return _normalize_number(
+        os.environ.get("TWILIO_FROM_NUMBER") or TWILIO_FROM_NUMBER)
+
+
+def _mask_number(num):
+    """Mask all but the last 4 digits for safe display in logs/preview."""
+    if not num:
+        return "N/A"
+    keep = num[-4:]
+    return "{}{}".format("*" * max(0, len(num) - 4), keep)
+
+
 def send_sms(account_sid, auth_token, matches):
     """
-    Send the alert as an SMS to every number in SMS_TO_NUMBERS via Twilio.
+    Send the alert as an SMS to every resolved recipient via Twilio.
 
     Best-effort by design: any failure (bad creds, network, one bad number) is
     logged and swallowed so texting never blocks the email or the dedupe write.
     Does nothing (and logs why) when SMS isn't configured.
     """
-    if not SMS_TO_NUMBERS:
-        log.info("SMS disabled (SMS_TO_NUMBERS is empty); skipping text.")
+    recipients = sms_recipients()
+    if not recipients:
+        log.info("SMS disabled (no recipient numbers configured); skipping text.")
         return
     if not (account_sid and auth_token):
         log.warning("SMS recipients configured but TWILIO_ACCOUNT_SID / "
                     "TWILIO_AUTH_TOKEN not set; skipping text.")
         return
+    from_number = sms_from_number()
+    if not from_number:
+        log.warning("SMS recipients configured but no TWILIO_FROM_NUMBER set; "
+                    "skipping text.")
+        return
 
     url = TWILIO_API_URL.format(sid=account_sid)
     body = render_sms_text(matches)
 
-    for number in SMS_TO_NUMBERS:
+    for number in recipients:
         try:
             resp = requests.post(
                 url,
-                data={"From": TWILIO_FROM_NUMBER, "To": number, "Body": body},
+                data={"From": from_number, "To": number, "Body": body},
                 auth=(account_sid, auth_token),
                 timeout=HTTP_TIMEOUT,
             )
             # Twilio returns 201 Created when the message is queued.
             if resp.status_code not in (200, 201):
                 log.error("Twilio HTTP %s sending SMS to %s: %s",
-                          resp.status_code, number, resp.text[:1000])
+                          resp.status_code, _mask_number(number), resp.text[:1000])
             else:
-                log.info("SMS sent to %s (%d match(es)).", number, len(matches))
+                log.info("SMS sent to %s (%d match(es)).",
+                         _mask_number(number), len(matches))
         except Exception as exc:  # noqa: BLE001 - SMS is best-effort
-            log.error("Failed to send SMS to %s: %s", number, exc, exc_info=True)
+            log.error("Failed to send SMS to %s: %s",
+                      _mask_number(number), exc, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -699,8 +768,11 @@ def run(dry_run=False, session=None):
         if dry_run:
             # Don't email/text and don't write to the DB in dry-run.
             print_matches(new_matches)
-            print("\n--- SMS preview ---\n{}".format(
-                render_sms_text(new_matches)))
+            recipients = sms_recipients()
+            to_line = ", ".join(_mask_number(n) for n in recipients) \
+                if recipients else "(none configured — texting disabled)"
+            print("\n--- SMS preview (would text: {}) ---\n{}".format(
+                to_line, render_sms_text(new_matches)))
             log.info("Dry-run: %d match(es) printed, DB not modified.",
                      len(new_matches))
             return 0

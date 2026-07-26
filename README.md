@@ -83,6 +83,8 @@ export SENDGRID_API_KEY="your-sendgrid-key"
 # Optional — only needed if you want text-message alerts (see below):
 export TWILIO_ACCOUNT_SID="your-twilio-account-sid"
 export TWILIO_AUTH_TOKEN="your-twilio-auth-token"
+export TWILIO_FROM_NUMBER="+18135550000"              # your Twilio number
+export SMS_TO_NUMBERS="+18135551234,+18135555678"     # who gets the text
 ```
 
 Put these in `/home/ubuntu/car_watch/.env` and source them, or add them to the
@@ -119,25 +121,32 @@ TO_EMAILS  = [                         # everyone who gets the alert
 
 Texts are sent **in addition** to email and are **best-effort**: if a text
 fails it's logged but never blocks the email or causes a re-alert (email is the
-system of record for what's been "seen"). Texting is **off** until you add at
-least one recipient number.
+system of record for what's been "seen"). Texting is **off** until at least one
+recipient number is configured.
+
+Everything is read from the environment, so **no phone number or secret is ever
+committed to the code** — recipient numbers are personal data and stay out of
+source control:
 
 1. Sign up at <https://www.twilio.com/>, then grab your **Account SID** and
    **Auth Token** from the console and buy/verify an SMS-capable phone number.
-2. Export the credentials as `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`.
-3. In `car_watch.py`, set your Twilio sending number and the recipients (all in
-   [E.164](https://www.twilio.com/docs/glossary/what-e164) format, e.g.
-   `+18135551234`):
+2. Export all four values (numbers in
+   [E.164](https://www.twilio.com/docs/glossary/what-e164) format; plain
+   `813-555-1234` is normalized automatically, and `SMS_TO_NUMBERS` accepts a
+   comma-separated list to text several people):
 
-   ```python
-   TWILIO_FROM_NUMBER = "+1XXXXXXXXXX"   # your Twilio number
-   SMS_TO_NUMBERS = [
-       "+1XXXXXXXXXX",                   # Rex
-   ]
+   ```bash
+   export TWILIO_ACCOUNT_SID="ACxxxxxxxx"
+   export TWILIO_AUTH_TOKEN="your-auth-token"
+   export TWILIO_FROM_NUMBER="+18135550000"           # your Twilio number
+   export SMS_TO_NUMBERS="+18135551234,+18135555678"  # everyone who gets a text
    ```
 
-Leave `SMS_TO_NUMBERS` empty to disable texting entirely (the run just logs
-that SMS is off and continues).
+Put these in the same place as the other env vars (the `.env` you source from
+cron, or the crontab). Unset `SMS_TO_NUMBERS` (or leave it empty) to disable
+texting entirely — the run just logs that SMS is off and continues. Run
+`python3 car_watch.py --dry-run` to confirm: the SMS preview prints the masked
+recipient list it resolved (e.g. `********1234`).
 
 ---
 

@@ -166,7 +166,25 @@ def main():
         "confirmed cars must render before verify cars in SMS"
     print("[OK] SMS text rendered (%d chars), confirmed first" % len(sms_body))
 
-    # send_sms is a no-op (logs and returns) when SMS_TO_NUMBERS is empty.
+    # --- Number normalization ---
+    assert car_watch._normalize_number("813-555-1234") == "+18135551234"
+    assert car_watch._normalize_number("(813) 555 1234") == "+18135551234"
+    assert car_watch._normalize_number("+1 813 555 1234") == "+18135551234"
+    assert car_watch._normalize_number("18135551234") == "+18135551234"
+    assert car_watch._normalize_number("   ") is None
+    assert car_watch._mask_number("+18135551234") == "********1234"
+    print("[OK] Phone-number normalization + masking")
+
+    # --- Recipients come from the SMS_TO_NUMBERS env var (comma-separated),
+    #     overriding the in-code list, normalized and de-duped ---
+    car_watch.SMS_TO_NUMBERS = []
+    os.environ["SMS_TO_NUMBERS"] = "813-555-1234, +18135555678 , 8135551234"
+    got = car_watch.sms_recipients()
+    assert got == ["+18135551234", "+18135555678"], got
+    print("[OK] Recipients resolved from env (%d unique)" % len(got))
+
+    # send_sms is a safe no-op when no recipients are configured anywhere.
+    os.environ.pop("SMS_TO_NUMBERS", None)
     car_watch.SMS_TO_NUMBERS = []
     car_watch.send_sms("SID", "TOKEN", matches)  # must not raise
     print("[OK] send_sms is a safe no-op when no recipients configured")
