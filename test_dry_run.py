@@ -155,6 +155,22 @@ def main():
     print("[OK] Email HTML rendered (%d chars), confirmed sorted first" %
           len(html_body))
 
+    # --- Verify SMS text renders, one line per car, confirmed first ---
+    sms_body = car_watch.render_sms_text(matches)
+    assert "new car match(es) near" in sms_body
+    assert "[OK]" in sms_body and "[VERIFY]" in sms_body
+    # One header line + one line per match.
+    assert len(sms_body.splitlines()) == len(matches) + 1
+    # Confirmed M60 must appear before the verify M60 in the text body.
+    assert sms_body.index("/listing/00003") < sms_body.index("/listing/00004"), \
+        "confirmed cars must render before verify cars in SMS"
+    print("[OK] SMS text rendered (%d chars), confirmed first" % len(sms_body))
+
+    # send_sms is a no-op (logs and returns) when SMS_TO_NUMBERS is empty.
+    car_watch.SMS_TO_NUMBERS = []
+    car_watch.send_sms("SID", "TOKEN", matches)  # must not raise
+    print("[OK] send_sms is a safe no-op when no recipients configured")
+
     # --- Verify dedupe: mark seen, then re-gather should yield 0 new ---
     conn = car_watch.db_connect()
     car_watch.db_mark_seen(conn, matches)

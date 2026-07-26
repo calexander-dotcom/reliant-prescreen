@@ -129,6 +129,23 @@ TO_EMAILS = [
 ]
 SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send"
 
+# --- Text messages (Twilio SMS) --------------------------------------------
+# SMS alerts are sent IN ADDITION to email. They're best-effort: if a text
+# fails it's logged but never blocks the email or re-alerting (email is the
+# system of record for what's been "seen").
+#
+# Credentials come from the environment (nothing sensitive hardcoded):
+#   TWILIO_ACCOUNT_SID   your Twilio Account SID
+#   TWILIO_AUTH_TOKEN    your Twilio Auth Token
+# Set the sending number below (a Twilio number you own, E.164 format), and add
+# recipient numbers to SMS_TO_NUMBERS. Leave SMS_TO_NUMBERS empty to disable
+# texting entirely (the run just skips it and logs that it's off).
+TWILIO_FROM_NUMBER = "+10000000000"    # your Twilio sending number (E.164)
+SMS_TO_NUMBERS = [
+    # Rex — add his mobile number here in E.164 format, e.g. "+18135551234"
+]
+TWILIO_API_URL = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+
 # --- Local files -----------------------------------------------------------
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seen.db")
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "car_watch.log")
@@ -518,6 +535,77 @@ def send_email(api_key, matches):
 
 
 # ---------------------------------------------------------------------------
+# TEXT MESSAGES (Twilio SMS)
+# ---------------------------------------------------------------------------
+
+def render_sms_text(matches):
+    """
+    Render a compact plain-text summary suitable for SMS. Confirmed-package
+    cars are listed first (same ordering as the email); each line is one car.
+    """
+    order = {"confirmed": 0, "verify": 1}
+    matches = sorted(
+        matches,
+        key=lambda m: (order.get(m["package_status"], 2),
+                       m["price"] if m["price"] is not None else float("inf")),
+    )
+
+    lines = ["{} new car match(es) near {}:".format(len(matches), ZIP_CODE)]
+    for m in matches:
+        mark = "OK" if m["package_status"] == "confirmed" else "VERIFY"
+        parts = [
+            str(m["year"]) if m["year"] else "",
+            m["make"] or "",
+            m["model"] or "",
+            m["trim"] or "",
+        ]
+        desc = " ".join(p for p in parts if p)
+        line = "[{mark}] {desc} - {price}".format(
+            mark=mark, desc=desc, price=_fmt_price(m["price"]))
+        if m["url"]:
+            line += " {}".format(m["url"])
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def send_sms(account_sid, auth_token, matches):
+    """
+    Send the alert as an SMS to every number in SMS_TO_NUMBERS via Twilio.
+
+    Best-effort by design: any failure (bad creds, network, one bad number) is
+    logged and swallowed so texting never blocks the email or the dedupe write.
+    Does nothing (and logs why) when SMS isn't configured.
+    """
+    if not SMS_TO_NUMBERS:
+        log.info("SMS disabled (SMS_TO_NUMBERS is empty); skipping text.")
+        return
+    if not (account_sid and auth_token):
+        log.warning("SMS recipients configured but TWILIO_ACCOUNT_SID / "
+                    "TWILIO_AUTH_TOKEN not set; skipping text.")
+        return
+
+    url = TWILIO_API_URL.format(sid=account_sid)
+    body = render_sms_text(matches)
+
+    for number in SMS_TO_NUMBERS:
+        try:
+            resp = requests.post(
+                url,
+                data={"From": TWILIO_FROM_NUMBER, "To": number, "Body": body},
+                auth=(account_sid, auth_token),
+                timeout=HTTP_TIMEOUT,
+            )
+            # Twilio returns 201 Created when the message is queued.
+            if resp.status_code not in (200, 201):
+                log.error("Twilio HTTP %s sending SMS to %s: %s",
+                          resp.status_code, number, resp.text[:1000])
+            else:
+                log.info("SMS sent to %s (%d match(es)).", number, len(matches))
+        except Exception as exc:  # noqa: BLE001 - SMS is best-effort
+            log.error("Failed to send SMS to %s: %s", number, exc, exc_info=True)
+
+
+# ---------------------------------------------------------------------------
 # DRY-RUN OUTPUT
 # ---------------------------------------------------------------------------
 
@@ -582,6 +670,8 @@ def run(dry_run=False, session=None):
     # API keys come from the environment only.
     marketcheck_key = os.environ.get("MARKETCHECK_API_KEY")
     sendgrid_key = os.environ.get("SENDGRID_API_KEY")
+    twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+    twilio_token = os.environ.get("TWILIO_AUTH_TOKEN")
 
     if not marketcheck_key:
         log.error("MARKETCHECK_API_KEY not set; cannot query listings. Exiting.")
@@ -607,18 +697,23 @@ def run(dry_run=False, session=None):
             return 0
 
         if dry_run:
-            # Don't email and don't write to the DB in dry-run.
+            # Don't email/text and don't write to the DB in dry-run.
             print_matches(new_matches)
+            print("\n--- SMS preview ---\n{}".format(
+                render_sms_text(new_matches)))
             log.info("Dry-run: %d match(es) printed, DB not modified.",
                      len(new_matches))
             return 0
 
-        # 4. Email ONLY the new matches.
+        # 4. Email ONLY the new matches (email is the primary channel).
         send_email(sendgrid_key, new_matches)
 
-        # 5. Mark as seen ONLY after a successful send.
+        # 5. Mark as seen ONLY after a successful email send.
         db_mark_seen(conn, new_matches)
         log.info("Emailed and recorded %d new match(es).", len(new_matches))
+
+        # 6. Text the same matches (best-effort; never blocks the above).
+        send_sms(twilio_sid, twilio_token, new_matches)
         return 0
 
     except requests.RequestException as exc:

@@ -16,7 +16,9 @@ It will:
 3. Dedupe against a local SQLite DB (`seen.db`) so you only get alerted once per
    car (keyed by VIN).
 4. Email **only** the new matches — confirmed-package cars listed first.
-5. Log everything to `car_watch.log` and **never crash the cron job** on an
+5. Optionally **text** the same matches via Twilio SMS (best-effort; in
+   addition to email).
+6. Log everything to `car_watch.log` and **never crash the cron job** on an
    API / network / DB / email error (it logs and exits 0).
 
 ---
@@ -78,6 +80,9 @@ The only third-party dependency is `requests`; everything else
 ```bash
 export MARKETCHECK_API_KEY="your-marketcheck-key"
 export SENDGRID_API_KEY="your-sendgrid-key"
+# Optional — only needed if you want text-message alerts (see below):
+export TWILIO_ACCOUNT_SID="your-twilio-account-sid"
+export TWILIO_AUTH_TOKEN="your-twilio-auth-token"
 ```
 
 Put these in `/home/ubuntu/car_watch/.env` and source them, or add them to the
@@ -110,13 +115,37 @@ TO_EMAILS  = [                         # everyone who gets the alert
 2. Settings → API Keys → **Create API Key** (Mail Send permission is enough).
 3. Export it as `SENDGRID_API_KEY`.
 
+### 5. (Optional) Text-message alerts via Twilio
+
+Texts are sent **in addition** to email and are **best-effort**: if a text
+fails it's logged but never blocks the email or causes a re-alert (email is the
+system of record for what's been "seen"). Texting is **off** until you add at
+least one recipient number.
+
+1. Sign up at <https://www.twilio.com/>, then grab your **Account SID** and
+   **Auth Token** from the console and buy/verify an SMS-capable phone number.
+2. Export the credentials as `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`.
+3. In `car_watch.py`, set your Twilio sending number and the recipients (all in
+   [E.164](https://www.twilio.com/docs/glossary/what-e164) format, e.g.
+   `+18135551234`):
+
+   ```python
+   TWILIO_FROM_NUMBER = "+1XXXXXXXXXX"   # your Twilio number
+   SMS_TO_NUMBERS = [
+       "+1XXXXXXXXXX",                   # Rex
+   ]
+   ```
+
+Leave `SMS_TO_NUMBERS` empty to disable texting entirely (the run just logs
+that SMS is off and continues).
+
 ---
 
 ## Try it dry-run first
 
 Always do a dry run before wiring up cron. `--dry-run` does everything except
-send email and does **not** write to the dedupe DB — it just prints matches to
-stdout.
+send email/text and does **not** write to the dedupe DB — it prints the matches
+plus an SMS preview to stdout.
 
 ```bash
 # Against your real MarketCheck key:
