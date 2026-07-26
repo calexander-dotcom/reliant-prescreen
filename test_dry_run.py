@@ -22,37 +22,6 @@ import car_watch
 # for searches that query "any trim" (e.g. the BMW X5 search).
 # ---------------------------------------------------------------------------
 SAMPLE = {
-    ("iX", "xDrive50"): {
-        "listings": [
-            {
-                "vin": "WB523CF09PCM00001",
-                "price": 53999,
-                "miles": 18250,
-                "exterior_color": "Black Sapphire Metallic",
-                "vdp_url": "https://example.com/listing/00001",
-                "build": {"year": 2023, "make": "BMW", "model": "iX",
-                          "trim": "xDrive50"},
-                "dealer": {"name": "Reeves BMW", "city": "Tampa",
-                           "state": "FL"},
-                # Package present in free-text description -> "confirmed"
-                "description": "Loaded! Includes Driving Assistance "
-                               "Professional package, premium sound.",
-            },
-            {
-                "vin": "WB523CF09PCM00002",
-                "price": 49995,
-                "miles": 9100,
-                "exterior_color": "Mineral White Metallic",
-                "vdp_url": "https://example.com/listing/00002",
-                "build": {"year": 2024, "make": "BMW", "model": "iX",
-                          "trim": "xDrive50"},
-                "dealer": {"name": "BMW of Sarasota", "city": "Sarasota",
-                           "state": "FL"},
-                # No package keywords -> "verify"
-                "options": ["Heated seats", "Panoramic roof"],
-            },
-        ]
-    },
     ("iX", "M60"): {
         "listings": [
             {
@@ -70,6 +39,19 @@ SAMPLE = {
                     {"name": "Highway Assistant"},
                     {"name": "Bowers & Wilkins sound"},
                 ],
+            },
+            {
+                "vin": "WB523CF09PCM00004",
+                "price": 52500,
+                "miles": 15100,
+                "exterior_color": "Mineral White Metallic",
+                "vdp_url": "https://example.com/listing/00004",
+                "build": {"year": 2024, "make": "BMW", "model": "iX",
+                          "trim": "M60"},
+                "dealer": {"name": "BMW of Sarasota", "city": "Sarasota",
+                           "state": "FL"},
+                # No package keywords -> "verify"
+                "options": ["Heated seats", "Panoramic roof"],
             },
         ]
     },
@@ -142,32 +124,34 @@ def main():
 
     session = StubSession()
 
-    print("########## PASS 1: dry-run (should print 5 matches) ##########")
+    print("########## PASS 1: dry-run (should print 4 matches) ##########")
     rc = car_watch.run(dry_run=True, session=session)
     assert rc == 0, "run() must return 0"
 
     # --- Verify gather/normalize/package detection directly ---
     matches = car_watch.gather_matches("TEST_KEY", session=session)
-    assert len(matches) == 5, "expected 5 unique VINs, got %d" % len(matches)
+    assert len(matches) == 4, "expected 4 unique VINs, got %d" % len(matches)
     by_vin = {m["vin"]: m for m in matches}
-    assert by_vin["WB523CF09PCM00001"]["package_status"] == "confirmed"
-    assert by_vin["WB523CF09PCM00002"]["package_status"] == "verify"
+    # iX now searches the M60 trim only (the xDrive50 / "iX50" was removed).
+    assert all(m["trim"] != "xDrive50" for m in matches), \
+        "xDrive50 should no longer appear in results"
     assert by_vin["WB523CF09PCM00003"]["package_status"] == "confirmed"
+    assert by_vin["WB523CF09PCM00004"]["package_status"] == "verify"
     # New searches surface and detect their own packages.
     assert by_vin["5UX23EU08S9X50001"]["search_label"] == "BMW X5"
     assert by_vin["5UX23EU08S9X50001"]["package_label"] == "Professional Package"
     assert by_vin["5UX23EU08S9X50001"]["package_status"] == "confirmed"
     assert by_vin["KMUHBDSB0SU100001"]["search_label"] == "Genesis GV80"
     assert by_vin["KMUHBDSB0SU100001"]["package_status"] == "confirmed"
-    print("\n[OK] Package detection across BMW iX, BMW X5, and Genesis GV80")
+    print("\n[OK] Package detection across BMW iX (M60), BMW X5, Genesis GV80")
 
     # --- Verify email HTML renders and orders confirmed-first ---
     html_body = car_watch.render_email_html(matches)
     assert "CONFIRMED" in html_body and "VERIFY" in html_body
     assert "Professional Package CONFIRMED" in html_body
-    # The first confirmed card should appear before the verify card in the HTML.
-    assert html_body.index("WB523CF09PCM00001") < html_body.index(
-        "WB523CF09PCM00002"), "confirmed cars must render before verify cars"
+    # The confirmed cards should appear before the verify card in the HTML.
+    assert html_body.index("WB523CF09PCM00003") < html_body.index(
+        "WB523CF09PCM00004"), "confirmed cars must render before verify cars"
     print("[OK] Email HTML rendered (%d chars), confirmed sorted first" %
           len(html_body))
 
@@ -176,10 +160,10 @@ def main():
     car_watch.db_mark_seen(conn, matches)
     known = car_watch.db_known_vins(conn)
     conn.close()
-    assert len(known) == 5, "expected 5 VINs recorded, got %d" % len(known)
+    assert len(known) == 4, "expected 4 VINs recorded, got %d" % len(known)
     new_after = [m for m in matches if m["vin"] not in known]
     assert new_after == [], "after marking seen, nothing should be new"
-    print("[OK] Dedupe: 5 VINs recorded, 0 new on re-check")
+    print("[OK] Dedupe: 4 VINs recorded, 0 new on re-check")
 
     print("\n########## PASS 2: dry-run after dedupe (0 new) ##########")
     # Dry-run does NOT use the DB-write path, but confirm run() handles the

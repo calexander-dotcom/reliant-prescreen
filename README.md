@@ -30,7 +30,7 @@ attribute). The three shipped searches are:
 
 | Search        | Make/Model    | Trims               | Year    | Mileage    | Price     | Color                   | Option package                    |
 |---------------|---------------|---------------------|---------|------------|-----------|-------------------------|-----------------------------------|
-| BMW iX        | BMW iX        | `xDrive50`, `M60`   | ≥ 2023  | < 30,000   | ≤ $55,000 | Black Sapphire Metallic | Driving Assistance Professional   |
+| BMW iX        | BMW iX        | `M60`               | ≥ 2023  | < 30,000   | ≤ $55,000 | Black Sapphire Metallic | Driving Assistance Professional   |
 | BMW X5        | BMW X5        | any                 | 2025    | —          | —         | any                     | Professional Package              |
 | Genesis GV80  | Genesis GV80  | `3.5T Advanced`     | any     | —          | —         | any                     | Advanced                          |
 

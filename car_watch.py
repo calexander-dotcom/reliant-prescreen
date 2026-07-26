@@ -78,7 +78,7 @@ SEARCHES = [
         "label": "BMW iX",
         "make": "BMW",
         "model": "iX",
-        "trims": ["xDrive50", "M60"],
+        "trims": ["M60"],
         "year_min": 2023,
         "year_max": None,
         "miles_max": 30000,
