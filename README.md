@@ -218,6 +218,36 @@ the `>> car_watch.log` redirect simply captures anything else cron prints.
 
 ---
 
+## Updating an already-running deployment
+
+If the tool is already installed on a server and you've changed the search
+criteria (or pulled new features), get the update live with one command on that
+server — no restart needed, the hourly cron picks up the new file automatically:
+
+```bash
+cd /home/ubuntu/car_watch      # wherever it was cloned
+git pull                       # fetch the latest code
+python3 test_dry_run.py        # optional: sanity-check it still passes
+```
+
+If you keep new work on a feature branch, either merge it into the branch the
+server tracks (usually the default branch) first, or check that branch out on
+the server:
+
+```bash
+git fetch origin
+git checkout <branch-name> && git pull
+```
+
+To confirm what the server will actually send after an update, run a one-off
+preview there (does not email/text, does not touch the dedupe DB):
+
+```bash
+. ./.env && python3 car_watch.py --dry-run
+```
+
+---
+
 ## How option-package detection works
 
 MarketCheck (like most listing APIs) doesn't reliably filter on option
