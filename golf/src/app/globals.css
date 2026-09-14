@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  /* High contrast on purpose: this gets read on a phone in direct sunlight. */
+  background: #f6f7f5;
+  color: #14181a;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  /* Keep the fixed bottom nav clear of the home-bar area. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Stop iOS zooming the page when a numeric field is focused. */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
