@@ -19,6 +19,7 @@ import {
 
 const DEFAULT_BASE = "https://api2.ghin.com/api/v1";
 const DEFAULT_SOURCE = "GHINcom";
+const DEFAULT_CLIENT_TOKEN = "nonblank";
 const TIMEOUT_MS = 15_000;
 
 export function ghinBase(): string {
@@ -27,6 +28,21 @@ export function ghinBase(): string {
 
 function ghinSource(): string {
   return process.env.GHIN_SOURCE || DEFAULT_SOURCE;
+}
+
+/**
+ * The login endpoint requires a non-empty `token` field in the body, separate
+ * from the session token it hands back. Sending the request without it returns
+ *
+ *     400  {"errors":{"token":["can't be blank"]}}
+ *
+ * which is a presence check, not a value check — the literal "nonblank" is what
+ * public clients for this API send and it satisfies the validation. Overridable
+ * via GHIN_CLIENT_TOKEN in case GHIN ever starts checking the value, so that
+ * would be a config change rather than a patch.
+ */
+function ghinClientToken(): string {
+  return process.env.GHIN_CLIENT_TOKEN || DEFAULT_CLIENT_TOKEN;
 }
 
 export class GhinError extends Error {
@@ -56,6 +72,9 @@ interface RequestOptions {
  * upstream text is passed through either way.
  */
 function describeStatus(status: number): string {
+  if (status === 400) {
+    return "GHIN rejected the shape of the request (400). Its own validation message is in the detail below.";
+  }
   if (status === 401) return "GHIN rejected the credentials or the session expired.";
   if (status === 403) {
     return "The request to GHIN was blocked (403). That is usually a network or firewall restriction rather than a wrong password — see the detail below.";
@@ -127,10 +146,15 @@ export async function ghinLogin(
   const payload = await ghinRequest("golfer_login.json", {
     method: "POST",
     body: {
-      user: { email_or_ghin: emailOrGhin, password, remember_me: false },
-      // Some builds of the endpoint read these at the top level instead.
-      email_or_ghin: emailOrGhin,
-      password,
+      token: ghinClientToken(),
+      // The nested shape is confirmed: a request missing only the client token
+      // came back complaining about `token` alone, so email and password were
+      // read correctly from here.
+      user: {
+        email_or_ghin: emailOrGhin,
+        password,
+        remember_me: "true",
+      },
     },
   });
 

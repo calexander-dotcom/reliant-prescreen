@@ -130,6 +130,10 @@ How it is wired:
   should not be posted to a third party from the page.
 - The password is used once, for a token, and is never stored or logged. The
   token lives in `sessionStorage` and is gone when the tab closes.
+- The login body carries a `token` field separate from the session token GHIN
+  returns. It is a presence check, not a value check, so the default
+  (`"nonblank"`) satisfies it; set `GHIN_CLIENT_TOKEN` if that ever changes.
+  Omitting it returns `400 {"errors":{"token":["can't be blank"]}}`.
 - Response parsing in `src/lib/ghin/normalize.ts` is deliberately tolerant:
   every field is looked up through a list of plausible names and both
   `snake_case` and `PascalCase` shapes are handled, so one renamed key degrades
@@ -159,7 +163,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 89 unit tests over the betting math
+npm test             # 102 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```

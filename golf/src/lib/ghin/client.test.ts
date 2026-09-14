@@ -17,6 +17,27 @@ function stubFetch(
   return calls;
 }
 
+/** Capture the parsed JSON body of the next request. */
+function captureBody() {
+  const sent: Record<string, unknown>[] = [];
+  stubFetch((_url, init) => {
+    sent.push(JSON.parse(String(init.body ?? "{}")));
+    return { status: 200, body: '{"golfer_user":{"golfer_user_token":"tok"}}' };
+  });
+  return sent;
+}
+
+/** Assert the call rejects, and hand back the error already narrowed. */
+async function expectGhinError(promise: Promise<unknown>): Promise<GhinError> {
+  try {
+    await promise;
+  } catch (error) {
+    expect(error).toBeInstanceOf(GhinError);
+    return error as GhinError;
+  }
+  throw new Error("expected the request to reject, but it resolved");
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -24,8 +45,7 @@ afterEach(() => {
 describe("error reporting", () => {
   it("calls a 401 a credentials problem", async () => {
     stubFetch(() => ({ status: 401, body: '{"error":"bad login"}' }));
-    const error = await ghinRequest("golfers/favorites.json").catch((e) => e);
-    expect(error).toBeInstanceOf(GhinError);
+    const error = await expectGhinError(ghinRequest("golfers/favorites.json"));
     expect(error.status).toBe(401);
     expect(error.message).toMatch(/rejected the credentials/i);
   });
@@ -35,7 +55,7 @@ describe("error reporting", () => {
       status: 403,
       body: "Host not in allowlist: api2.ghin.com",
     }));
-    const error = await ghinRequest("golfers/favorites.json").catch((e) => e);
+    const error = await expectGhinError(ghinRequest("golfers/favorites.json"));
     expect(error.status).toBe(403);
     expect(error.message).toMatch(/blocked/i);
     expect(error.message).toMatch(/network or firewall/i);
@@ -54,7 +74,7 @@ describe("error reporting", () => {
 
   it("reports a non-JSON response rather than throwing a parse error", async () => {
     stubFetch(() => ({ status: 200, body: "<html>maintenance</html>" }));
-    const error = await ghinRequest("x.json").catch((e) => e);
+    const error = await expectGhinError(ghinRequest("x.json"));
     expect(error.message).toMatch(/not JSON/i);
     expect(error.detail).toContain("maintenance");
   });
@@ -71,6 +91,47 @@ describe("request shape", () => {
     expect(calls[0]).toContain("source=");
     expect(calls[0]).toContain("/golfers/favorites.json");
     expect(auth).toBe("Bearer tok123");
+  });
+});
+
+describe("ghinLogin payload", () => {
+  // Regression: the live endpoint answered 400 {"errors":{"token":["can't be
+  // blank"]}} because this field was missing entirely.
+  it("sends a non-blank client token", async () => {
+    const sent = captureBody();
+    await ghinLogin("me@example.com", "pw");
+    expect(sent[0].token).toBeTruthy();
+    expect(String(sent[0].token).length).toBeGreaterThan(0);
+  });
+
+  it("nests the credentials under user, where GHIN reads them", async () => {
+    const sent = captureBody();
+    await ghinLogin("me@example.com", "pw");
+    expect(sent[0].user).toEqual({
+      email_or_ghin: "me@example.com",
+      password: "pw",
+      remember_me: "true",
+    });
+  });
+
+  it("lets the client token be overridden by config", async () => {
+    vi.stubEnv("GHIN_CLIENT_TOKEN", "a-real-token");
+    const sent = captureBody();
+    await ghinLogin("me@example.com", "pw");
+    expect(sent[0].token).toBe("a-real-token");
+    vi.unstubAllEnvs();
+  });
+
+  it("explains a 400 as a rejected request, not a bad password", async () => {
+    stubFetch(() => ({
+      status: 400,
+      body: '{"errors":{"token":["can\'t be blank"]}}',
+    }));
+    const error = await expectGhinError(ghinLogin("me@example.com", "pw"));
+    expect(error.status).toBe(400);
+    expect(error.message).toMatch(/shape of the request/i);
+    expect(error.message).not.toMatch(/credential/i);
+    expect(error.detail).toContain("can't be blank");
   });
 });
 
