@@ -48,6 +48,24 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
 }
 
+/**
+ * A 401 is GHIN turning down the credentials. A 403 usually is not — it is
+ * something between you and GHIN refusing the connection (an egress allowlist,
+ * a corporate proxy, a WAF, a blocked region). Reporting that as a bad password
+ * sends you chasing the wrong problem, so the two are kept separate and the
+ * upstream text is passed through either way.
+ */
+function describeStatus(status: number): string {
+  if (status === 401) return "GHIN rejected the credentials or the session expired.";
+  if (status === 403) {
+    return "The request to GHIN was blocked (403). That is usually a network or firewall restriction rather than a wrong password — see the detail below.";
+  }
+  if (status === 404) return "That GHIN endpoint does not exist (404).";
+  if (status === 429) return "GHIN is rate limiting this account. Wait a bit and retry.";
+  if (status >= 500) return `GHIN is having trouble (${status}). Try again shortly.`;
+  return `GHIN returned ${status}.`;
+}
+
 export async function ghinRequest(
   path: string,
   options: RequestOptions = {},
@@ -90,13 +108,7 @@ export async function ghinRequest(
   const text = await response.text();
 
   if (!response.ok) {
-    throw new GhinError(
-      response.status === 401 || response.status === 403
-        ? "GHIN rejected the credentials or the session expired."
-        : `GHIN returned ${response.status}.`,
-      response.status,
-      text.slice(0, 500) || null,
-    );
+    throw new GhinError(describeStatus(response.status), response.status, text.slice(0, 500) || null);
   }
 
   if (!text) return null;
