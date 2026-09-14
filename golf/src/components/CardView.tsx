@@ -1,0 +1,248 @@
+"use client";
+
+import type { RoundComputation } from "@/lib/bets";
+import { ledgerStatus } from "@/lib/bets/ledger";
+import { formatCompact } from "@/lib/money";
+import type { Round } from "@/lib/types";
+import { Banner, Card, SectionTitle } from "./ui";
+
+/**
+ * The whole card at a glance: gross score with that hole's money underneath.
+ * Holes still out of balance are flagged in the row so they get fixed before
+ * anyone settles up.
+ */
+export function CardView({
+  round,
+  comp,
+  onPickHole,
+}: {
+  round: Round;
+  comp: RoundComputation;
+  onPickHole: (hole: number) => void;
+}) {
+  const ids = round.players.map((player) => player.id);
+  const status = ledgerStatus(round.manual, ids, round.holeCount);
+  const unbalanced = new Set(comp.unbalancedHoles);
+
+  const front = comp.holes.filter((hole) => hole.number <= 9);
+  const back = comp.holes.filter((hole) => hole.number > 9);
+
+  return (
+    <div className="space-y-4">
+      {comp.unbalancedHoles.length > 0 ? (
+        <Banner tone="warn">
+          {comp.unbalancedHoles.length === 1
+            ? `Hole ${comp.unbalancedHoles[0]} does not net to zero`
+            : `Holes ${comp.unbalancedHoles.join(", ")} do not net to zero`}{" "}
+          — those holes are left out of the totals until they balance.
+        </Banner>
+      ) : null}
+
+      <Card className="overflow-x-auto">
+        <SectionTitle hint="Score on top, that hole's money underneath. Tap a hole to edit it.">
+          Scorecard
+        </SectionTitle>
+        <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
+              <th className="sticky left-0 bg-white py-2 pr-2 text-left">Hole</th>
+              <th className="px-1 py-2 text-center font-semibold">Par</th>
+              {round.players.map((player) => (
+                <th key={player.id} className="px-1 py-2 text-center font-semibold">
+                  <span className="block max-w-[4.5rem] truncate">
+                    {player.name.split(" ")[0]}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[front, back].map((group, groupIndex) =>
+              group.length === 0 ? null : (
+                <HoleGroup
+                  key={groupIndex}
+                  label={groupIndex === 0 ? "Out" : "In"}
+                  holes={group}
+                  round={round}
+                  comp={comp}
+                  status={status}
+                  unbalanced={unbalanced}
+                  onPickHole={onPickHole}
+                />
+              ),
+            )}
+            <tr className="border-t-2 border-neutral-300 font-bold">
+              <td className="sticky left-0 bg-white py-2 pr-2 text-left">Total</td>
+              <td className="px-1 py-2 text-center text-neutral-500">
+                {comp.holes.reduce((sum, hole) => sum + hole.par, 0)}
+              </td>
+              {round.players.map((player) => (
+                <td key={player.id} className="px-1 py-2 text-center">
+                  {comp.totalsByPlayer[player.id]?.gross || "–"}
+                </td>
+              ))}
+            </tr>
+            <tr className="text-neutral-600">
+              <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase">
+                Net
+              </td>
+              <td />
+              {round.players.map((player) => (
+                <td key={player.id} className="px-1 py-1.5 text-center">
+                  {comp.totalsByPlayer[player.id]?.holesPosted
+                    ? comp.totalsByPlayer[player.id].net
+                    : "–"}
+                </td>
+              ))}
+            </tr>
+            <tr className="border-t border-neutral-200">
+              <td className="sticky left-0 bg-white py-2 pr-2 text-left text-xs uppercase text-neutral-500">
+                Money
+              </td>
+              <td />
+              {round.players.map((player) => {
+                const total = comp.grandTotals[player.id] ?? 0;
+                return (
+                  <td
+                    key={player.id}
+                    className={`px-1 py-2 text-center font-bold ${
+                      total > 0
+                        ? "text-turf-700"
+                        : total < 0
+                          ? "text-red-700"
+                          : "text-neutral-400"
+                    }`}
+                  >
+                    {formatCompact(total)}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </Card>
+
+      <Card>
+        <SectionTitle hint="Course handicap, then strokes actually played after the round's handicap rule.">
+          Handicaps
+        </SectionTitle>
+        <ul className="divide-y divide-neutral-100">
+          {round.players.map((player) => {
+            const strokes = comp.strokes[player.id];
+            return (
+              <li key={player.id} className="flex items-center justify-between py-2">
+                <span className="truncate pr-2 font-semibold text-neutral-900">
+                  {player.name}
+                </span>
+                <span className="tabular text-sm text-neutral-600">
+                  {player.handicapIndex === null
+                    ? "no index"
+                    : `index ${player.handicapIndex.toFixed(1)}`}
+                  {" · "}
+                  {strokes?.courseHandicap === null || strokes === undefined
+                    ? "CH –"
+                    : `CH ${strokes.courseHandicap}`}
+                  {" · "}
+                  <strong className="text-neutral-900">
+                    {strokes?.playingHandicap === null || strokes === undefined
+                      ? "plays –"
+                      : `plays ${strokes.playingHandicap}`}
+                  </strong>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-2 text-xs text-neutral-500">
+          The money row adds up the holes you entered by hand plus every nassau,
+          press and skin that has settled. A hole that does not net to zero is
+          left out until it does.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+function HoleGroup({
+  label,
+  holes,
+  round,
+  comp,
+  status,
+  unbalanced,
+  onPickHole,
+}: {
+  label: string;
+  holes: RoundComputation["holes"];
+  round: Round;
+  comp: RoundComputation;
+  status: ReturnType<typeof ledgerStatus>;
+  unbalanced: Set<number>;
+  onPickHole: (hole: number) => void;
+}) {
+  const subtotal = (playerId: string) =>
+    holes.reduce((sum, hole) => sum + (comp.cells[playerId]?.[hole.number]?.gross ?? 0), 0);
+
+  return (
+    <>
+      {holes.map((hole) => {
+        const holeStatus = status[hole.number - 1];
+        return (
+          <tr
+            key={hole.number}
+            onClick={() => onPickHole(hole.number)}
+            className={`cursor-pointer border-b border-neutral-100 ${
+              unbalanced.has(hole.number) ? "bg-amber-50" : ""
+            }`}
+          >
+            <th className="sticky left-0 bg-inherit py-1.5 pr-2 text-left font-semibold text-neutral-700">
+              {hole.number}
+              {unbalanced.has(hole.number) ? (
+                <span className="ml-1 text-amber-700" title="Does not net to zero">
+                  !
+                </span>
+              ) : null}
+            </th>
+            <td className="px-1 py-1.5 text-center text-neutral-500">{hole.par}</td>
+            {round.players.map((player) => {
+              const cell = comp.cells[player.id]?.[hole.number];
+              const money = holeStatus?.amounts[player.id] ?? 0;
+              return (
+                <td key={player.id} className="px-1 py-1.5 text-center">
+                  <div className="font-semibold text-neutral-900">
+                    {cell?.gross ?? "–"}
+                    {cell && cell.gross !== null && cell.strokes > 0 ? (
+                      <span className="align-super text-[0.6rem] text-turf-600">
+                        {"•".repeat(Math.min(cell.strokes, 3))}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    className={`text-[0.65rem] leading-none ${
+                      money > 0 ? "text-turf-600" : "text-red-600"
+                    }`}
+                  >
+                    {money === 0 ? "\u00a0" : formatCompact(money)}
+                  </div>
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+      <tr className="border-b border-neutral-200 bg-neutral-50 font-semibold">
+        <td className="sticky left-0 bg-neutral-50 py-1.5 pr-2 text-left text-xs uppercase text-neutral-500">
+          {label}
+        </td>
+        <td className="px-1 py-1.5 text-center text-neutral-500">
+          {holes.reduce((sum, hole) => sum + hole.par, 0)}
+        </td>
+        {round.players.map((player) => (
+          <td key={player.id} className="px-1 py-1.5 text-center">
+            {subtotal(player.id) || "–"}
+          </td>
+        ))}
+      </tr>
+    </>
+  );
+}

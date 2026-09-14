@@ -1,3 +1,12 @@
+# Projects in this repo
+
+| Path | What it is |
+|------|------------|
+| [`car_watch.py`](car_watch.py) | Python CLI that watches used-car listings and emails new matches. Documented below. |
+| [`golf/`](golf/) | Golf round + gambling tracker (Next.js). Zero-sum hole ledger, nassau with presses, skins, GHIN import. See [`golf/README.md`](golf/README.md). |
+
+---
+
 # car_watch.py
 
 A dependency-light Python CLI that monitors used-car listings on the

@@ -1,0 +1,262 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ApiError, apiCourse, apiFavoriteCourses, apiSearchCourses } from "@/lib/api";
+import type { CourseSummary } from "@/lib/ghin/normalize";
+import type { Round } from "@/lib/types";
+import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
+
+export function CoursePicker({
+  round,
+  update,
+  token,
+}: {
+  round: Round;
+  update: (next: Round) => void;
+  token: string | null;
+}) {
+  const [favorites, setFavorites] = useState<CourseSummary[]>([]);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<CourseSummary[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setBusy("favorites");
+    apiFavoriteCourses(token)
+      .then((courses) => {
+        if (!cancelled) setFavorites(courses);
+      })
+      .catch(() => {
+        // No favorites endpoint on this account is fine — search still works.
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const search = async () => {
+    if (!token) return;
+    setBusy("search");
+    setError(null);
+    try {
+      setResults(await apiSearchCourses(token, query.trim()));
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Course search failed.");
+      setResults([]);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const choose = async (summary: CourseSummary) => {
+    if (!token) return;
+    setBusy(summary.id);
+    setError(null);
+    try {
+      const course = await apiCourse(token, summary.id);
+      const tee = course.tees[0] ?? null;
+      update({
+        ...round,
+        course,
+        courseName: course.name,
+        teeId: tee?.id ?? null,
+        holeCount: (tee?.holes.length ?? 18) > 9 ? 18 : tee?.holes.length === 9 ? 9 : 18,
+      });
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : "Could not load that course.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card>
+      <SectionTitle hint="Pulls tees, ratings and hole-by-hole par and stroke index.">
+        Course
+      </SectionTitle>
+
+      {round.course ? (
+        <div className="mb-3 rounded-xl bg-turf-50 p-3 ring-1 ring-inset ring-turf-200">
+          <div className="font-bold text-turf-900">{round.course.name}</div>
+          <div className="text-sm text-turf-800">
+            {[round.course.city, round.course.state].filter(Boolean).join(", ")}
+          </div>
+          {round.course.tees.length > 0 ? (
+            <div className="mt-3">
+              <Field label="Tees">
+                <select
+                  value={round.teeId ?? ""}
+                  onChange={(event) => update({ ...round, teeId: event.target.value })}
+                  className={inputClass}
+                >
+                  {round.course.tees.map((tee) => (
+                    <option key={tee.id} value={tee.id}>
+                      {tee.name}
+                      {tee.gender ? ` (${tee.gender})` : ""} — {tee.courseRating} /{" "}
+                      {tee.slopeRating}
+                      {tee.yardage ? ` · ${tee.yardage} yds` : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          ) : (
+            <Banner tone="warn">
+              This course came back with no tee ratings, so handicaps fall back to
+              scratch. You can still score and track money.
+            </Banner>
+          )}
+          <div className="mt-3">
+            <Button
+              variant="secondary"
+              onClick={() => update({ ...round, course: null, teeId: null })}
+            >
+              Change course
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <Field label="Course name" hint="Type it in if you are not importing from GHIN.">
+            <input
+              value={round.courseName}
+              onChange={(event) => update({ ...round, courseName: event.target.value })}
+              className={inputClass}
+              placeholder="Riverside Municipal"
+            />
+          </Field>
+
+          {token ? (
+            <>
+              {favorites.length > 0 ? (
+                <div>
+                  <div className="mb-1.5 text-sm font-semibold text-neutral-700">
+                    Your GHIN course favorites
+                  </div>
+                  <ul className="space-y-1.5">
+                    {favorites.map((course) => (
+                      <CourseRow
+                        key={course.id}
+                        course={course}
+                        busy={busy === course.id}
+                        onChoose={() => void choose(course)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <div>
+                <Field label="Search GHIN courses">
+                  <div className="flex gap-2">
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      className={inputClass}
+                      placeholder="At least 3 letters"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && query.trim().length >= 3) {
+                          void search();
+                        }
+                      }}
+                    />
+                    <Button
+                      onClick={() => void search()}
+                      disabled={query.trim().length < 3 || busy === "search"}
+                    >
+                      Find
+                    </Button>
+                  </div>
+                </Field>
+                {busy === "search" || busy === "favorites" ? (
+                  <div className="mt-2">
+                    <Spinner label="Asking GHIN…" />
+                  </div>
+                ) : null}
+                {results !== null && results.length === 0 && busy !== "search" ? (
+                  <p className="mt-2 text-sm text-neutral-600">No courses matched.</p>
+                ) : null}
+                {results && results.length > 0 ? (
+                  <ul className="mt-2 space-y-1.5">
+                    {results.map((course) => (
+                      <CourseRow
+                        key={course.id}
+                        course={course}
+                        busy={busy === course.id}
+                        onChoose={() => void choose(course)}
+                      />
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <Banner>
+              Connect GHIN above to import a course, or just type the name and play
+              off a plain par-72 card.
+            </Banner>
+          )}
+
+          {error ? <Banner tone="error">{error}</Banner> : null}
+        </div>
+      )}
+
+      <div className="mt-4 border-t border-neutral-100 pt-3">
+        <Field label="Holes">
+          <div className="flex gap-2">
+            {[9, 18].map((count) => (
+              <Button
+                key={count}
+                variant={round.holeCount === count ? "primary" : "secondary"}
+                onClick={() => update({ ...round, holeCount: count })}
+              >
+                {count} holes
+              </Button>
+            ))}
+          </div>
+        </Field>
+      </div>
+    </Card>
+  );
+}
+
+function CourseRow({
+  course,
+  busy,
+  onChoose,
+}: {
+  course: CourseSummary;
+  busy: boolean;
+  onChoose: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onChoose}
+        disabled={busy}
+        className="flex w-full items-center justify-between gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 text-left active:bg-neutral-100"
+      >
+        <span className="min-w-0">
+          <span className="block truncate font-semibold text-neutral-900">
+            {course.name}
+          </span>
+          <span className="block truncate text-xs text-neutral-500">
+            {[course.city, course.state].filter(Boolean).join(", ") || "—"}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-semibold text-turf-700">
+          {busy ? "Loading…" : "Use"}
+        </span>
+      </button>
+    </li>
+  );
+}
