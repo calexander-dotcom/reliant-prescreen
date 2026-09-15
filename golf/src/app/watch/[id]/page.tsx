@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BetsView } from "@/components/BetsView";
 import { CardView } from "@/components/CardView";
 import { SettleView } from "@/components/SettleView";
@@ -20,8 +20,16 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "settle", label: "Settle" },
 ];
 
-/** How often to ask for a newer copy of the round. */
-const POLL_MS = 10_000;
+/**
+ * How often to ask for a newer copy of the round.
+ *
+ * Starts quick after a change and eases off while nothing is happening, which
+ * matters because these reads are the running cost of sharing: a fixed
+ * ten-second poll for a four-hour round is well over a thousand reads per
+ * follower, most of them returning the same card between holes.
+ */
+const POLL_MIN_MS = 10_000;
+const POLL_MAX_MS = 45_000;
 
 /**
  * Following a round, read only.
@@ -38,31 +46,63 @@ export default function WatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const [loading, setLoading] = useState(true);
+  /** Current gap between polls, widened while nothing changes. */
+  const delay = useRef(POLL_MIN_MS);
+  const lastSeen = useRef<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!id) return;
+  /** Fetch, and say whether anything actually changed. */
+  const load = useCallback(async (): Promise<boolean> => {
+    if (!id) return false;
     try {
-      setShared(await apiFetchShare(id));
+      const next = await apiFetchShare(id);
+      setShared((current) =>
+        current && current.updatedAt === next.updatedAt ? current : next,
+      );
       setError(null);
       setGone(false);
+      const changed = lastSeen.current !== next.updatedAt;
+      lastSeen.current = next.updatedAt;
+      return changed;
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 404) setGone(true);
       else setError(caught instanceof ApiError ? caught.message : "Could not load.");
+      return false;
     } finally {
       setLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), POLL_MS);
-    // Catch up straight away when the phone comes back out of a pocket.
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      // A backgrounded tab polls nothing; coming back to it restarts this.
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      const changed = await load();
+      if (stopped) return;
+      delay.current = changed
+        ? POLL_MIN_MS
+        : Math.min(POLL_MAX_MS, Math.round(delay.current * 1.5));
+      timer = setTimeout(() => void tick(), delay.current);
+    };
+
+    void tick();
+
     const onVisible = () => {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState !== "visible") return;
+      // Catch up straight away, and be quick again for a while.
+      delay.current = POLL_MIN_MS;
+      if (timer) clearTimeout(timer);
+      void tick();
     };
     document.addEventListener("visibilitychange", onVisible);
+
     return () => {
-      clearInterval(timer);
+      stopped = true;
+      if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);

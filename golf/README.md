@@ -167,7 +167,16 @@ That is enforced by how it is built, not by hiding buttons:
 - The viewer page issues nothing but `GET`.
 
 Updates are debounced a few seconds rather than sent per keystroke, since
-entering a hole is several edits in a row. The shared copy is deleted a week
+entering a hole is several edits in a row.
+
+Followers poll rather than hold a connection, and the reads are the running
+cost of sharing, so the polling is deliberately cheap: it starts at ten seconds
+after a change, eases out to forty-five while nothing is happening, and stops
+entirely while the tab is in the background. A flat ten-second poll would be
+over a thousand reads per follower for one round, nearly all of them returning
+the same card between holes. The cost of that is a change taking up to
+forty-five seconds to appear after a quiet spell, which is nothing against a
+twelve-minute hole. The shared copy is deleted a week
 after the last update, and each publish pushes that out again, so it lives a
 week past the final hole rather than a week past the first.
 
