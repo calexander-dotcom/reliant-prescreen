@@ -148,3 +148,71 @@ describe("removePlayer", () => {
     expect(computeRound(round).unbalancedHoles).toEqual([1]);
   });
 });
+
+describe("autofilling the last player", () => {
+  it("derives the fourth player once three are in", () => {
+    let round = setManualAmount(base, 7, "p1", 2000);
+    expect(round.manual[7].amounts.p4).toBe(0);
+
+    round = setManualAmount(round, 7, "p2", 3000);
+    expect(round.manual[7].amounts.p4).toBe(0);
+
+    // Third one in: p4 is no longer a guess, it is whatever balances.
+    round = setManualAmount(round, 7, "p3", -4000);
+    expect(round.manual[7].amounts.p4).toBe(-1000);
+    expect(isBalanced(round.manual[7].amounts, ids)).toBe(true);
+  });
+
+  it("keeps re-deriving as the others are corrected", () => {
+    let round = setManualAmount(base, 7, "p1", 2000);
+    round = setManualAmount(round, 7, "p2", 3000);
+    round = setManualAmount(round, 7, "p3", -4000);
+    expect(round.manual[7].amounts.p4).toBe(-1000);
+
+    round = setManualAmount(round, 7, "p2", 1000);
+    expect(round.manual[7].amounts.p4).toBe(1000);
+    expect(isBalanced(round.manual[7].amounts, ids)).toBe(true);
+  });
+
+  it("stops deriving once that player is typed in directly", () => {
+    let round = setManualAmount(base, 7, "p1", 2000);
+    round = setManualAmount(round, 7, "p2", 3000);
+    round = setManualAmount(round, 7, "p3", -4000);
+    round = setManualAmount(round, 7, "p4", -2000);
+    expect(round.manual[7].amounts.p4).toBe(-2000);
+
+    // Everyone has been entered now, so the hole is simply out of balance.
+    round = setManualAmount(round, 7, "p1", 2500);
+    expect(round.manual[7].amounts.p4).toBe(-2000);
+    expect(isBalanced(round.manual[7].amounts, ids)).toBe(false);
+  });
+
+  it("does not overwrite a real zero", () => {
+    // p3 genuinely pushed: typing 0 counts as entered.
+    let round = setManualAmount(base, 7, "p1", 1000);
+    round = setManualAmount(round, 7, "p3", 0);
+    round = setManualAmount(round, 7, "p2", 1000);
+    expect(round.manual[7].amounts.p3).toBe(0);
+    expect(round.manual[7].amounts.p4).toBe(-2000);
+  });
+
+  it("lets a named banker take precedence over the last-player rule", () => {
+    let round = setBanker(base, 7, "p1");
+    round = setManualAmount(round, 7, "p2", -1000);
+    round = setManualAmount(round, 7, "p3", -1000);
+    // The banker absorbs, rather than p4 being made to.
+    expect(round.manual[7].amounts.p1).toBe(2000);
+    expect(round.manual[7].amounts.p4).toBe(0);
+  });
+
+  it("starts over after the hole is cleared", () => {
+    let round = setManualAmount(base, 7, "p1", 2000);
+    round = setManualAmount(round, 7, "p2", 3000);
+    round = setManualAmount(round, 7, "p3", -4000);
+    round = clearHoleMoney(round, 7);
+    expect(round.manual[7].touched).toEqual([]);
+
+    round = setManualAmount(round, 7, "p1", 500);
+    expect(round.manual[7].amounts.p4).toBe(0);
+  });
+});

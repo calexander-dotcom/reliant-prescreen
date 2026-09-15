@@ -85,6 +85,30 @@ The rules, precisely:
 A parenthesised number means the other side leads that bet — `(-1)` is side B
 one up — both because that is the convention and because `0--1` is unreadable.
 
+### Banker
+
+One player holds the deal and plays a **separate bet against every other
+player**, so a good hole collects from everybody and a bad one pays everybody.
+
+The deal then passes to **whoever won the most money on the hole**. Since the
+banker is in every bet, a banker who is winning tends to keep it. A hole where
+nobody won anything leaves the deal where it is, and it can always be handed
+over by hand for one hole.
+
+Money comes from one of two places:
+
+- **What you type** (default) — you enter what each player won or lost and this
+  game only tracks who holds the deal. No scores needed at all. A banker hole
+  usually carries side action that no stroke comparison can know about, and
+  it is one number per player instead of four scores.
+- **The scores** — the app compares the banker's score against each opponent's
+  and pays the stake each way. Any opponent can double their own bet for the
+  hole, and the banker can double back against that one player, so somebody can
+  be on for 4x while the rest are flat.
+
+In the money-typed mode this bet reports no money of its own, because the hole
+ledger already counts it — otherwise everybody would be paid twice.
+
 ### Nassau, with presses
 
 Front nine, back nine and total eighteen, each playing for the same stake,
@@ -209,7 +233,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 156 unit tests over the betting math and GHIN parsing
+npm test             # 193 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```
@@ -240,6 +264,7 @@ src/lib/
     ledger.ts       the zero-sum hole ledger
     nassau.ts       segments, presses, match status, payouts
     onedown.ts      the stacking one-down game
+    banker.ts       banker, and who holds the deal
     skins.ts        carryover, validation
     settle.ts       net positions -> fewest payments
     index.ts        ties it all together (computeRound)

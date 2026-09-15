@@ -139,7 +139,50 @@ export interface OneDownConfig {
   stakeMode: "per-side" | "per-player";
 }
 
-export type BetConfig = NassauConfig | SkinsConfig | OneDownConfig;
+/**
+ * Banker: one player takes the whole group on, hole by hole.
+ *
+ * The banker plays a separate bet against each other player, so a good hole
+ * collects from everybody and a bad one pays everybody. The deal then passes to
+ * whoever won the most money on the hole — which usually means a banker who is
+ * winning keeps it.
+ */
+export interface BankerConfig {
+  kind: "banker";
+  id: string;
+  label: string;
+  /**
+   * Where the money comes from.
+   *  - "manual"  you type what each player won or lost on the hole, and this
+   *              bet only tracks who holds the deal. No scores needed.
+   *  - "scores"  the app works it out from the scores and the doubles.
+   *
+   * Manual is the default because a banker hole usually carries side action
+   * that no stroke comparison can know about.
+   */
+  source: "manual" | "scores";
+  /** Base stake per opponent per hole, in cents. Used when source is "scores". */
+  amount: number;
+  basis: ScoreBasis;
+  playerIds: PlayerId[];
+  /** How the deal passes from hole to hole. */
+  rotation: "most-money" | "order" | "hole-winner" | "manual";
+  /** Who banks the first hole. Defaults to the first player in the game. */
+  firstBankerId: PlayerId | null;
+  /** Per-hole override, and the only source of bankers when rotation is manual. */
+  bankerByHole: Record<number, PlayerId>;
+  /**
+   * Stake multiplier per hole, per opponent: 1 flat, 2 when that player
+   * doubles, 4 when the banker doubles back. Keyed hole -> player -> multiple.
+   */
+  doubles: Record<number, Record<PlayerId, number>>;
+}
+
+export type BetConfig =
+  | NassauConfig
+  | SkinsConfig
+  | OneDownConfig
+  | BankerConfig;
 
 // ---------------------------------------------------------------------------
 // Round
@@ -151,6 +194,16 @@ export interface ManualHoleEntry {
   amounts: Record<PlayerId, number>;
   /** Optional banker for the hole; used by the UI to auto-derive their number. */
   bankerId?: PlayerId | null;
+  /**
+   * Players whose amount has actually been typed in.
+   *
+   * A cell nobody has touched and a cell holding a real $0 look identical in
+   * `amounts`, and the difference matters: once every player but one has been
+   * entered, the one left over is whatever balances the hole. Without this the
+   * app could not tell which player to fill in, or would overwrite a legitimate
+   * zero.
+   */
+  touched?: PlayerId[];
   note?: string;
 }
 

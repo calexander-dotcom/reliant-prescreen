@@ -1,8 +1,14 @@
 "use client";
 
-import { defaultNassau, defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
+import {
+  defaultBanker,
+  defaultNassau,
+  defaultOneDown,
+  defaultSkins,
+} from "@/lib/bets/defaults";
 import { newId } from "@/lib/storage";
 import type {
+  BankerConfig,
   BetConfig,
   NassauConfig,
   OneDownConfig,
@@ -41,6 +47,17 @@ export function BetEditor({
             />
           );
         }
+        if (bet.kind === "banker") {
+          return (
+            <BankerFields
+              key={bet.id}
+              bet={bet}
+              players={round.players}
+              onChange={replace}
+              onRemove={remove}
+            />
+          );
+        }
         if (bet.kind === "onedown") {
           return (
             <OneDownFields
@@ -69,6 +86,12 @@ export function BetEditor({
           onClick={() => setBets([...round.bets, defaultOneDown(round.players, newId())])}
         >
           + One downs
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => setBets([...round.bets, defaultBanker(round.players, newId())])}
+        >
+          + Banker
         </Button>
         <Button
           variant="secondary"
@@ -421,6 +444,145 @@ function NassauFields({
   );
 }
 
+function BankerFields({
+  bet,
+  players,
+  onChange,
+  onRemove,
+}: {
+  bet: BankerConfig;
+  players: Player[];
+  onChange: (bet: BankerConfig) => void;
+  onRemove: () => void;
+}) {
+  const playing = players.filter((player) => bet.playerIds.includes(player.id));
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <input
+          aria-label="Bet name"
+          value={bet.label}
+          onChange={(event) => onChange({ ...bet, label: event.target.value })}
+          className="min-w-0 flex-1 rounded-lg bg-transparent text-base font-bold text-turf-900 focus:bg-neutral-50"
+        />
+        <Button variant="ghost" onClick={onRemove}>
+          Remove
+        </Button>
+      </div>
+
+      <p className="mb-3 text-xs text-neutral-600">
+        The banker plays a separate bet against every other player, so a good
+        hole collects from everybody.
+      </p>
+
+      <Field
+        label="Money comes from"
+        hint={
+          bet.source === "manual"
+            ? "You type what each player won or lost on the hole. No scores needed."
+            : "Worked out from the scores and the doubles set on each hole."
+        }
+      >
+        <Toggle
+          value={bet.source}
+          onChange={(value) =>
+            onChange({ ...bet, source: value as BankerConfig["source"] })
+          }
+          options={[
+            { value: "manual", label: "What I type" },
+            { value: "scores", label: "The scores" },
+          ]}
+        />
+      </Field>
+
+      {bet.source === "scores" ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <Field label="Per player" hint="What each opponent plays the banker for.">
+            <MoneyInput
+              label="Banker amount"
+              showSign={false}
+              value={bet.amount}
+              onChange={(amount) => onChange({ ...bet, amount })}
+            />
+          </Field>
+          <Field label="Scored on">
+            <Toggle
+              value={bet.basis}
+              onChange={(basis) =>
+                onChange({ ...bet, basis: basis as BankerConfig["basis"] })
+              }
+              options={[
+                { value: "net", label: "Net" },
+                { value: "gross", label: "Gross" },
+              ]}
+            />
+          </Field>
+        </div>
+      ) : null}
+
+      <div className="mt-3">
+        <Field label="The deal passes to">
+          <select
+            aria-label="How the banker rotates"
+            value={bet.rotation}
+            onChange={(event) =>
+              onChange({ ...bet, rotation: event.target.value as BankerConfig["rotation"] })
+            }
+            className={inputClass}
+          >
+            <option value="most-money">Whoever won the most money on the hole</option>
+            <option value="hole-winner">Whoever had the low score on the hole</option>
+            <option value="order">The next player in order</option>
+            <option value="manual">Nobody — I set it each hole</option>
+          </select>
+        </Field>
+      </div>
+
+      <div className="mt-3">
+        <Field label="Banks the first hole">
+          <select
+            aria-label="First banker"
+            value={bet.firstBankerId ?? ""}
+            onChange={(event) =>
+              onChange({ ...bet, firstBankerId: event.target.value || null })
+            }
+            className={inputClass}
+          >
+            {playing.map((player) => (
+              <option key={player.id} value={player.id}>
+                {player.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-2 text-sm font-semibold text-neutral-700">Playing</div>
+        <div className="flex flex-wrap gap-2">
+          {players.map((player) => (
+            <Button
+              key={player.id}
+              variant={bet.playerIds.includes(player.id) ? "primary" : "secondary"}
+              onClick={() =>
+                onChange({
+                  ...bet,
+                  playerIds: bet.playerIds.includes(player.id)
+                    ? bet.playerIds.filter((id) => id !== player.id)
+                    : [...bet.playerIds, player.id],
+                })
+              }
+            >
+              {player.name}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function SkinsFields({
   bet,
   players,
@@ -516,7 +678,23 @@ function SkinsFields({
   );
 }
 
+const ROTATION_LABELS: Record<BankerConfig["rotation"], string> = {
+  "most-money": "deal to the biggest winner",
+  "hole-winner": "deal to the low score",
+  order: "deal in order",
+  manual: "deal set by hand",
+};
+
 export function BetSummaryLine({ bet }: { bet: BetConfig }) {
+  if (bet.kind === "banker") {
+    return (
+      <span>
+        {bet.playerIds.length} players ·{" "}
+        {bet.source === "manual" ? "money typed in" : `${bet.basis} scores`} ·{" "}
+        {ROTATION_LABELS[bet.rotation]}
+      </span>
+    );
+  }
   if (bet.kind === "onedown") {
     return (
       <span>

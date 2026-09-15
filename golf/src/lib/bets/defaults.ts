@@ -1,4 +1,5 @@
 import type {
+  BankerConfig,
   BetConfig,
   NassauConfig,
   OneDownConfig,
@@ -59,6 +60,28 @@ export function defaultOneDown(players: Player[], id: string): OneDownConfig {
   };
 }
 
+/**
+ * Banker at $5 a man, the deal passing to whoever won the most on the hole.
+ * The alternative to one downs rather than an addition — most groups play one
+ * or the other.
+ */
+export function defaultBanker(players: Player[], id: string): BankerConfig {
+  return {
+    kind: "banker",
+    id,
+    label: "Banker",
+    // Type the money; a banker hole carries side action scores cannot know.
+    source: "manual",
+    amount: 500,
+    basis: "net",
+    playerIds: players.map((player) => player.id),
+    rotation: "most-money",
+    firstBankerId: players[0]?.id ?? null,
+    bankerByHole: {},
+    doubles: {},
+  };
+}
+
 export function defaultSkins(players: Player[], id: string): SkinsConfig {
   return {
     kind: "skins",
@@ -76,5 +99,6 @@ export function betLabel(bet: BetConfig): string {
   if (bet.label) return bet.label;
   if (bet.kind === "nassau") return "Nassau";
   if (bet.kind === "onedown") return "One downs";
+  if (bet.kind === "banker") return "Banker";
   return "Skins";
 }

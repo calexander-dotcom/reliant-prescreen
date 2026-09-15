@@ -93,7 +93,13 @@ function BetResultCard({
                   ? `press at ${result.config.autoPressAt} down`
                   : "no presses"
               }`
-            : result.kind === "onedown"
+            : result.kind === "banker"
+              ? result.config.source === "manual"
+                ? "Money as entered on each hole · tracks who holds the deal"
+                : `${formatMoney(result.config.amount)} a player per hole · ${
+                    result.config.basis
+                  }`
+              : result.kind === "onedown"
               ? `${formatMoney(result.config.amount)} a bet · ${result.config.basis} · ${
                   result.config.autoPressAt > 0
                     ? `new bet at ${result.config.autoPressAt} down`
@@ -109,6 +115,8 @@ function BetResultCard({
 
       {result.kind === "onedown" ? (
         <OneDownBody result={result} />
+      ) : result.kind === "banker" ? (
+        <BankerBody result={result} nameOf={nameOf} />
       ) : result.kind === "nassau" ? (
         <ul className="space-y-1.5">
           {result.outcome.matches.map((match) => (
@@ -299,6 +307,76 @@ function OneDownBody({
               )}`}
         </span>
       </div>
+    </div>
+  );
+}
+
+function BankerBody({
+  result,
+  nameOf,
+}: {
+  result: Extract<BetResult, { kind: "banker" }>;
+  nameOf: (playerId: string) => string;
+}) {
+  const { outcome } = result;
+  const played = outcome.holes.filter((hole) => hole.settled);
+
+  return (
+    <div>
+      {outcome.nextBankerId ? (
+        <div className="rounded-xl bg-turf-50 px-3 py-2 ring-1 ring-inset ring-turf-200">
+          <span className="text-sm text-turf-900">
+            <strong className="font-bold">{nameOf(outcome.nextBankerId)}</strong> has
+            the deal
+          </span>
+        </div>
+      ) : null}
+
+      {played.length === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">
+          {result.config.source === "manual"
+            ? "No hole has money on it yet. Enter it on the Hole tab and the deal follows it."
+            : "No hole has every score in yet. A banker hole settles once everyone has posted."}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {played.map((hole) => (
+            <li
+              key={hole.hole}
+              className="flex items-baseline justify-between gap-3 rounded px-2 py-1 text-sm odd:bg-neutral-50"
+            >
+              <span className="min-w-0 truncate text-neutral-700">
+                <span className="font-semibold text-neutral-900">{hole.hole}</span>{" "}
+                {nameOf(hole.bankerId ?? "")} banked
+                {hole.bets.some((bet) => bet.multiplier > 1) ? (
+                  <span className="ml-1.5 rounded bg-amber-100 px-1 text-[0.65rem] font-bold text-amber-900">
+                    {Math.max(...hole.bets.map((bet) => bet.multiplier))}X
+                  </span>
+                ) : null}
+              </span>
+              <span
+                className={`tabular shrink-0 font-bold ${
+                  (hole.amounts[hole.bankerId ?? ""] ?? 0) > 0
+                    ? "text-turf-700"
+                    : (hole.amounts[hole.bankerId ?? ""] ?? 0) < 0
+                      ? "text-red-700"
+                      : "text-neutral-400"
+                }`}
+              >
+                {formatSigned(hole.amounts[hole.bankerId ?? ""] ?? 0)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 text-xs text-neutral-500">
+        Holes banked:{" "}
+        {Object.entries(outcome.bankedCount)
+          .filter(([, count]) => count > 0)
+          .map(([playerId, count]) => `${nameOf(playerId)} ${count}`)
+          .join(" · ") || "none yet"}
+      </p>
     </div>
   );
 }
