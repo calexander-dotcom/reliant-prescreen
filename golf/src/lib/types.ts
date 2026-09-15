@@ -226,6 +226,13 @@ export interface Round {
   bets: BetConfig[];
   /** Free-text notes for the round. */
   notes?: string;
+  /**
+   * Set once this round is being shared read-only.
+   *
+   * `token` is what lets this device keep publishing, so it must never leave
+   * here — `publishableRound` strips the whole field before anything is sent.
+   */
+  share?: { id: string; token: string } | null;
   createdAt: string;
   updatedAt: string;
 }

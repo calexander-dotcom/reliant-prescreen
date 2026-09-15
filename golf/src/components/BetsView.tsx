@@ -14,12 +14,15 @@ export function BetsView({
   round,
   comp,
   update,
+  readOnly = false,
 }: {
   round: Round;
   comp: RoundComputation;
-  update: (next: Round) => void;
+  update?: (next: Round) => void;
+  /** Followers see the standings but no way to change the terms. */
+  readOnly?: boolean;
 }) {
-  const [editing, setEditing] = useState(round.bets.length === 0);
+  const [editing, setEditing] = useState(!readOnly && round.bets.length === 0);
 
   const nameOf = (playerId: string) =>
     round.players.find((player) => player.id === playerId)?.name ?? "—";
@@ -47,11 +50,13 @@ export function BetsView({
           <SectionTitle hint="Stakes, sides, presses and skins rules.">
             Bet setup
           </SectionTitle>
-          <Button variant="secondary" onClick={() => setEditing((value) => !value)}>
-            {editing ? "Done" : "Edit"}
-          </Button>
+          {readOnly ? null : (
+            <Button variant="secondary" onClick={() => setEditing((value) => !value)}>
+              {editing ? "Done" : "Edit"}
+            </Button>
+          )}
         </div>
-        {editing ? (
+        {editing && update ? (
           <BetEditor round={round} update={update} />
         ) : (
           <ul className="space-y-2 text-sm text-neutral-600">

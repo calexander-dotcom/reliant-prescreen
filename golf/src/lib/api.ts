@@ -2,7 +2,8 @@
 
 import type { CourseSummary } from "./ghin/normalize";
 import type { GhinProbe } from "./ghin/shape";
-import type { Course, Player } from "./types";
+import type { SharedRound } from "./share/payload";
+import type { Course, Player, Round } from "./types";
 
 /** Browser-side calls to this app's own routes, which proxy GHIN server-side. */
 
@@ -123,4 +124,40 @@ export async function apiCourse(token: string | null, id: string): Promise<Cours
     { token },
   );
   return course;
+}
+
+// --- Sharing a round read-only --------------------------------------------
+
+/** Start sharing: returns the public id and the token that publishes updates. */
+export async function apiCreateShare(
+  round: Round,
+): Promise<{ id: string; token: string }> {
+  return request<{ id: string; token: string }>("/api/share", {
+    method: "POST",
+    body: JSON.stringify({ round }),
+  });
+}
+
+export async function apiPublishShare(
+  id: string,
+  token: string,
+  round: Round,
+): Promise<void> {
+  await request(`/api/share/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify({ round }),
+  });
+}
+
+export async function apiStopShare(id: string, token: string): Promise<void> {
+  await request(`/api/share/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+/** Read a shared round. No token: this is the view-only path. */
+export async function apiFetchShare(id: string): Promise<SharedRound> {
+  return request<SharedRound>(`/api/share/${encodeURIComponent(id)}`);
 }

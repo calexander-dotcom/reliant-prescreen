@@ -15,10 +15,13 @@ export function CardView({
   round,
   comp,
   onPickHole,
+  readOnly = false,
 }: {
   round: Round;
   comp: RoundComputation;
   onPickHole: (hole: number) => void;
+  /** Followers get the same card without the invitation to tap it. */
+  readOnly?: boolean;
 }) {
   const ids = round.players.map((player) => player.id);
   const status = ledgerStatus(round.manual, ids, round.holeCount);
@@ -39,7 +42,11 @@ export function CardView({
       ) : null}
 
       <Card className="overflow-x-auto">
-        <SectionTitle hint="Score on top, that hole's money underneath. Tap a hole to edit it.">
+        <SectionTitle
+          hint={`Score on top, that hole's money underneath.${
+            readOnly ? "" : " Tap a hole to edit it."
+          }`}
+        >
           Scorecard
         </SectionTitle>
         <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
@@ -68,6 +75,7 @@ export function CardView({
                   status={status}
                   unbalanced={unbalanced}
                   onPickHole={onPickHole}
+                  readOnly={readOnly}
                 />
               ),
             )}
@@ -154,9 +162,9 @@ export function CardView({
           })}
         </ul>
         <p className="mt-2 text-xs text-neutral-500">
-          The money row adds up the holes you entered by hand plus every nassau,
-          press and skin that has settled. A hole that does not net to zero is
-          left out until it does.
+          The money row adds up the hand-entered holes plus every nassau, press
+          and skin that has settled. A hole that does not net to zero is left
+          out until it does.
         </p>
       </Card>
     </div>
@@ -171,6 +179,7 @@ function HoleGroup({
   status,
   unbalanced,
   onPickHole,
+  readOnly,
 }: {
   label: string;
   holes: RoundComputation["holes"];
@@ -179,6 +188,7 @@ function HoleGroup({
   status: ReturnType<typeof ledgerStatus>;
   unbalanced: Set<number>;
   onPickHole: (hole: number) => void;
+  readOnly?: boolean;
 }) {
   const subtotal = (playerId: string) =>
     holes.reduce((sum, hole) => sum + (comp.cells[playerId]?.[hole.number]?.gross ?? 0), 0);
@@ -190,10 +200,10 @@ function HoleGroup({
         return (
           <tr
             key={hole.number}
-            onClick={() => onPickHole(hole.number)}
-            className={`cursor-pointer border-b border-neutral-100 ${
-              unbalanced.has(hole.number) ? "bg-amber-50" : ""
-            }`}
+            onClick={readOnly ? undefined : () => onPickHole(hole.number)}
+            className={`border-b border-neutral-100 ${
+              readOnly ? "" : "cursor-pointer"
+            } ${unbalanced.has(hole.number) ? "bg-amber-50" : ""}`}
           >
             <th className="sticky left-0 bg-inherit py-1.5 pr-2 text-left font-semibold text-neutral-700">
               {hole.number}
