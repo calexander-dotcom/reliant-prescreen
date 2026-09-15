@@ -15,6 +15,8 @@ const ROUNDS_KEY = "golfbets.rounds.v1";
 const TOKEN_KEY = "golfbets.ghinToken";
 const ROSTER_KEY = "golfbets.roster.v1";
 const GOLFER_ID_KEY = "golfbets.ghinNumber";
+const TEE_PREFS_KEY = "golfbets.teePrefs.v1";
+const ME_KEY = "golfbets.me.v1";
 
 function canStore(): boolean {
   return typeof window !== "undefined" && !!window.localStorage;
@@ -135,6 +137,76 @@ export function saveGolferId(golferId: string | null): void {
   if (!canStore()) return;
   if (golferId) window.localStorage.setItem(GOLFER_ID_KEY, golferId);
   else window.localStorage.removeItem(GOLFER_ID_KEY);
+}
+
+/**
+ * The account holder, kept so they survive a reload without signing in again.
+ * Not a secret — it is a name and a handicap index.
+ */
+export function loadMe(): Player | null {
+  if (!canStore()) return null;
+  const me = safeParse<Player | null>(window.localStorage.getItem(ME_KEY), null);
+  return me && me.id && me.name ? me : null;
+}
+
+export function saveMe(me: Player | null): void {
+  if (!canStore()) return;
+  if (me) window.localStorage.setItem(ME_KEY, JSON.stringify(me));
+  else window.localStorage.removeItem(ME_KEY);
+}
+
+// --- Tee preferences ------------------------------------------------------
+
+interface TeePrefs {
+  /** courseId -> teeId, so a course comes up on the tee you played it from. */
+  byCourse: Record<string, string>;
+  /** The last tee name used anywhere, e.g. "Blue". */
+  lastName: string | null;
+}
+
+export function loadTeePrefs(): TeePrefs {
+  const empty: TeePrefs = { byCourse: {}, lastName: null };
+  if (!canStore()) return empty;
+  const stored = safeParse<TeePrefs>(window.localStorage.getItem(TEE_PREFS_KEY), empty);
+  return {
+    byCourse: stored?.byCourse && typeof stored.byCourse === "object" ? stored.byCourse : {},
+    lastName: typeof stored?.lastName === "string" ? stored.lastName : null,
+  };
+}
+
+export function saveTeePref(courseId: string, teeId: string, teeName: string): void {
+  if (!canStore()) return;
+  const prefs = loadTeePrefs();
+  prefs.byCourse[courseId] = teeId;
+  prefs.lastName = teeName;
+  window.localStorage.setItem(TEE_PREFS_KEY, JSON.stringify(prefs));
+}
+
+/**
+ * Which tee to open a course on.
+ *
+ * The one played here last, if this course has been played. Otherwise the tee
+ * whose name matches the last one used anywhere, so a new course still comes up
+ * on the blues if that is what the group plays. Otherwise the first listed.
+ */
+export function preferredTeeId(
+  courseId: string,
+  tees: { id: string; name: string }[],
+): string | null {
+  if (tees.length === 0) return null;
+  const prefs = loadTeePrefs();
+
+  const forCourse = prefs.byCourse[courseId];
+  if (forCourse && tees.some((tee) => tee.id === forCourse)) return forCourse;
+
+  if (prefs.lastName) {
+    const byName = tees.find(
+      (tee) => tee.name.toLowerCase() === prefs.lastName?.toLowerCase(),
+    );
+    if (byName) return byName.id;
+  }
+
+  return tees[0].id;
 }
 
 // --- Saved roster: the regulars, so they survive between rounds ------------

@@ -57,6 +57,8 @@ export interface GhinSessionInfo {
   token: string;
   /** The signed-in golfer's own GHIN number, when GHIN returns it. */
   golferId: string | null;
+  /** The signed-in golfer themselves, when GHIN returns their name. */
+  me: Player | null;
   /** Key-only shape of the login response, for finding the number if not. */
   shape: string;
 }
@@ -105,7 +107,19 @@ export interface CourseLookup {
   probes: GhinProbe[];
 }
 
-/** This golfer's pinned and recently played courses. No sign-in needed. */
+/** The signed-in golfer's own record, when the login response lacked it. */
+export async function apiGolferProfile(
+  golferId: string,
+  token?: string | null,
+): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>(
+    `/api/ghin/golfers/me?golferId=${encodeURIComponent(golferId)}`,
+    { token },
+  );
+  return { players: payload.players ?? [], probes: payload.probes ?? [] };
+}
+
+/** This golfer's pinned and recently played courses. */
 export async function apiMyCourses(
   golferId: string,
   token?: string | null,

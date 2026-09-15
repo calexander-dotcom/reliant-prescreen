@@ -5,6 +5,7 @@ import { ApiError, apiCourse, apiMyCourses, apiSearchCourses } from "@/lib/api";
 import { GhinDiagnostics } from "./GhinDiagnostics";
 import type { CourseSummary } from "@/lib/ghin/normalize";
 import type { GhinProbe } from "@/lib/ghin/shape";
+import { preferredTeeId, saveTeePref } from "@/lib/storage";
 import type { Round } from "@/lib/types";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
 
@@ -66,7 +67,9 @@ export function CoursePicker({
     setError(null);
     try {
       const course = await apiCourse(token, summary.id);
-      const tee = course.tees[0] ?? null;
+      // Open on the tee this course was played from last, not just the first.
+      const teeId = preferredTeeId(course.id, course.tees);
+      const tee = course.tees.find((entry) => entry.id === teeId) ?? course.tees[0] ?? null;
       update({
         ...round,
         course,
@@ -99,8 +102,18 @@ export function CoursePicker({
             <div className="mt-3">
               <Field label="Tees">
                 <select
+                  // Distinct from the per-player tee selects below it.
+                  aria-label="Tees for the round"
                   value={round.teeId ?? ""}
-                  onChange={(event) => update({ ...round, teeId: event.target.value })}
+                  onChange={(event) => {
+                    const teeId = event.target.value;
+                    const tee = round.course?.tees.find((entry) => entry.id === teeId);
+                    // Remember it, so this course and the next open here.
+                    if (round.course && tee) {
+                      saveTeePref(round.course.id, tee.id, tee.name);
+                    }
+                    update({ ...round, teeId });
+                  }}
                   className={inputClass}
                 >
                   {round.course.tees.map((tee) => (

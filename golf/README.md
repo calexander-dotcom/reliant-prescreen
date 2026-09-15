@@ -182,6 +182,17 @@ REST protocol directly, so there is no client library to install.
 player names, handicap indexes, scores and money. Everything else stays in the
 browser. Treat the link as the password — anyone holding it can watch.
 
+## Small things it remembers
+
+- **Tees.** A course opens on the tee you played it from last. A course you have
+  not played opens on the tee whose name matches the last one you used
+  anywhere, so a new course still comes up on the blues if that is what the
+  group plays. Failing both, the first tee listed.
+- **You.** Your own name and index, so "Add me" is one tap and survives a
+  reload without signing in again.
+- **The regulars.** Anyone added to a round, by hand or from GHIN, comes back
+  as a one-tap button next time.
+
 ## Handicaps
 
 Course Handicap uses the WHS formula:
@@ -240,6 +251,7 @@ All of these need `Authorization: Bearer <token>`.
 | Golfers you follow | `GET /followed_golfers/{golferId}.json` | `{golfers: [{id, first_name, last_name, handicap_index_display, low_hi_display, club_name, …}]}` |
 | Your pinned courses | `GET /golfers/{golferId}/my_courses.json` | `{golfer_course_preference: [{course_id, course_name, tee_id, facility_name, …}]}` |
 | Recently played | `GET /golfers/{golferId}/golfer_most_recent_courses.json` | `{courses: [{CourseId, CourseName, CourseCity, Ratings: [...]}]}` |
+| Your own record | `GET /golfers/{golferId}.json` (fallback, unverified) | a golfer object |
 | Course detail | `GET /crsCourseMethods.asmx/GetCourseDetails.json?courseId=…` | `{CourseName, CourseCity, TeeSets: [{TeeSetRatingName, Gender, TotalPar, TotalYardage, Ratings: [{RatingType, CourseRating, SlopeRating}], Holes: [{Number, Par, Length, Allocation}]}]}` |
 
 All take `source=GHINcom`. `Allocation` on a hole is its stroke index, and the
