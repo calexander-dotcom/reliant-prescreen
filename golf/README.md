@@ -86,6 +86,11 @@ The rules, precisely:
 - Each bet pays its stake to **whoever leads it right now**. Ahead by one pays
   the same as ahead by five; a square bet pays nothing. So
   `2-1-0-0-(-1)-0` at $10 a bet is two bets to A and one to B: **A up $10**.
+- The stake is **per player**: $10 a bet means every player on the side that
+  is down loses $10 and every player on the side that is up wins $10, so a
+  pair that is seven bets up is up $70 *each*. A lone player against two is
+  in for double. "Per side" in the bet setup makes it one $10 that the side
+  splits instead.
 - The stack **ends at the turn** and a new one starts on the 10th.
 - Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
   which never presses.
@@ -120,7 +125,8 @@ ledger already counts it — otherwise everybody would be paid twice.
 ### Nassau, with presses
 
 Front nine, back nine and total eighteen, each playing for the same stake,
-decided by match play on net or gross.
+decided by match play on net or gross. The stake is per player, as in one
+downs.
 
 **Presses** are the "1 down" part. Fall one hole behind and a brand new bet
 opens automatically over the remaining holes of that segment, while the

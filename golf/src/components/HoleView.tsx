@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
+import { sideUp } from "@/lib/bets/nassau";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
 import {
   balanceHoleOnto,
@@ -469,12 +470,14 @@ export function HoleView({
                 // Each line pairs with the figure it actually describes: the
                 // stack standing with the stack money, the 18-hole bet on its
                 // own, then the two added up.
-                const upText = (cents: number) =>
-                  cents === 0
-                    ? "all square"
-                    : `${cents > 0 ? sideA.name : sideB.name} up ${formatMoney(
-                        Math.abs(cents),
-                      )}`;
+                // Money per head where that is how it is said: a pair seven
+                // bets up is "up $70 each", not "up $140".
+                const upText = (cents: number) => {
+                  if (cents === 0) return "all square";
+                  const leader = cents > 0 ? sideA : sideB;
+                  const up = sideUp(Math.abs(cents), leader, result.config.stakeMode);
+                  return `${leader.name} up ${formatMoney(up.cents)}${up.each ? " each" : ""}`;
+                };
                 const stackMoney = stack?.sideTotals[0] ?? 0;
                 const overallMoney = result.outcome.overallSideTotals[0];
                 const totalMoney = result.outcome.sideTotals[0];

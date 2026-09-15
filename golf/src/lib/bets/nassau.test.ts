@@ -195,13 +195,38 @@ describe("matchPayout", () => {
     });
   });
 
-  it("charges every loser the full stake in per-player mode", () => {
+  it("has every player in for the stake in per-player mode", () => {
+    // $20 a bet, two a side: each winner up $20, each loser down $20.
     expect(matchPayout(won, [teamA, teamB], "per-player", teamIds)).toEqual({
-      p1: 4000,
-      p2: 4000,
-      p3: -4000,
+      p1: 2000,
+      p2: 2000,
+      p3: -2000,
+      p4: -2000,
+    });
+  });
+
+  it("puts a lone player in for the whole of the other side", () => {
+    const pair: Side = { id: "a", name: "A", playerIds: ["p1", "p2"] };
+    const single: Side = { id: "b", name: "B", playerIds: ["p4"] };
+    // The single is playing both of them.
+    expect(matchPayout(won, [pair, single], "per-player", teamIds)).toEqual({
+      p1: 2000,
+      p2: 2000,
+      p3: 0,
       p4: -4000,
     });
+    expect(
+      matchPayout({ ...won, status: "won-b" }, [pair, single], "per-player", teamIds),
+    ).toEqual({ p1: -2000, p2: -2000, p3: 0, p4: 4000 });
+  });
+
+  it("makes no difference in singles", () => {
+    const a: Side = { id: "a", name: "A", playerIds: ["p1"] };
+    const b: Side = { id: "b", name: "B", playerIds: ["p2"] };
+    const perSide = matchPayout(won, [a, b], "per-side", teamIds);
+    const perPlayer = matchPayout(won, [a, b], "per-player", teamIds);
+    expect(perSide).toEqual(perPlayer);
+    expect(perSide).toEqual({ p1: 2000, p2: -2000, p3: 0, p4: 0 });
   });
 
   it("splits an odd stake to the cent", () => {

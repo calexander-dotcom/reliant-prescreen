@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { BetResult, RoundComputation } from "@/lib/bets";
 import { matchStanding } from "@/lib/bets/nassau";
 import { betStanding } from "@/lib/bets/onedown";
+import { sideUp } from "@/lib/bets/nassau";
 import { formatMoney, formatSigned } from "@/lib/money";
 import type { Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
@@ -91,9 +92,9 @@ function BetResultCard({
       <SectionTitle
         hint={
           result.kind === "nassau"
-            ? `${formatMoney(result.config.amount)} per segment · ${
-                result.config.basis
-              } · ${
+            ? `${formatMoney(result.config.amount)} per segment ${stakeWord(
+                result.config.stakeMode,
+              )} · ${result.config.basis} · ${
                 result.config.autoPressAt > 0
                   ? `press at ${result.config.autoPressAt} down`
                   : "no presses"
@@ -105,7 +106,9 @@ function BetResultCard({
                     result.config.basis
                   }`
               : result.kind === "onedown"
-              ? `${formatMoney(result.config.amount)} a bet · ${result.config.basis} · ${
+              ? `${formatMoney(result.config.amount)} a bet ${stakeWord(
+                  result.config.stakeMode,
+                )} · ${result.config.basis} · ${
                   result.config.autoPressAt > 0
                     ? `new bet at ${result.config.autoPressAt} down`
                     : "presses by hand"
@@ -192,6 +195,11 @@ function BetResultCard({
   );
 }
 
+/** For the summary line under a game's name. */
+function stakeWord(mode: "per-side" | "per-player"): string {
+  return mode === "per-player" ? "per player" : "per side";
+}
+
 function OneDownBody({
   result,
 }: {
@@ -201,14 +209,17 @@ function OneDownBody({
   const [sideA, sideB] = config.sides;
   const [totalA] = outcome.sideTotals;
 
-  const upLine = (cents: number) =>
-    cents === 0 ? (
-      <span className="text-neutral-400">all square</span>
-    ) : (
+  const upLine = (cents: number) => {
+    if (cents === 0) return <span className="text-neutral-400">all square</span>;
+    const leader = cents > 0 ? sideA : sideB;
+    const up = sideUp(Math.abs(cents), leader, config.stakeMode);
+    return (
       <span className={cents > 0 ? "text-turf-700" : "text-red-700"}>
-        {cents > 0 ? sideA.name : sideB.name} up {formatMoney(Math.abs(cents))}
+        {leader.name} up {formatMoney(up.cents)}
+        {up.each ? " each" : ""}
       </span>
     );
+  };
 
   return (
     <div className="space-y-3">

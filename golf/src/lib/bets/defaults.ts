@@ -37,7 +37,8 @@ export function defaultNassau(players: Player[], id: string): NassauConfig {
     autoPressAt: 1,
     maxPresses: 4,
     includeTotal: true,
-    stakeMode: "per-side",
+    // $20 a player, not $20 a team.
+    stakeMode: "per-player",
   };
 }
 
@@ -56,7 +57,8 @@ export function defaultOneDown(players: Player[], id: string): OneDownConfig {
     reset: "nines",
     // Plus one bet over all 18 at double, with no presses on it.
     overallMultiplier: 2,
-    stakeMode: "per-side",
+    // $10 a player: a pair that is seven bets up is up $70 each.
+    stakeMode: "per-player",
   };
 }
 
