@@ -14,7 +14,8 @@ import {
   cycleBankerDouble,
   setHoleBanker,
 } from "@/lib/mutations";
-import type { Round } from "@/lib/types";
+import type { BetConfig, Round } from "@/lib/types";
+import { MoneyByNine } from "./MoneyByNine";
 import { MoneyInput } from "./MoneyInput";
 import { ScoreStepper } from "./ScoreStepper";
 import {
@@ -58,6 +59,23 @@ export function HoleView({
     [round.manual, ids.join(","), round.holeCount],
   );
   const runningThrough = running[hole - 1] ?? {};
+
+  // One game a round. The money card is where a banker hole gets typed in;
+  // under the games that work the money out from the scores it is noise, so
+  // there it starts folded — and each game remembers its own choice.
+  const game: BetConfig["kind"] | "none" =
+    round.bets.length > 0 ? round.bets[0].kind : "none";
+  const moneyOpenByDefault = game === "banker" || game === "none";
+  const moneySummary = !anyEntered
+    ? "Nothing on this hole."
+    : off !== 0
+      ? `Off by ${formatMoney(Math.abs(off))}.`
+      : round.players
+          .map(
+            (player) =>
+              `${player.name.split(" ")[0]} ${formatCompact(amounts[player.id] ?? 0)}`,
+          )
+          .join(" · ");
 
   const copyPrevious = () => {
     const previous = round.manual[hole - 1];
@@ -150,11 +168,13 @@ export function HoleView({
         </ul>
       </CollapsibleCard>
 
-      <Card>
-        <SectionTitle hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero.">
-          Money this hole
-        </SectionTitle>
-
+      <CollapsibleCard
+        title="Money this hole"
+        hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero."
+        summary={moneySummary}
+        storageKey={`hole.money.${game}`}
+        defaultOpen={moneyOpenByDefault}
+      >
         {anyEntered ? (
           off === 0 ? (
             <Banner tone="good">Balanced — this hole nets to zero.</Banner>
@@ -281,7 +301,7 @@ export function HoleView({
             Clear hole
           </Button>
         </div>
-      </Card>
+      </CollapsibleCard>
 
       {comp.betResults
         .filter(
@@ -564,31 +584,14 @@ export function HoleView({
       ) : null}
 
       <Card>
-        <SectionTitle hint="Hand-entered money only. The automatic bets settle on the Bets tab.">
+        <SectionTitle
+          hint={`Hand-entered holes and the game together, by nine — the same figures as the Card tab.${
+            comp.nineTotals.hasOverall ? " Overall is the whole-round bet." : ""
+          }`}
+        >
           Running money
         </SectionTitle>
-        <ul className="grid grid-cols-2 gap-2">
-          {round.players.map((player) => {
-            const total = runningThrough[player.id] ?? 0;
-            return (
-              <li
-                key={player.id}
-                className="flex items-baseline justify-between rounded-xl bg-neutral-50 px-3 py-2"
-              >
-                <span className="truncate pr-2 text-sm font-semibold text-neutral-800">
-                  {player.name}
-                </span>
-                <span
-                  className={`tabular text-base font-bold ${
-                    total > 0 ? "text-turf-700" : total < 0 ? "text-red-700" : "text-neutral-400"
-                  }`}
-                >
-                  {formatCompact(total)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <MoneyByNine round={round} comp={comp} />
       </Card>
     </div>
   );

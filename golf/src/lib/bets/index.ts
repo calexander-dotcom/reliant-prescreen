@@ -9,7 +9,7 @@ import type {
   Side,
   TeeSet,
 } from "../types";
-import { imbalance, ledgerTotals, normalizeAmounts } from "./ledger";
+import { imbalance, ledgerTotals, normalizeAmounts, zeroAmounts } from "./ledger";
 import { evaluateNassau, type HoleResult, type NassauOutcome } from "./nassau";
 import { evaluateBanker, type BankerOutcome } from "./banker";
 import { evaluateOneDown, type OneDownOutcome } from "./onedown";
@@ -71,6 +71,20 @@ export type BetResult =
     }
   | { kind: "skins"; config: Extract<BetConfig, { kind: "skins" }>; outcome: SkinsOutcome };
 
+/**
+ * Money by nine, everything included: hand-entered holes and every game.
+ * `overall` is what belongs to the round as a whole rather than either nine —
+ * the 18-hole one-down bet, a nassau's Total 18, a one-down stack run over all
+ * eighteen. Front, back and overall add up to the grand total.
+ */
+export interface NineTotals {
+  front: Record<PlayerId, number>;
+  back: Record<PlayerId, number>;
+  overall: Record<PlayerId, number>;
+  /** Whether any game in the round has a whole-round piece worth a column. */
+  hasOverall: boolean;
+}
+
 export interface RoundComputation {
   holes: HoleInfo[];
   tee: TeeSet | null;
@@ -85,6 +99,7 @@ export interface RoundComputation {
   manualTotals: Record<PlayerId, number>;
   betTotals: Record<PlayerId, number>;
   grandTotals: Record<PlayerId, number>;
+  nineTotals: NineTotals;
   transfers: Transfer[];
   /** Non-zero means some hole was left out of balance. */
   residual: number;
@@ -214,10 +229,64 @@ export function computeRound(round: Round): RoundComputation {
     manualTotals,
     betTotals,
     grandTotals,
+    nineTotals: splitByNine(round, playerIds, betResults),
     transfers: settle(grandTotals),
     residual: settlementResidual(grandTotals),
     unbalancedHoles,
   };
+}
+
+/**
+ * The grand total again, but by nine. Each source already knows where its
+ * money came from: the ledger by hole, skins and a scored banker by hole, a
+ * nassau by segment, one downs by stack. Anything spanning both nines is the
+ * round's, not either nine's.
+ */
+function splitByNine(
+  round: Round,
+  playerIds: PlayerId[],
+  betResults: BetResult[],
+): NineTotals {
+  const holeCount = round.holeCount;
+  const frontEnd = Math.min(9, holeCount);
+  const front = ledgerTotals(round.manual, playerIds, holeCount, { to: frontEnd });
+  const back = ledgerTotals(round.manual, playerIds, holeCount, { from: frontEnd + 1 });
+  const overall = zeroAmounts(playerIds);
+  let hasOverall = false;
+
+  const add = (into: Record<PlayerId, number>, amounts: Record<PlayerId, number>) => {
+    for (const id of playerIds) into[id] += amounts[id] ?? 0;
+  };
+  const bucketFor = (startHole: number, endHole: number) =>
+    endHole <= frontEnd ? front : startHole > frontEnd ? back : overall;
+
+  for (const result of betResults) {
+    if (result.kind === "nassau") {
+      for (const [segmentId, amounts] of Object.entries(result.outcome.segmentTotals)) {
+        add(segmentId === "back" ? back : segmentId === "total" ? overall : front, amounts);
+      }
+      if (result.outcome.matches.some((match) => match.segmentId === "total")) {
+        hasOverall = true;
+      }
+    } else if (result.kind === "onedown") {
+      for (const stack of result.outcome.stacks) {
+        add(bucketFor(stack.startHole, stack.endHole), stack.playerTotals);
+        if (stack.startHole <= frontEnd && stack.endHole > frontEnd) hasOverall = true;
+      }
+      add(overall, result.outcome.overallTotals);
+      if (result.outcome.overall) hasOverall = true;
+    } else if (result.kind === "skins") {
+      for (const hole of result.outcome.holes) {
+        add(bucketFor(hole.hole, hole.hole), hole.amounts);
+      }
+    } else if (result.outcome.tracksMoney) {
+      for (const hole of result.outcome.holes) {
+        add(bucketFor(hole.hole, hole.hole), hole.amounts);
+      }
+    }
+  }
+
+  return { front, back, overall, hasOverall };
 }
 
 /** Best ball for the side, then compare. null when either side has no score. */

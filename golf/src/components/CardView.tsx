@@ -4,6 +4,7 @@ import type { RoundComputation } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
 import { formatCompact } from "@/lib/money";
 import type { Round } from "@/lib/types";
+import { moneyTone } from "./MoneyByNine";
 import { Banner, Card, SectionTitle } from "./ui";
 
 /**
@@ -69,6 +70,7 @@ export function CardView({
                 <HoleGroup
                   key={groupIndex}
                   label={groupIndex === 0 ? "Out" : "In"}
+                  nineMoney={groupIndex === 0 ? comp.nineTotals.front : comp.nineTotals.back}
                   holes={group}
                   round={round}
                   comp={comp}
@@ -103,6 +105,25 @@ export function CardView({
                 </td>
               ))}
             </tr>
+            {comp.nineTotals.hasOverall ? (
+              <tr className="border-t border-neutral-200">
+                <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase text-neutral-500">
+                  Overall
+                </td>
+                <td />
+                {round.players.map((player) => {
+                  const cents = comp.nineTotals.overall[player.id] ?? 0;
+                  return (
+                    <td
+                      key={player.id}
+                      className={`px-1 py-1.5 text-center font-semibold ${moneyTone(cents)}`}
+                    >
+                      {formatCompact(cents)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ) : null}
             <tr className="border-t border-neutral-200">
               <td className="sticky left-0 bg-white py-2 pr-2 text-left text-xs uppercase text-neutral-500">
                 Money
@@ -163,8 +184,9 @@ export function CardView({
         </ul>
         <p className="mt-2 text-xs text-neutral-500">
           The money row adds up the hand-entered holes plus every nassau, press
-          and skin that has settled. A hole that does not net to zero is left
-          out until it does.
+          and skin that has settled. The Out and In rows carry each nine&apos;s
+          share under the score; Overall is the whole-round bet. A hole that does not
+          net to zero is left out until it does.
         </p>
       </Card>
     </div>
@@ -173,6 +195,7 @@ export function CardView({
 
 function HoleGroup({
   label,
+  nineMoney,
   holes,
   round,
   comp,
@@ -182,6 +205,8 @@ function HoleGroup({
   readOnly,
 }: {
   label: string;
+  /** This nine's money per player, shown under the score subtotal. */
+  nineMoney: Record<string, number>;
   holes: RoundComputation["holes"];
   round: Round;
   comp: RoundComputation;
@@ -247,11 +272,21 @@ function HoleGroup({
         <td className="px-1 py-1.5 text-center text-neutral-500">
           {holes.reduce((sum, hole) => sum + hole.par, 0)}
         </td>
-        {round.players.map((player) => (
-          <td key={player.id} className="px-1 py-1.5 text-center">
-            {subtotal(player.id) || "–"}
-          </td>
-        ))}
+        {round.players.map((player) => {
+          const money = nineMoney[player.id] ?? 0;
+          return (
+            <td key={player.id} className="px-1 py-1.5 text-center">
+              <div>{subtotal(player.id) || "–"}</div>
+              <div
+                className={`text-[0.65rem] leading-none ${
+                  money > 0 ? "text-turf-600" : "text-red-600"
+                }`}
+              >
+                {money === 0 ? "\u00a0" : formatCompact(money)}
+              </div>
+            </td>
+          );
+        })}
       </tr>
     </>
   );

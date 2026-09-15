@@ -189,6 +189,11 @@ export interface NassauOutcome {
   matches: NassauMatch[];
   /** Per-player money from this bet, in cents. Sums to zero. */
   totals: Record<PlayerId, number>;
+  /**
+   * The same money by segment id — front, back, total — presses included in
+   * the segment they hang off, so each nine can be reported on its own.
+   */
+  segmentTotals: Record<string, Record<PlayerId, number>>;
   results: Record<number, HoleResult>;
 }
 
@@ -205,12 +210,19 @@ export function evaluateNassau(
   }
 
   const totals = Object.fromEntries(playerIds.map((id) => [id, 0]));
+  const segmentTotals: Record<string, Record<PlayerId, number>> = {};
+  for (const segment of segments) {
+    segmentTotals[segment.id] = Object.fromEntries(playerIds.map((id) => [id, 0]));
+  }
   for (const match of matches) {
     const payout = matchPayout(match, config.sides, config.stakeMode, playerIds);
-    for (const id of playerIds) totals[id] += payout[id] ?? 0;
+    for (const id of playerIds) {
+      totals[id] += payout[id] ?? 0;
+      segmentTotals[match.segmentId][id] += payout[id] ?? 0;
+    }
   }
 
-  return { matches, totals, results };
+  return { matches, totals, segmentTotals, results };
 }
 
 /** Human-readable standing, e.g. "Team A 2 up thru 7" or "Team B wins". */

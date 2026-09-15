@@ -51,6 +51,8 @@ export interface OneDownStack {
   led: { a: number; b: number; square: number };
   /** What each side is up within this stack, in cents. */
   sideTotals: [number, number];
+  /** The same money per player, so a nine can be reported on its own. */
+  playerTotals: Record<PlayerId, number>;
 }
 
 export interface OneDownOutcome {
@@ -58,6 +60,8 @@ export interface OneDownOutcome {
   /** The 18-hole bet at a multiple of the stake. Never presses. */
   overall: OneDownBet | null;
   overallSideTotals: [number, number];
+  /** Per-player money from the 18-hole bet alone; zeros without one. */
+  overallTotals: Record<PlayerId, number>;
   /** Every stack bet, flattened. Excludes the overall bet. */
   bets: OneDownBet[];
   /** The stack currently being played — what you want on screen. */
@@ -188,8 +192,8 @@ export function evaluateOneDown(
   const sideSum = (side: Side, source: Record<PlayerId, number>) =>
     side.playerIds.reduce((sum, id) => sum + (source[id] ?? 0), 0);
 
-  /** Per-stack and per-bet money, so each can be reported on its own line. */
-  const isolatedTotals = (bets: OneDownBet[]): [number, number] => {
+  /** Money from just these bets, per player, so a stack can be reported on its own. */
+  const payoutsFor = (bets: OneDownBet[]): Record<PlayerId, number> => {
     const scratch: Record<PlayerId, number> = Object.fromEntries(
       playerIds.map((id) => [id, 0]),
     );
@@ -203,8 +207,13 @@ export function evaluateOneDown(
       );
       for (const id of playerIds) scratch[id] += payout[id] ?? 0;
     }
-    return [sideSum(config.sides[0], scratch), sideSum(config.sides[1], scratch)];
+    return scratch;
   };
+
+  const sideTotalsOf = (source: Record<PlayerId, number>): [number, number] => [
+    sideSum(config.sides[0], source),
+    sideSum(config.sides[1], source),
+  ];
 
   const stacks: OneDownStack[] = [];
 
@@ -267,6 +276,7 @@ export function evaluateOneDown(
       else led.b += 1;
     }
 
+    const playerTotals = payoutsFor(bets);
     stacks.push({
       label: range.label,
       startHole: range.startHole,
@@ -274,7 +284,8 @@ export function evaluateOneDown(
       bets,
       standing: formatStanding(bets.map((bet) => bet.margin)),
       led,
-      sideTotals: isolatedTotals(bets),
+      sideTotals: sideTotalsOf(playerTotals),
+      playerTotals,
     });
   }
 
@@ -297,6 +308,7 @@ export function evaluateOneDown(
     applyPayout(overall);
   }
 
+  const overallTotals = payoutsFor(overall ? [overall] : []);
   const allStackBets = stacks.flatMap((stack) => stack.bets);
   // The stack being played now is the last one anybody has posted a score in.
   const current =
@@ -307,16 +319,14 @@ export function evaluateOneDown(
   return {
     stacks,
     overall,
-    overallSideTotals: overall ? isolatedTotals([overall]) : [0, 0],
+    overallSideTotals: sideTotalsOf(overallTotals),
+    overallTotals,
     bets: allStackBets,
     current,
     standing: current?.standing ?? "",
     led: current?.led ?? { a: 0, b: 0, square: 0 },
-    stackSideTotals: isolatedTotals(allStackBets),
-    sideTotals: [
-      sideSum(config.sides[0], totals),
-      sideSum(config.sides[1], totals),
-    ],
+    stackSideTotals: sideTotalsOf(payoutsFor(allStackBets)),
+    sideTotals: sideTotalsOf(totals),
     totals,
   };
 }
