@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
  * Shared-round storage.
@@ -86,27 +86,51 @@ export function newShareId(): string {
   return randomBytes(16).toString("base64url");
 }
 
-/** The scorer keeps this; it is what allows publishing over an existing share. */
-export function newWriteToken(): string {
-  return randomBytes(32).toString("base64url");
+/**
+ * Key material for deriving write tokens.
+ *
+ * `SHARE_TOKEN_SECRET` if it is set; otherwise the store credential, which is
+ * a stable server-only secret that exists exactly when sharing works at all,
+ * so sharing needs no extra configuration to be safe. Rotating it invalidates
+ * every outstanding write token, which is survivable: shares live a week and
+ * a new link costs one tap.
+ */
+function tokenSecret(): string {
+  const explicit = process.env.SHARE_TOKEN_SECRET;
+  if (explicit) return explicit;
+  const config = storeConfig();
+  if (!config) {
+    throw new StoreError(
+      "Sharing is not set up on this deployment. Add a KV store and redeploy.",
+      501,
+    );
+  }
+  return config.token;
 }
 
 /**
- * Only the hash is stored, so someone who reads the store still cannot publish
- * to a round. The token is long and random, so a plain SHA-256 is enough —
- * there is nothing to guess.
+ * The scorer's write token, derived from the share id rather than stored
+ * beside the round.
+ *
+ * The obvious design — random token, keep its hash in the record — has a hole
+ * on a store with no persistence, which is what the free tier is: an eviction
+ * takes the hash with the round, and then there is nothing left to check a
+ * publish against. Either publishing dies for good on a link already handed
+ * out, or a missing record lets anyone holding the link (which is everybody,
+ * that being the point of it) claim the share. Deriving instead means the
+ * check needs no stored state, so a publish after an eviction simply puts the
+ * round back, and a viewer who knows the id still cannot compute the token.
  */
-export function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+export function writeTokenFor(id: string): string {
+  return createHmac("sha256", tokenSecret())
+    .update(`golfbets-share-token-v1:${id}`)
+    .digest("base64url");
 }
 
-/** Comparison in constant time, so a wrong token leaks nothing by timing. */
-export function tokenMatches(token: string, expectedHash: string): boolean {
-  const actual = hashToken(token);
-  if (actual.length !== expectedHash.length) return false;
-  let diff = 0;
-  for (let i = 0; i < actual.length; i += 1) {
-    diff |= actual.charCodeAt(i) ^ expectedHash.charCodeAt(i);
-  }
-  return diff === 0;
+/** Constant-time check, so a wrong token leaks nothing by timing. */
+export function tokenAuthorizes(token: string, id: string): boolean {
+  const expected = Buffer.from(writeTokenFor(id), "utf8");
+  const actual = Buffer.from(token, "utf8");
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(actual, expected);
 }

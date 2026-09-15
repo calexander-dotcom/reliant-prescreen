@@ -3,23 +3,23 @@ import {
   isSharedRound,
   publishableRound,
   SHARE_TTL_SECONDS,
-  type StoredShare,
+  type SharedRound,
 } from "@/lib/share/payload";
 import {
   MAX_SHARE_BYTES,
   shareBearer,
   storeFailure,
 } from "@/lib/share/route-helpers";
-import { deleteShare, readShare, tokenMatches, writeShare } from "@/lib/share/store";
+import { deleteShare, readShare, tokenAuthorizes, writeShare } from "@/lib/share/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function load(id: string): Promise<StoredShare | null> {
+async function load(id: string): Promise<SharedRound | null> {
   const raw = await readShare(id);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as StoredShare;
+    return JSON.parse(raw) as SharedRound;
   } catch {
     return null;
   }
@@ -44,7 +44,6 @@ export async function GET(
         { status: 404 },
       );
     }
-    // The token hash is never handed out, even though it is only a hash.
     return NextResponse.json({ round: stored.round, updatedAt: stored.updatedAt });
   } catch (error) {
     return storeFailure(error);
@@ -73,26 +72,22 @@ export async function PUT(
     return NextResponse.json({ error: "That is not a round." }, { status: 400 });
   }
 
+  const payload = JSON.stringify({
+    round: publishableRound(round as never),
+    updatedAt: new Date().toISOString(),
+  });
+  if (payload.length > MAX_SHARE_BYTES) {
+    return NextResponse.json({ error: "That round is too large to share." }, { status: 413 });
+  }
+
   try {
-    const stored = await load(params.id);
-    if (!stored) {
-      return NextResponse.json({ error: "That share is gone." }, { status: 404 });
-    }
-    if (!tokenMatches(token, stored.writeTokenHash)) {
+    if (!tokenAuthorizes(token, params.id)) {
       return NextResponse.json({ error: "Wrong write token." }, { status: 403 });
     }
-
-    const payload = JSON.stringify({
-      round: publishableRound(round as never),
-      updatedAt: new Date().toISOString(),
-      // Carried forward unchanged: a republish must not rotate the token.
-      writeTokenHash: stored.writeTokenHash,
-    });
-    if (payload.length > MAX_SHARE_BYTES) {
-      return NextResponse.json({ error: "That round is too large to share." }, { status: 413 });
-    }
-
-    // Publishing also pushes the expiry out another week.
+    // Deliberately not conditional on the round still being there. The store
+    // has no persistence on the free tier, so a round can evaporate mid-play;
+    // writing unconditionally puts it back on the next edit instead of killing
+    // a link that has already been handed round the group.
     await writeShare(params.id, payload, SHARE_TTL_SECONDS);
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -111,12 +106,10 @@ export async function DELETE(
   }
 
   try {
-    const stored = await load(params.id);
-    // Already gone is the outcome the caller wanted.
-    if (!stored) return NextResponse.json({ ok: true });
-    if (!tokenMatches(token, stored.writeTokenHash)) {
+    if (!tokenAuthorizes(token, params.id)) {
       return NextResponse.json({ error: "Wrong write token." }, { status: 403 });
     }
+    // Already gone is the outcome the caller wanted.
     await deleteShare(params.id);
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isSharedRound, publishableRound, SHARE_TTL_SECONDS } from "@/lib/share/payload";
 import { MAX_SHARE_BYTES, storeFailure } from "@/lib/share/route-helpers";
-import { hashToken, newShareId, newWriteToken, writeShare } from "@/lib/share/store";
+import { newShareId, writeShare, writeTokenFor } from "@/lib/share/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,11 +26,16 @@ export async function POST(request: Request) {
   }
 
   const id = newShareId();
-  const token = newWriteToken();
+  // Derived from the id, not stored with the round: see writeTokenFor.
+  let token: string;
+  try {
+    token = writeTokenFor(id);
+  } catch (error) {
+    return storeFailure(error);
+  }
   const payload = JSON.stringify({
     round: publishableRound(round as never),
     updatedAt: new Date().toISOString(),
-    writeTokenHash: hashToken(token),
   });
 
   if (payload.length > MAX_SHARE_BYTES) {
