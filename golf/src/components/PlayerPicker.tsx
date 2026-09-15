@@ -21,6 +21,7 @@ export function PlayerPicker({
   golferId,
   token,
   me,
+  onSessionExpired,
 }: {
   round: Round;
   update: (next: Round) => void;
@@ -28,6 +29,8 @@ export function PlayerPicker({
   token: string | null;
   /** The account holder, offered as a one-tap add. */
   me?: Player | null;
+  /** Called when a lookup shows the GHIN session has run out. */
+  onSessionExpired?: () => void;
 }) {
   const [following, setFollowing] = useState<GolferLookup | null>(null);
   const [search, setSearch] = useState<GolferLookup | null>(null);
@@ -241,7 +244,11 @@ export function PlayerPicker({
                 {busy === "me" ? <Spinner label="Asking GHIN…" /> : null}
               </div>
               {meProbes ? (
-                <GhinDiagnostics probes={meProbes} subject="your own record" />
+                <GhinDiagnostics
+                  probes={meProbes}
+                  subject="your own record"
+                  onSignInAgain={onSessionExpired}
+                />
               ) : null}
             </div>
           );
@@ -307,7 +314,11 @@ export function PlayerPicker({
               ) : null}
 
               {search && search.players.length === 0 && busy !== "search" ? (
-                <GhinDiagnostics probes={search.probes} subject="golfers" />
+                <GhinDiagnostics
+                  probes={search.probes}
+                  subject="golfers"
+                  onSignInAgain={onSessionExpired}
+                />
               ) : null}
             </div>
 
@@ -349,6 +360,7 @@ export function PlayerPicker({
                 <GhinDiagnostics
                   probes={following.probes}
                   subject="the golfers you follow"
+                  onSignInAgain={onSessionExpired}
                 />
               ) : null}
             </div>

@@ -278,10 +278,16 @@ names** of the body, never the values — and the UI shows that log behind a
 "What GHIN returned" button with a copy action. It distinguishes the three
 causes that otherwise look identical:
 
-- every path 404'd → the endpoint moved
-- the call was refused → network or permissions, not an empty list
-- a path answered but `parsed 0 records` → field names changed, fix the key
-  lists in `normalize.ts`
+- **all 404** → the path is wrong or has moved. Some endpoints here are
+  captured from real traffic and some are guesses; the message says which.
+- **any 401** → the GHIN session has run out. Retrying cannot help, so the app
+  offers to sign in again rather than repeating the call.
+- **any 403** → something between the app and GHIN is refusing the connection.
+- **a path answered but `parsed 0 records`** → the call worked and the field
+  names did not match. Fix the key lists in `normalize.ts`.
+
+Those need completely different fixes, which is why they are told apart rather
+than all reported as "something went wrong".
 
 Being keys-only it is safe to paste into a bug report. For the full body,
 `GHIN_ALLOW_RAW=1` enables `/api/ghin/raw?path=…`; keep it off in anything

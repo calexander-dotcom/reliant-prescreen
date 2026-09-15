@@ -14,11 +14,14 @@ export function CoursePicker({
   update,
   golferId,
   token,
+  onSessionExpired,
 }: {
   round: Round;
   update: (next: Round) => void;
   golferId: string | null;
   token: string | null;
+  /** Called when a lookup shows the GHIN session has run out. */
+  onSessionExpired?: () => void;
 }) {
   const [saved, setSaved] = useState<CourseSummary[]>([]);
   const [savedProbes, setSavedProbes] = useState<GhinProbe[] | null>(null);
@@ -174,7 +177,11 @@ export function CoursePicker({
               ) : null}
 
               {savedProbes ? (
-                <GhinDiagnostics probes={savedProbes} subject="saved courses" />
+                <GhinDiagnostics
+                  probes={savedProbes}
+                  subject="your courses"
+                  onSignInAgain={onSessionExpired}
+                />
               ) : null}
 
               <div>
