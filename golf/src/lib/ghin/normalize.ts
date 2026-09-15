@@ -16,6 +16,8 @@ export interface CourseSummary {
   name: string;
   city: string | null;
   state: string | null;
+  /** Facility name, when the payload carries one. */
+  facility?: string | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -121,12 +123,16 @@ export function normalizeGolfer(raw: unknown): Player | null {
   if (!name && !ghinNumber) return null;
 
   const indexValue = pick(raw, [
+    // What the followed-golfers payload actually uses.
+    "handicap_index_display",
     "handicap_index",
     "hi_value",
     "hi_display",
     "display",
     "index",
     "HandicapIndex",
+    // Last resort: the low index, so a row still shows a number.
+    "low_hi_display",
   ]);
 
   return {
@@ -168,13 +174,22 @@ export function normalizeCourseSummary(raw: unknown): CourseSummary | null {
   return {
     id,
     name,
-    city: pickString(raw, ["city", "City"]),
-    state: pickString(raw, ["state", "State", "state_code"]),
+    city: pickString(raw, ["CourseCity", "city", "City"]),
+    state: pickString(raw, ["CourseState", "state", "State", "state_code"]),
+    facility: pickString(raw, ["FacilityName", "facility_name"]),
   };
 }
 
 export function normalizeCourseSummaries(raw: unknown): CourseSummary[] {
-  const items = collectArray(raw, ["courses", "Courses", "data", "results"]);
+  const items = collectArray(raw, [
+    "courses",
+    "Courses",
+    // my_courses.json wraps its rows in this.
+    "golfer_course_preference",
+    "golfer_course_preferences",
+    "data",
+    "results",
+  ]);
   const seen = new Set<string>();
   const out: CourseSummary[] = [];
   for (const item of items) {
@@ -298,8 +313,8 @@ export function normalizeCourseDetail(raw: unknown): Course | null {
   return {
     id: id ?? `course-${slug(name)}`,
     name,
-    city: pickString(root, ["City", "city"]),
-    state: pickString(root, ["State", "state"]),
+    city: pickString(root, ["CourseCity", "City", "city"]),
+    state: pickString(root, ["CourseState", "State", "state"]),
     tees,
     source: "ghin",
   };

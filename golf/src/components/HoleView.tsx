@@ -10,6 +10,9 @@ import {
   setBanker,
   setManualAmount,
   setScore,
+  adjustManualPresses,
+  cycleBankerDouble,
+  setHoleBanker,
 } from "@/lib/mutations";
 import type { Round } from "@/lib/types";
 import { MoneyInput } from "./MoneyInput";
@@ -127,9 +130,7 @@ export function HoleView({
       </Card>
 
       <Card>
-        <SectionTitle
-          hint="Enter what each player won or lost. The hole has to net to zero."
-        >
+        <SectionTitle hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero.">
           Money this hole
         </SectionTitle>
 
@@ -149,7 +150,15 @@ export function HoleView({
 
         <div className="mt-3 space-y-2.5">
           {round.players.map((player) => (
-            <div key={player.id} className="flex items-center gap-3">
+            /*
+             * Keyed by hole as well as player on purpose. The money field keeps
+             * its won/lost direction in local state, so that the sign button
+             * works on an empty cell. Without the hole in the key React reuses
+             * the same field when you walk to the next hole and that direction
+             * comes with it — you would type 5 into a cell that was a loss last
+             * hole and silently enter minus five.
+             */
+            <div key={`${player.id}-${hole}`} className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold text-neutral-900">
                   {player.name}
@@ -253,8 +262,288 @@ export function HoleView({
         </div>
       </Card>
 
+      {comp.betResults
+        .filter(
+          (result): result is Extract<typeof result, { kind: "banker" }> =>
+            result.kind === "banker",
+        )
+        .map((result) => {
+          const holeState = result.outcome.holes[hole - 1];
+          const bankerId = holeState?.bankerId ?? null;
+          const bankerName =
+            round.players.find((player) => player.id === bankerId)?.name ?? "—";
+          const bankerMoney = holeState?.amounts[bankerId ?? ""] ?? 0;
+
+          return (
+            <Card key={result.config.id}>
+              <SectionTitle
+                hint={
+                  [
+                    result.config.source === "manual"
+                      ? "Money comes from what you enter below."
+                      : null,
+                    result.config.rotation === "most-money"
+                      ? "The deal passes to whoever won the most on the hole."
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined
+                }
+              >
+                {result.config.label}
+              </SectionTitle>
+
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm text-neutral-600">
+                  <strong className="font-bold text-neutral-900">{bankerName}</strong>{" "}
+                  has the deal
+                </span>
+                <span
+                  className={`tabular text-base font-bold ${
+                    bankerMoney > 0
+                      ? "text-turf-700"
+                      : bankerMoney < 0
+                        ? "text-red-700"
+                        : "text-neutral-400"
+                  }`}
+                >
+                  {holeState?.settled ? formatSigned(bankerMoney) : "open"}
+                </span>
+              </div>
+
+              {/* Each opponent's own stake: flat, doubled, or doubled back. */}
+              <ul className="mt-3 space-y-1.5">
+                {round.players
+                  .filter(
+                    (player) =>
+                      result.config.playerIds.includes(player.id) &&
+                      player.id !== bankerId,
+                  )
+                  .map((player) => {
+                    const bet = holeState?.bets.find(
+                      (entry) => entry.playerId === player.id,
+                    );
+                    const multiplier = bet?.multiplier ?? 1;
+                    return (
+                      <li key={player.id} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
+                          {player.name}
+                        </span>
+                        <span
+                          className={`tabular w-16 text-right text-sm font-bold ${
+                            (bet?.delta ?? 0) > 0
+                              ? "text-turf-700"
+                              : (bet?.delta ?? 0) < 0
+                                ? "text-red-700"
+                                : "text-neutral-400"
+                          }`}
+                        >
+                          {holeState?.settled ? formatSigned(bet?.delta ?? 0) : "—"}
+                        </span>
+                        {/* Doubling only means something when the app is
+                            working the money out from the scores. */}
+                        {result.config.source === "scores" ? (
+                          <Button
+                            variant={multiplier > 1 ? "primary" : "secondary"}
+                            ariaLabel={`Change ${player.name}'s stake, now ${multiplier} times`}
+                            onClick={() =>
+                              update(
+                                cycleBankerDouble(
+                                  round,
+                                  result.config.id,
+                                  hole,
+                                  player.id,
+                                ),
+                              )
+                            }
+                          >
+                            {multiplier}x
+                          </Button>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+              </ul>
+
+              <div className="mt-3 border-t border-neutral-100 pt-3">
+                <div className="mb-1.5 text-sm font-semibold text-neutral-700">
+                  Hand the deal to
+                </div>
+                <div
+                  role="group"
+                  aria-label="Hand the deal to"
+                  className="flex flex-wrap gap-2"
+                >
+                  {round.players
+                    .filter((player) => result.config.playerIds.includes(player.id))
+                    .map((player) => (
+                      <Button
+                        key={player.id}
+                        variant={bankerId === player.id ? "primary" : "secondary"}
+                        onClick={() =>
+                          update(
+                            setHoleBanker(
+                              round,
+                              result.config.id,
+                              hole,
+                              // Tapping the current banker clears the override.
+                              result.config.bankerByHole?.[hole] === player.id
+                                ? null
+                                : player.id,
+                            ),
+                          )
+                        }
+                      >
+                        {player.name}
+                      </Button>
+                    ))}
+                </div>
+                {result.config.bankerByHole?.[hole] ? (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    Set by hand for this hole. Tap again to go back to the rotation.
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+          );
+        })}
+
+      {comp.betResults.some((result) => result.kind === "onedown") ? (
+        <Card>
+          <SectionTitle hint="A new bet opens on its own when someone goes down. Press to add one by hand.">
+            One downs
+          </SectionTitle>
+          <ul className="space-y-3">
+            {comp.betResults
+              .filter(
+                (result): result is Extract<typeof result, { kind: "onedown" }> =>
+                  result.kind === "onedown",
+              )
+              .map((result) => {
+                const presses = result.config.manualPresses?.[hole] ?? 0;
+                const [sideA, sideB] = result.config.sides;
+                const stack = result.outcome.stacks.find(
+                  (entry) => hole >= entry.startHole && hole <= entry.endHole,
+                );
+                // Each line pairs with the figure it actually describes: the
+                // stack standing with the stack money, the 18-hole bet on its
+                // own, then the two added up.
+                const upText = (cents: number) =>
+                  cents === 0
+                    ? "all square"
+                    : `${cents > 0 ? sideA.name : sideB.name} up ${formatMoney(
+                        Math.abs(cents),
+                      )}`;
+                const stackMoney = stack?.sideTotals[0] ?? 0;
+                const overallMoney = result.outcome.overallSideTotals[0];
+                const totalMoney = result.outcome.sideTotals[0];
+
+                return (
+                  <li key={result.config.id}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-semibold text-neutral-900">
+                        {result.config.label}
+                      </span>
+                      <span className="text-xs font-semibold text-neutral-500">
+                        {stack?.label}
+                      </span>
+                    </div>
+
+                    <div className="tabular mt-0.5 break-all font-mono text-lg font-bold text-turf-900">
+                      {stack?.standing || "—"}
+                    </div>
+
+                    <dl className="mt-1 space-y-0.5 text-xs">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-neutral-500">{stack?.label}</dt>
+                        <dd
+                          className={`tabular font-semibold ${
+                            stackMoney === 0
+                              ? "text-neutral-400"
+                              : stackMoney > 0
+                                ? "text-turf-700"
+                                : "text-red-700"
+                          }`}
+                        >
+                          {upText(stackMoney)}
+                        </dd>
+                      </div>
+                      {result.outcome.overall ? (
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-neutral-500">
+                            Overall 18 ({formatMoney(result.outcome.overall.amount)})
+                          </dt>
+                          <dd
+                            className={`tabular font-semibold ${
+                              overallMoney === 0
+                                ? "text-neutral-400"
+                                : overallMoney > 0
+                                  ? "text-turf-700"
+                                  : "text-red-700"
+                            }`}
+                          >
+                            {upText(overallMoney)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-between gap-2 border-t border-neutral-100 pt-0.5">
+                        <dt className="font-semibold text-neutral-700">Total</dt>
+                        <dd
+                          className={`tabular font-bold ${
+                            totalMoney === 0
+                              ? "text-neutral-400"
+                              : totalMoney > 0
+                                ? "text-turf-700"
+                                : "text-red-700"
+                          }`}
+                        >
+                          {upText(totalMoney)}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-neutral-600">
+                        Presses after {hole}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`One fewer press after hole ${hole}`}
+                        disabled={presses === 0}
+                        onClick={() =>
+                          update(adjustManualPresses(round, result.config.id, hole, -1))
+                        }
+                        className="h-9 w-9 shrink-0 rounded-lg bg-neutral-100 text-xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
+                      >
+                        &minus;
+                      </button>
+                      <span
+                        className={`tabular w-8 text-center text-base font-bold ${
+                          presses > 0 ? "text-turf-800" : "text-neutral-400"
+                        }`}
+                      >
+                        {presses}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`One more press after hole ${hole}`}
+                        onClick={() =>
+                          update(adjustManualPresses(round, result.config.id, hole, 1))
+                        }
+                        className="h-9 w-9 shrink-0 rounded-lg bg-turf-50 text-xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card>
-        <SectionTitle hint="Manual money only. Nassau and skins settle on the Bets tab.">
+        <SectionTitle hint="Hand-entered money only. The automatic bets settle on the Bets tab.">
           Running money
         </SectionTitle>
         <ul className="grid grid-cols-2 gap-2">

@@ -14,6 +14,7 @@ import type { Player, Round } from "./types";
 const ROUNDS_KEY = "golfbets.rounds.v1";
 const TOKEN_KEY = "golfbets.ghinToken";
 const ROSTER_KEY = "golfbets.roster.v1";
+const GOLFER_ID_KEY = "golfbets.ghinNumber";
 
 function canStore(): boolean {
   return typeof window !== "undefined" && !!window.localStorage;
@@ -53,7 +54,17 @@ function migrateRound(round: Round): Round {
     players: Array.isArray(round.players) ? round.players : [],
     scores: round.scores ?? {},
     manual: round.manual ?? {},
-    bets: Array.isArray(round.bets) ? round.bets : [],
+    bets: (Array.isArray(round.bets) ? round.bets : []).map((bet) => {
+      // Presses used to be a list of holes; they are counts per hole now.
+      if (bet.kind === "onedown" && Array.isArray(bet.manualPresses)) {
+        const counts: Record<number, number> = {};
+        for (const hole of bet.manualPresses as unknown as number[]) {
+          counts[hole] = (counts[hole] ?? 0) + 1;
+        }
+        return { ...bet, manualPresses: counts };
+      }
+      return bet;
+    }),
     handicapMode: round.handicapMode ?? "off-low",
   };
 }
@@ -106,6 +117,24 @@ export function saveToken(token: string | null): void {
   if (typeof window === "undefined" || !window.sessionStorage) return;
   if (token) window.sessionStorage.setItem(TOKEN_KEY, token);
   else window.sessionStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * The user's own GHIN number.
+ *
+ * Unlike a password this is not a secret — it is printed on a handicap card —
+ * and re-typing it every round is tedious, so it goes in localStorage rather
+ * than being asked for each time.
+ */
+export function loadGolferId(): string | null {
+  if (!canStore()) return null;
+  return window.localStorage.getItem(GOLFER_ID_KEY);
+}
+
+export function saveGolferId(golferId: string | null): void {
+  if (!canStore()) return;
+  if (golferId) window.localStorage.setItem(GOLFER_ID_KEY, golferId);
+  else window.localStorage.removeItem(GOLFER_ID_KEY);
 }
 
 // --- Saved roster: the regulars, so they survive between rounds ------------

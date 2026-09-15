@@ -21,6 +21,7 @@ export function Button({
   disabled,
   className = "",
   full,
+  ariaLabel,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -29,12 +30,15 @@ export function Button({
   disabled?: boolean;
   className?: string;
   full?: boolean;
+  /** Distinct accessible name, for when the visible label has to stay short. */
+  ariaLabel?: string;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
+      aria-label={ariaLabel}
       // min-h-11 keeps every tap target thumb-sized for one-handed use.
       className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-base font-semibold transition-colors ${
         VARIANTS[variant]

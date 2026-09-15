@@ -7,7 +7,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel } from "@/components/GhinPanel";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
-import { defaultNassau, defaultSkins } from "@/lib/bets/defaults";
+import { defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
 import { createRound, newId, saveRound } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
@@ -26,7 +26,7 @@ const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
 export default function NewRoundPage() {
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [golferId, setGolferId] = useState<string | null>(null);
 
   useEffect(() => {
     setRound(createRound());
@@ -40,7 +40,7 @@ export default function NewRoundPage() {
     const bets =
       round.bets.length > 0
         ? round.bets
-        : [defaultNassau(round.players, newId()), defaultSkins(round.players, newId())];
+        : [defaultOneDown(round.players, newId()), defaultSkins(round.players, newId())];
     const next = { ...round, bets, courseName: round.courseName || "Untitled round" };
     saveRound(next);
     router.push(`/round/${next.id}`);
@@ -55,11 +55,11 @@ export default function NewRoundPage() {
         </LinkButton>
       </header>
 
-      <GhinPanel token={token} onToken={setToken} />
+      <GhinPanel golferId={golferId} onChange={setGolferId} />
 
-      <CoursePicker round={round} update={setRound} token={token} />
+      <CoursePicker round={round} update={setRound} golferId={golferId} />
 
-      <PlayerPicker round={round} update={setRound} token={token} />
+      <PlayerPicker round={round} update={setRound} golferId={golferId} />
 
       <Card>
         <SectionTitle>Handicaps</SectionTitle>
@@ -99,7 +99,7 @@ export default function NewRoundPage() {
       </Card>
 
       <Card>
-        <SectionTitle hint="Skip this and you get a $20 nassau with one-down presses plus $5 skins. Change it any time.">
+        <SectionTitle hint="Skip this and you get $10 one downs plus $5 skins. Change it any time.">
           Bets
         </SectionTitle>
         {round.players.length < 2 ? (

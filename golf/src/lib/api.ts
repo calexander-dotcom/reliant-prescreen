@@ -1,6 +1,7 @@
 "use client";
 
 import type { CourseSummary } from "./ghin/normalize";
+import type { GhinProbe } from "./ghin/shape";
 import type { Course, Player } from "./types";
 
 /** Browser-side calls to this app's own routes, which proxy GHIN server-side. */
@@ -59,23 +60,54 @@ export async function apiLogin(emailOrGhin: string, password: string): Promise<s
   return token;
 }
 
-export async function apiFavorites(token: string): Promise<Player[]> {
-  const { players } = await request<{ players: Player[] }>("/api/ghin/favorites", {
-    token,
-  });
-  return players ?? [];
+export interface GolferLookup {
+  players: Player[];
+  probes: GhinProbe[];
 }
 
-export async function apiFavoriteCourses(token: string): Promise<CourseSummary[]> {
-  const { courses } = await request<{ courses: CourseSummary[] }>(
-    "/api/ghin/favorite-courses",
+/** The golfers a GHIN number follows. No sign-in needed. */
+export async function apiFollowing(
+  golferId: string,
+  token?: string | null,
+): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>(
+    `/api/ghin/following?golferId=${encodeURIComponent(golferId)}`,
     { token },
   );
-  return courses ?? [];
+  return { players: payload.players ?? [], probes: payload.probes ?? [] };
+}
+
+/** Name or GHIN number lookup — does not need saved favorites. */
+export async function apiSearchGolfers(
+  token: string | null,
+  query: string,
+): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>(
+    `/api/ghin/golfers/search?q=${encodeURIComponent(query)}`,
+    { token },
+  );
+  return { players: payload.players ?? [], probes: payload.probes ?? [] };
+}
+
+export interface CourseLookup {
+  courses: CourseSummary[];
+  probes: GhinProbe[];
+}
+
+/** This golfer's pinned and recently played courses. No sign-in needed. */
+export async function apiMyCourses(
+  golferId: string,
+  token?: string | null,
+): Promise<CourseLookup> {
+  const payload = await request<CourseLookup>(
+    `/api/ghin/courses/mine?golferId=${encodeURIComponent(golferId)}`,
+    { token },
+  );
+  return { courses: payload.courses ?? [], probes: payload.probes ?? [] };
 }
 
 export async function apiSearchCourses(
-  token: string,
+  token: string | null,
   query: string,
 ): Promise<CourseSummary[]> {
   const { courses } = await request<{ courses: CourseSummary[] }>(
@@ -85,7 +117,7 @@ export async function apiSearchCourses(
   return courses ?? [];
 }
 
-export async function apiCourse(token: string, id: string): Promise<Course> {
+export async function apiCourse(token: string | null, id: string): Promise<Course> {
   const { course } = await request<{ course: Course }>(
     `/api/ghin/courses/${encodeURIComponent(id)}`,
     { token },

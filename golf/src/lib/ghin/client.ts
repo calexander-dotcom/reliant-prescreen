@@ -6,6 +6,7 @@ import {
   normalizeLoginToken,
   type CourseSummary,
 } from "./normalize";
+import { describeShape, type GhinProbe } from "./shape";
 
 /**
  * Minimal client for the endpoints the GHIN mobile app uses.
@@ -168,39 +169,223 @@ export async function ghinLogin(
   return token;
 }
 
-/**
- * The golfers saved in the GHIN app's favorites list.
- *
- * The favorites endpoint has moved around between app versions, so each known
- * path is tried in turn and the first one that yields golfers wins.
- */
-export async function ghinFavorites(token: string): Promise<Player[]> {
-  const paths = [
-    "golfers/favorites.json",
-    "golfer_favorites.json",
-    "favorites.json",
-    "golfers/favorite_golfers.json",
-  ];
+type Candidate = {
+  path: string;
+  query?: Record<string, string | number | boolean | undefined>;
+};
 
-  let lastError: unknown = null;
-  for (const path of paths) {
+export interface ProbeResult<T> {
+  items: T[];
+  /** Every endpoint tried and what it returned. Safe to share: keys, no values. */
+  probes: GhinProbe[];
+}
+
+/**
+ * Try each candidate endpoint until one yields records, recording what every
+ * attempt returned.
+ *
+ * The recording is the point. These paths are guesses at an undocumented API,
+ * and an import that just comes back empty gives nobody anything to work with
+ * — not the user, and not whoever has to fix the mapping. A 404 on every path
+ * is a different problem from a 200 whose keys were not the ones expected, and
+ * the probe log distinguishes them without needing a debugger or a raw dump.
+ */
+async function probeCandidates<T>(
+  token: string | null,
+  candidates: Candidate[],
+  parse: (payload: unknown) => T[],
+): Promise<ProbeResult<T>> {
+  const probes: GhinProbe[] = [];
+
+  for (const candidate of candidates) {
     try {
-      const payload = await ghinRequest(path, { token });
-      const players = normalizeGolfers(payload);
-      if (players.length > 0) return players;
+      const payload = await ghinRequest(candidate.path, {
+        token,
+        query: candidate.query,
+      });
+      const items = parse(payload);
+      probes.push({
+        path: candidate.path,
+        status: 200,
+        ok: true,
+        shape: describeShape(payload),
+        parsed: items.length,
+      });
+      if (items.length > 0) return { items, probes };
     } catch (error) {
-      // A 404 just means this build does not have that path; keep looking.
-      if (error instanceof GhinError && error.status === 404) continue;
-      lastError = error;
+      const ghin = error instanceof GhinError ? error : null;
+      probes.push({
+        path: candidate.path,
+        status: ghin?.status ?? 0,
+        ok: false,
+        error: [ghin?.message ?? "Request failed.", ghin?.detail]
+          .filter(Boolean)
+          .join(" — "),
+      });
     }
   }
 
-  if (lastError instanceof GhinError) throw lastError;
-  return [];
+  return { items: [], probes };
+}
+
+/**
+ * A GHIN number, validated before it goes into a URL path.
+ *
+ * These endpoints take the golfer id as a path segment rather than a query
+ * parameter, so anything that is not plainly a number is rejected here instead
+ * of being interpolated into a request.
+ */
+export function normalizeGolferId(value: string): string | null {
+  const digits = value.trim().replace(/[\s-]/g, "");
+  return /^\d{4,12}$/.test(digits) ? digits : null;
+}
+
+/**
+ * The golfers this account follows.
+ *
+ * Endpoint and response shape confirmed against a capture of GHIN's own site:
+ *
+ *     GET /followed_golfers/{golferId}.json?source=GHINcom
+ *     -> { golfers: [{ id, first_name, last_name, handicap_index_display, … }] }
+ *
+ * It needs no Authorization header and no cookie — the golfer id in the path
+ * is the whole request. That is GHIN's design, not a choice made here, and it
+ * is why this app can skip asking for a password.
+ */
+export async function ghinFollowedGolfers(
+  golferId: string,
+  token?: string | null,
+): Promise<ProbeResult<Player>> {
+  const id = normalizeGolferId(golferId);
+  if (!id) {
+    return {
+      items: [],
+      probes: [
+        {
+          path: "followed_golfers/{golferId}.json",
+          status: 0,
+          ok: false,
+          error: "That does not look like a GHIN number.",
+        },
+      ],
+    };
+  }
+
+  return probeCandidates(
+    token ?? null,
+    [
+      { path: `followed_golfers/${id}.json` },
+      // Fallbacks, in case the path moves again.
+      { path: `golfers/${id}/followed_golfers.json` },
+      { path: "followed_golfers.json", query: { golfer_id: id } },
+    ],
+    normalizeGolfers,
+  );
+}
+
+/**
+ * Courses tied to this golfer: the ones they have pinned, plus the ones they
+ * have posted scores at recently. Both lists are small and either can be
+ * empty, so they are merged rather than tried in sequence.
+ *
+ *     GET /golfers/{id}/my_courses.json
+ *     -> { golfer_course_preference: [{ course_id, course_name, … }] }
+ *     GET /golfers/{id}/golfer_most_recent_courses.json
+ *     -> { courses: [{ CourseId, CourseName, CourseCity, … }] }
+ */
+export async function ghinGolferCourses(
+  golferId: string,
+  token?: string | null,
+): Promise<ProbeResult<CourseSummary>> {
+  const id = normalizeGolferId(golferId);
+  if (!id) {
+    return {
+      items: [],
+      probes: [
+        {
+          path: "golfers/{golferId}/my_courses.json",
+          status: 0,
+          ok: false,
+          error: "That does not look like a GHIN number.",
+        },
+      ],
+    };
+  }
+
+  const [pinned, recent] = await Promise.all([
+    probeCandidates(
+      token ?? null,
+      [{ path: `golfers/${id}/my_courses.json` }],
+      normalizeCourseSummaries,
+    ),
+    probeCandidates(
+      token ?? null,
+      [
+        {
+          path: `golfers/${id}/golfer_most_recent_courses.json`,
+          query: { scores_to_use: 20, include_altered_tees: true },
+        },
+      ],
+      normalizeCourseSummaries,
+    ),
+  ]);
+
+  const byId = new Map<string, CourseSummary>();
+  for (const course of [...pinned.items, ...recent.items]) {
+    if (!byId.has(course.id)) byId.set(course.id, course);
+  }
+
+  return { items: [...byId.values()], probes: [...pinned.probes, ...recent.probes] };
+}
+
+/**
+ * Look a golfer up by name or GHIN number.
+ *
+ * This is the fallback that does not depend on anyone having saved favorites:
+ * a GHIN number gets you a name and a live handicap index, which is the whole
+ * point of the integration. Parameter names for search have varied, so the
+ * plausible shapes are tried in turn.
+ */
+export async function ghinSearchGolfers(
+  token: string | null,
+  query: string,
+): Promise<ProbeResult<Player>> {
+  const trimmed = query.trim();
+  const isNumber = /^\d{5,}$/.test(trimmed);
+
+  const candidates: Candidate[] = isNumber
+    ? [
+        { path: "golfers/search.json", query: { golfer_id: trimmed } },
+        { path: "golfers/search.json", query: { ghin: trimmed } },
+        {
+          path: "golfers/search.json",
+          query: { global_search: true, search: trimmed, page: 1, per_page: 25 },
+        },
+        { path: `golfers/${encodeURIComponent(trimmed)}.json` },
+      ]
+    : [
+        {
+          path: "golfers/search.json",
+          query: {
+            global_search: true,
+            search: trimmed,
+            page: 1,
+            per_page: 25,
+            status: "Active",
+          },
+        },
+        {
+          path: "golfers/search.json",
+          query: { last_name: trimmed, status: "Active", page: 1, per_page: 25 },
+        },
+        { path: "golfers/search.json", query: { name: trimmed } },
+      ];
+
+  return probeCandidates(token, candidates, normalizeGolfers);
 }
 
 export async function ghinSearchCourses(
-  token: string,
+  token: string | null,
   query: string,
   state?: string,
 ): Promise<CourseSummary[]> {
@@ -217,7 +402,10 @@ export async function ghinSearchCourses(
   return normalizeCourseSummaries(payload);
 }
 
-export async function ghinCourse(token: string, courseId: string): Promise<Course> {
+export async function ghinCourse(
+  token: string | null,
+  courseId: string,
+): Promise<Course> {
   const payload = await ghinRequest("crsCourseMethods.asmx/GetCourseDetails.json", {
     token,
     query: { courseId, include_altered_tees: true },
@@ -238,18 +426,3 @@ export async function ghinCourse(token: string, courseId: string): Promise<Cours
   return course;
 }
 
-/** Favorite courses, when the account has any saved. */
-export async function ghinFavoriteCourses(token: string): Promise<CourseSummary[]> {
-  const paths = ["course_favorites.json", "courses/favorites.json"];
-  for (const path of paths) {
-    try {
-      const payload = await ghinRequest(path, { token });
-      const courses = normalizeCourseSummaries(payload);
-      if (courses.length > 0) return courses;
-    } catch (error) {
-      if (error instanceof GhinError && error.status === 404) continue;
-      throw error;
-    }
-  }
-  return [];
-}

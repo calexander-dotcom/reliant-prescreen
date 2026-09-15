@@ -54,6 +54,61 @@ text summary to paste into the group chat.
 
 ## Automatic bets
 
+### One downs (the house game)
+
+A new bet opens whenever somebody falls behind in the newest bet, so live bets
+stack up as the round goes on. The standing is written as one margin per open
+bet, oldest first, signed from side A:
+
+```
+after 1   1-0              A won the 1st; a new bet opened for the 2nd
+after 2   2-1-0
+after 3   2-1-0-0          the 3rd halved, so B pressed by hand
+after 4   3-2-1-1-0        five bets live
+after 5   2-1-0-0-(-1)-0   B won the 5th; B leads the bet that opened on it
+```
+
+The rules, precisely:
+
+- After each hole, look at the **newest** bet. If either side is down in it, a
+  fresh bet opens covering the next hole to the end of that nine.
+- A hole that leaves the newest bet all square opens nothing. That is the
+  moment somebody **presses by hand** instead — and several presses can be
+  called on one hole, each opening its own bet over the same holes.
+- Each bet pays its stake to **whoever leads it right now**. Ahead by one pays
+  the same as ahead by five; a square bet pays nothing. So
+  `2-1-0-0-(-1)-0` at $10 a bet is two bets to A and one to B: **A up $10**.
+- The stack **ends at the turn** and a new one starts on the 10th.
+- Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
+  which never presses.
+
+A parenthesised number means the other side leads that bet — `(-1)` is side B
+one up — both because that is the convention and because `0--1` is unreadable.
+
+### Banker
+
+One player holds the deal and plays a **separate bet against every other
+player**, so a good hole collects from everybody and a bad one pays everybody.
+
+The deal then passes to **whoever won the most money on the hole**. Since the
+banker is in every bet, a banker who is winning tends to keep it. A hole where
+nobody won anything leaves the deal where it is, and it can always be handed
+over by hand for one hole.
+
+Money comes from one of two places:
+
+- **What you type** (default) — you enter what each player won or lost and this
+  game only tracks who holds the deal. No scores needed at all. A banker hole
+  usually carries side action that no stroke comparison can know about, and
+  it is one number per player instead of four scores.
+- **The scores** — the app compares the banker's score against each opponent's
+  and pays the stake each way. Any opponent can double their own bet for the
+  hole, and the banker can double back against that one player, so somebody can
+  be on for 4x while the rest are flat.
+
+In the money-typed mode this bet reports no money of its own, because the hole
+ledger already counts it — otherwise everybody would be paid twice.
+
 ### Nassau, with presses
 
 Front nine, back nine and total eighteen, each playing for the same stake,
@@ -110,50 +165,65 @@ correctly from GHIN, where `+1.2` means numerically **−1.2**.
 
 ## GHIN import
 
-> **GHIN has no public API.** This talks to the same private endpoints the GHIN
-> mobile app uses. It can break without warning, and **it has not been verified
-> against a live account** — the sandbox this was built in blocks
-> `api2.ghin.com`. Everything in the app works without it: add players and a
-> course by hand and you lose nothing but typing.
+> **GHIN has no public API.** This talks to the same endpoints ghin.com itself
+> calls. They can change without warning. Everything in the app works without
+> them — add players and a course by hand and you lose nothing but typing.
 
-What it imports:
+**No password required.** These endpoints are served from a GHIN number alone,
+with no `Authorization` header and no cookie. That is GHIN's design, not a
+choice made here, and it has two consequences worth knowing: this app never
+asks for or handles a GHIN password, and anyone who knows your GHIN number can
+read the same data.
 
-- **Favorite golfers** → names, GHIN numbers and handicap indexes, straight
-  into the round.
-- **Courses** → favorites and name search, then tees, course/slope ratings and
-  hole-by-hole par and stroke index.
+The endpoints and response shapes below were confirmed against a capture of
+ghin.com's own network traffic:
 
-How it is wired:
+| What | Endpoint | Response |
+|---|---|---|
+| Golfers you follow | `GET /followed_golfers/{golferId}.json` | `{golfers: [{id, first_name, last_name, handicap_index_display, low_hi_display, club_name, …}]}` |
+| Your pinned courses | `GET /golfers/{golferId}/my_courses.json` | `{golfer_course_preference: [{course_id, course_name, tee_id, facility_name, …}]}` |
+| Recently played | `GET /golfers/{golferId}/golfer_most_recent_courses.json` | `{courses: [{CourseId, CourseName, CourseCity, Ratings: [...]}]}` |
+| Course detail | `GET /crsCourseMethods.asmx/GetCourseDetails.json?courseId=…` | `{CourseName, CourseCity, TeeSets: [{TeeSetRatingName, Gender, TotalPar, TotalYardage, Ratings: [{RatingType, CourseRating, SlopeRating}], Holes: [{Number, Par, Length, Allocation}]}]}` |
 
-- Your password goes to **this app's own route handler**, which calls GHIN
-  server-side. GHIN sends no CORS headers for browser origins, and a password
-  should not be posted to a third party from the page.
-- The password is used once, for a token, and is never stored or logged. The
-  token lives in `sessionStorage` and is gone when the tab closes.
-- The login body carries a `token` field separate from the session token GHIN
-  returns. It is a presence check, not a value check, so the default
-  (`"nonblank"`) satisfies it; set `GHIN_CLIENT_TOKEN` if that ever changes.
-  Omitting it returns `400 {"errors":{"token":["can't be blank"]}}`.
-- Response parsing in `src/lib/ghin/normalize.ts` is deliberately tolerant:
-  every field is looked up through a list of plausible names and both
-  `snake_case` and `PascalCase` shapes are handled, so one renamed key degrades
-  a single field instead of breaking the import.
+All take `source=GHINcom`. `Allocation` on a hole is its stroke index, and the
+18-hole course/slope ratings are the `Ratings` entry whose `RatingType` is
+`"Total"` — not the first entry in the array.
 
-### When an import comes back empty
+Two gotchas that cost real debugging:
 
-Set `GHIN_ALLOW_RAW=1` and hit the passthrough to see what GHIN actually
-returned:
+- The handicap index lives in **`handicap_index_display`**, not
+  `handicap_index`. And `+1.4` means numerically **−1.4** — a plus handicap
+  gives strokes back, so reading the sign literally flips strokes for the best
+  player in the group.
+- The feature is called **following** in the GHIN app, not "favorites", and the
+  endpoints use that vocabulary.
 
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:3000/api/ghin/raw?path=golfers/favorites.json'
-```
+Parsing in `src/lib/ghin/normalize.ts` stays tolerant of key and casing
+variants anyway, so a renamed field degrades one value instead of breaking the
+import.
 
-Then fix the key lists in `src/lib/ghin/normalize.ts`. The tests in
-`normalize.test.ts` show the shapes already covered. Keep the raw route off in
-anything you deploy publicly — it is an open proxy into GHIN otherwise.
+### When a lookup returns nothing
 
----
+Every lookup records what each endpoint returned — status, and the **key
+names** of the body, never the values — and the UI shows that log behind a
+"What GHIN returned" button with a copy action. It distinguishes the three
+causes that otherwise look identical:
+
+- every path 404'd → the endpoint moved
+- the call was refused → network or permissions, not an empty list
+- a path answered but `parsed 0 records` → field names changed, fix the key
+  lists in `normalize.ts`
+
+Being keys-only it is safe to paste into a bug report. For the full body,
+`GHIN_ALLOW_RAW=1` enables `/api/ghin/raw?path=…`; keep it off in anything
+deployed publicly.
+
+### Sign-in
+
+`POST /golfer_login.json` works and is still wired up at `/api/ghin/login` (it
+needs a non-empty `token` field in the body alongside the credentials), but
+nothing in the app calls it, because nothing needs it. It is there for the day
+GHIN starts requiring auth on the read endpoints.
 
 ## Running it
 
@@ -163,7 +233,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 102 unit tests over the betting math and GHIN parsing
+npm test             # 193 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```
@@ -193,6 +263,8 @@ src/lib/
   bets/
     ledger.ts       the zero-sum hole ledger
     nassau.ts       segments, presses, match status, payouts
+    onedown.ts      the stacking one-down game
+    banker.ts       banker, and who holds the deal
     skins.ts        carryover, validation
     settle.ts       net positions -> fewest payments
     index.ts        ties it all together (computeRound)

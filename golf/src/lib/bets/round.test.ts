@@ -194,3 +194,60 @@ describe("holeResultFor", () => {
     expect(holeResultFor(sides, 1, (id) => scores[id] ?? null)).toBeNull();
   });
 });
+
+describe("banker in money-only mode", () => {
+  const bankerBet = {
+    kind: "banker" as const,
+    id: "bk1",
+    label: "Banker",
+    source: "manual" as const,
+    amount: 500,
+    basis: "net" as const,
+    playerIds: ["p1", "p2", "p3", "p4"],
+    rotation: "most-money" as const,
+    firstBankerId: "p1",
+    bankerByHole: {},
+    doubles: {},
+  };
+
+  it("does not double-count the money typed into the hole", () => {
+    const withBet = computeRound(
+      round({
+        bets: [bankerBet],
+        manual: { 1: { amounts: { p1: 3000, p2: -1000, p3: -1000, p4: -1000 } } },
+      }),
+    );
+    const withoutBet = computeRound(
+      round({
+        manual: { 1: { amounts: { p1: 3000, p2: -1000, p3: -1000, p4: -1000 } } },
+      }),
+    );
+
+    // The banker bet tracks the deal; the ledger is the only source of money.
+    expect(withBet.betTotals).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    expect(withBet.grandTotals).toEqual(withoutBet.grandTotals);
+    expect(withBet.grandTotals.p1).toBe(3000);
+    expect(sumCents(Object.values(withBet.grandTotals))).toBe(0);
+  });
+
+  it("reads the deal off the money without any scores", () => {
+    const result = computeRound(
+      round({
+        bets: [bankerBet],
+        manual: {
+          1: { amounts: { p1: 3000, p2: -1000, p3: -1000, p4: -1000 } },
+          2: { amounts: { p1: -3000, p2: 500, p3: 2000, p4: 500 } },
+        },
+      }),
+    );
+    const banker = result.betResults.find((entry) => entry.kind === "banker");
+    expect(banker?.kind).toBe("banker");
+    if (banker?.kind !== "banker") return;
+    // p1 wins the 1st and keeps the deal; p3 wins the most on the 2nd.
+    expect(banker.outcome.holes.slice(0, 3).map((hole) => hole.bankerId)).toEqual([
+      "p1",
+      "p1",
+      "p3",
+    ]);
+  });
+});

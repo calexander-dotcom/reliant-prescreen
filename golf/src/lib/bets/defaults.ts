@@ -1,4 +1,12 @@
-import type { BetConfig, NassauConfig, Player, SkinsConfig, Side } from "../types";
+import type {
+  BankerConfig,
+  BetConfig,
+  NassauConfig,
+  OneDownConfig,
+  Player,
+  SkinsConfig,
+  Side,
+} from "../types";
 
 /** Split a group into two sides: first half against the rest. */
 export function defaultSides(players: Player[]): [Side, Side] {
@@ -33,6 +41,47 @@ export function defaultNassau(players: Player[], id: string): NassauConfig {
   };
 }
 
+/** The house game: $10 a bet, a new one every time somebody goes 1 down. */
+export function defaultOneDown(players: Player[], id: string): OneDownConfig {
+  return {
+    kind: "onedown",
+    id,
+    label: "One downs",
+    amount: 1000,
+    sides: defaultSides(players),
+    basis: "net",
+    autoPressAt: 1,
+    manualPresses: [],
+    // The bet ends at the turn and starts again on the 10th.
+    reset: "nines",
+    // Plus one bet over all 18 at double, with no presses on it.
+    overallMultiplier: 2,
+    stakeMode: "per-side",
+  };
+}
+
+/**
+ * Banker at $5 a man, the deal passing to whoever won the most on the hole.
+ * The alternative to one downs rather than an addition — most groups play one
+ * or the other.
+ */
+export function defaultBanker(players: Player[], id: string): BankerConfig {
+  return {
+    kind: "banker",
+    id,
+    label: "Banker",
+    // Type the money; a banker hole carries side action scores cannot know.
+    source: "manual",
+    amount: 500,
+    basis: "net",
+    playerIds: players.map((player) => player.id),
+    rotation: "most-money",
+    firstBankerId: players[0]?.id ?? null,
+    bankerByHole: {},
+    doubles: {},
+  };
+}
+
 export function defaultSkins(players: Player[], id: string): SkinsConfig {
   return {
     kind: "skins",
@@ -47,5 +96,9 @@ export function defaultSkins(players: Player[], id: string): SkinsConfig {
 }
 
 export function betLabel(bet: BetConfig): string {
-  return bet.label || (bet.kind === "nassau" ? "Nassau" : "Skins");
+  if (bet.label) return bet.label;
+  if (bet.kind === "nassau") return "Nassau";
+  if (bet.kind === "onedown") return "One downs";
+  if (bet.kind === "banker") return "Banker";
+  return "Skins";
 }

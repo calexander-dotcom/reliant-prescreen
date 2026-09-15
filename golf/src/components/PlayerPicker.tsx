@@ -1,23 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, apiFavorites } from "@/lib/api";
+import { ApiError, apiFollowing, apiSearchGolfers, type GolferLookup } from "@/lib/api";
 import { removePlayer } from "@/lib/mutations";
 import { loadRoster, newId, saveRoster } from "@/lib/storage";
 import type { Player, Round } from "@/lib/types";
+import { GhinDiagnostics } from "./GhinDiagnostics";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
 
 export function PlayerPicker({
   round,
   update,
-  token,
+  golferId,
 }: {
   round: Round;
   update: (next: Round) => void;
-  token: string | null;
+  golferId: string | null;
 }) {
-  const [favorites, setFavorites] = useState<Player[] | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [following, setFollowing] = useState<GolferLookup | null>(null);
+  const [search, setSearch] = useState<GolferLookup | null>(null);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState<"following" | "search" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [index, setIndex] = useState("");
@@ -31,30 +34,31 @@ export function PlayerPicker({
     update({ ...round, players: [...round.players, player] });
   };
 
-  const importFavorites = async () => {
-    if (!token) return;
-    setBusy(true);
+  const run = async (
+    kind: "following" | "search",
+    call: () => Promise<GolferLookup>,
+    apply: (result: GolferLookup) => void,
+    fallbackMessage: string,
+  ) => {
+    setBusy(kind);
     setError(null);
     try {
-      const players = await apiFavorites(token);
-      setFavorites(players);
-      if (players.length > 0) saveRoster(players);
+      const result = await call();
+      apply(result);
+      if (result.players.length > 0) saveRoster(result.players);
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : "Could not read your GHIN favorites.",
-      );
-      setFavorites([]);
+      setError(caught instanceof ApiError ? caught.message : fallbackMessage);
+      apply({ players: [], probes: [] });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   const addManual = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const parsed = Number.parseFloat(index.replace("+", "-"));
+    // "+1.2" is a plus handicap, which is numerically negative.
+    const parsed = Number.parseFloat(index.trim().replace("+", "-"));
     addPlayer({
       id: newId(),
       name: trimmed,
@@ -104,7 +108,7 @@ export function PlayerPicker({
                   placeholder="idx"
                   onBlur={(event) => {
                     const parsed = Number.parseFloat(
-                      event.target.value.replace("+", "-"),
+                      event.target.value.trim().replace("+", "-"),
                     );
                     update({
                       ...round,
@@ -171,48 +175,119 @@ export function PlayerPicker({
       <Card>
         <SectionTitle>Add players</SectionTitle>
 
-        {token ? (
-          <div className="mb-4">
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" onClick={() => void importFavorites()} disabled={busy}>
-                {favorites === null ? "Import GHIN favorites" : "Refresh favorites"}
-              </Button>
-              {busy ? <Spinner label="Asking GHIN…" /> : null}
+        {golferId ? (
+          <div className="mb-5 space-y-5">
+            <div>
+              <Field
+                label="Find a golfer on GHIN"
+                hint="Last name, or a full GHIN number. Pulls their current handicap index."
+              >
+                <div className="flex gap-2">
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className={inputClass}
+                    placeholder="Alexander  or  1234567"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && query.trim().length >= 3) {
+                        void run(
+                          "search",
+                          () => apiSearchGolfers(null, query.trim()),
+                          setSearch,
+                          "Could not search GHIN.",
+                        );
+                      }
+                    }}
+                  />
+                  <Button
+                    onClick={() =>
+                      void run(
+                        "search",
+                        () => apiSearchGolfers(null, query.trim()),
+                        setSearch,
+                        "Could not search GHIN.",
+                      )
+                    }
+                    disabled={query.trim().length < 3 || busy === "search"}
+                  >
+                    Find golfer
+                  </Button>
+                </div>
+              </Field>
+
+              {busy === "search" ? (
+                <div className="mt-2">
+                  <Spinner label="Asking GHIN…" />
+                </div>
+              ) : null}
+
+              {search && search.players.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {search.players.map((player) => (
+                    <PlayerRow
+                      key={player.id}
+                      player={player}
+                      added={inRound.has(player.id)}
+                      onAdd={() => addPlayer(player)}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+
+              {search && search.players.length === 0 && busy !== "search" ? (
+                <GhinDiagnostics probes={search.probes} subject="golfers" />
+              ) : null}
             </div>
 
-            {error ? (
-              <div className="mt-2">
-                <Banner tone="error">{error}</Banner>
+            <div className="border-t border-neutral-100 pt-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void run(
+                      "following",
+                      () => apiFollowing(golferId),
+                      setFollowing,
+                      "Could not read who you follow on GHIN.",
+                    )
+                  }
+                  disabled={busy === "following"}
+                >
+                  {following === null
+                    ? "Import who you follow on GHIN"
+                    : "Refresh"}
+                </Button>
+                {busy === "following" ? <Spinner label="Asking GHIN…" /> : null}
               </div>
-            ) : null}
 
-            {favorites !== null && favorites.length === 0 && !busy && !error ? (
-              <p className="mt-2 text-sm text-neutral-600">
-                GHIN returned no favorites for this account. Add players by hand
-                below.
-              </p>
-            ) : null}
+              {following && following.players.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {following.players.map((player) => (
+                    <PlayerRow
+                      key={player.id}
+                      player={player}
+                      added={inRound.has(player.id)}
+                      onAdd={() => addPlayer(player)}
+                    />
+                  ))}
+                </ul>
+              ) : null}
 
-            {favorites && favorites.length > 0 ? (
-              <ul className="mt-3 space-y-1.5">
-                {favorites.map((player) => (
-                  <PlayerRow
-                    key={player.id}
-                    player={player}
-                    added={inRound.has(player.id)}
-                    onAdd={() => addPlayer(player)}
-                  />
-                ))}
-              </ul>
-            ) : null}
+              {following && following.players.length === 0 && busy !== "following" ? (
+                <GhinDiagnostics
+                  probes={following.probes}
+                  subject="the golfers you follow"
+                />
+              ) : null}
+            </div>
+
+            {error ? <Banner tone="error">{error}</Banner> : null}
           </div>
         ) : null}
 
         {roster.filter((player) => !inRound.has(player.id)).length > 0 ? (
           <div className="mb-4">
-            <div className="mb-1.5 text-sm font-semibold text-neutral-700">
-              Regulars
-            </div>
+            <div className="mb-1.5 text-sm font-semibold text-neutral-700">Regulars</div>
             <div className="flex flex-wrap gap-2">
               {roster
                 .filter((player) => !inRound.has(player.id))
@@ -230,8 +305,8 @@ export function PlayerPicker({
           </div>
         ) : null}
 
-        <div className="grid gap-2 sm:grid-cols-[1fr,6rem,auto]">
-          <Field label="Name">
+        <div className="grid gap-2 border-t border-neutral-100 pt-4 sm:grid-cols-[1fr,6rem,auto]">
+          <Field label="Or add by hand">
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}

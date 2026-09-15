@@ -1,73 +1,65 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, apiLogin } from "@/lib/api";
-import { loadToken, saveToken } from "@/lib/storage";
-import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
+import { normalizeGolferId } from "@/lib/ghin/client";
+import { loadGolferId, saveGolferId } from "@/lib/storage";
+import { Banner, Button, Card, Field, SectionTitle, inputClass } from "./ui";
 
 /**
- * GHIN sign-in.
+ * GHIN connection — a golfer number, not a password.
  *
- * The password goes to this app's own route, which calls GHIN server-side and
- * hands back a session token. The token lives in sessionStorage — it is gone
- * when the tab closes, and the password is never stored anywhere.
+ * The endpoints this app reads (who you follow, your courses, course ratings)
+ * are served from the GHIN number alone, with no Authorization header and no
+ * cookie. So there is nothing to gain by asking for a password, and a password
+ * we do not need is a password we should not be handling.
  */
 export function GhinPanel({
-  token,
-  onToken,
+  golferId,
+  onChange,
 }: {
-  token: string | null;
-  onToken: (token: string | null) => void;
+  golferId: string | null;
+  onChange: (golferId: string | null) => void;
 }) {
-  const [emailOrGhin, setEmailOrGhin] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<string | null>(null);
 
+  // Remember the number between rounds; it is not a secret and it is tedious.
   useEffect(() => {
-    const stored = loadToken();
-    if (stored && !token) onToken(stored);
+    const stored = loadGolferId();
+    if (stored && !golferId) onChange(stored);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const signIn = async () => {
-    setBusy(true);
-    setError(null);
-    setDetail(null);
-    try {
-      const next = await apiLogin(emailOrGhin, password);
-      saveToken(next);
-      onToken(next);
-      setPassword("");
-    } catch (caught) {
-      setError(
-        caught instanceof ApiError ? caught.message : "Could not sign in to GHIN.",
-      );
-      setDetail(caught instanceof ApiError ? caught.detail : null);
-    } finally {
-      setBusy(false);
+  const connect = () => {
+    const id = normalizeGolferId(draft);
+    if (!id) {
+      setError("A GHIN number is 7 digits, give or take. Check the GHIN app.");
+      return;
     }
+    setError(null);
+    saveGolferId(id);
+    onChange(id);
+    setDraft("");
   };
 
-  if (token) {
+  if (golferId) {
     return (
       <Card>
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="font-bold text-turf-900">GHIN connected</div>
+          <div className="min-w-0">
+            <div className="font-bold text-turf-900">GHIN {golferId}</div>
             <p className="text-sm text-neutral-600">
-              Your favorites and courses can be imported.
+              You can pull in the golfers you follow and your courses.
             </p>
           </div>
           <Button
             variant="secondary"
             onClick={() => {
-              saveToken(null);
-              onToken(null);
+              saveGolferId(null);
+              onChange(null);
             }}
           >
-            Sign out
+            Change
           </Button>
         </div>
       </Card>
@@ -76,56 +68,38 @@ export function GhinPanel({
 
   return (
     <Card>
-      <SectionTitle hint="Used once to pull your favorites and course list. Optional — you can enter players by hand instead.">
+      <SectionTitle hint="Optional. It saves typing names and handicap indexes — you can enter players by hand instead.">
         Connect GHIN
       </SectionTitle>
 
       <div className="space-y-3">
-        <Field label="GHIN email or number">
+        <Field
+          label="Your GHIN number"
+          hint="No password needed. GHIN serves this data from the number alone."
+        >
           <input
-            value={emailOrGhin}
-            onChange={(event) => setEmailOrGhin(event.target.value)}
-            autoComplete="username"
-            inputMode="email"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            inputMode="numeric"
+            autoComplete="off"
             className={inputClass}
-            placeholder="you@example.com"
-          />
-        </Field>
-        <Field label="GHIN password">
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            type="password"
-            autoComplete="current-password"
-            className={inputClass}
+            placeholder="1234567"
             onKeyDown={(event) => {
-              if (event.key === "Enter" && emailOrGhin && password) void signIn();
+              if (event.key === "Enter") connect();
             }}
           />
         </Field>
 
-        {error ? (
-          <Banner tone="error">
-            <div className="font-semibold">{error}</div>
-            {detail ? (
-              <div className="mt-1 break-words font-mono text-xs opacity-80">
-                {detail}
-              </div>
-            ) : null}
-          </Banner>
-        ) : null}
+        {error ? <Banner tone="error">{error}</Banner> : null}
 
-        <div className="flex items-center gap-3">
-          <Button onClick={() => void signIn()} disabled={busy || !emailOrGhin || !password}>
-            {busy ? "Signing in…" : "Sign in"}
-          </Button>
-          {busy ? <Spinner /> : null}
-        </div>
+        <Button onClick={connect} disabled={!draft.trim()}>
+          Connect
+        </Button>
 
         <p className="text-xs text-neutral-500">
-          GHIN has no public API, so this uses the same private endpoints the GHIN
-          app uses. It can break without warning, and everything here works
-          without it.
+          GHIN has no public API, so this uses the same endpoints the GHIN site
+          uses. It can break without warning, and everything here works without
+          it.
         </p>
       </div>
     </Card>

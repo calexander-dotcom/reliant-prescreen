@@ -43,6 +43,9 @@ export function setManualAmount(
   const entry = round.manual[hole];
   const banker = entry?.bankerId ?? null;
 
+  const touched = new Set(entry?.touched ?? []);
+  touched.add(playerId);
+
   let amounts = {
     ...normalizeAmounts(entry?.amounts ?? {}, ids),
     [playerId]: cents,
@@ -50,11 +53,30 @@ export function setManualAmount(
 
   if (banker && banker !== playerId && ids.includes(banker)) {
     amounts = balanceOnto(amounts, banker, ids);
+  } else {
+    /*
+     * Everyone entered but one: the last player's number is not a guess, it is
+     * whatever makes the hole net to zero. Fill it in rather than making
+     * somebody do the arithmetic. They stay untouched, so editing the others
+     * keeps re-deriving their figure until they type in it themselves.
+     */
+    const untouched = ids.filter((id) => !touched.has(id));
+    if (untouched.length === 1) {
+      amounts = balanceOnto(amounts, untouched[0], ids);
+    }
   }
 
   return touch({
     ...round,
-    manual: { ...round.manual, [hole]: { ...entry, amounts, bankerId: banker } },
+    manual: {
+      ...round.manual,
+      [hole]: {
+        ...entry,
+        amounts,
+        bankerId: banker,
+        touched: [...touched],
+      },
+    },
   });
 }
 
@@ -117,7 +139,13 @@ export function clearHoleMoney(round: Round, hole: number): Round {
     ...round,
     manual: {
       ...round.manual,
-      [hole]: { ...entry, amounts: zeroAmounts(ids), bankerId: entry?.bankerId ?? null },
+      [hole]: {
+        ...entry,
+        amounts: zeroAmounts(ids),
+        bankerId: entry?.bankerId ?? null,
+        // Clearing puts every cell back to untouched, so autofill works again.
+        touched: [],
+      },
     },
   });
 }
@@ -138,6 +166,97 @@ export function setHoleNote(round: Round, hole: number, note: string): Round {
   });
 }
 
+/**
+ * Set how many presses were called by hand after a hole.
+ *
+ * A press is recorded against the hole it was called after, which is how it
+ * gets said out there — "press it after this one" — and each one opens a bet
+ * covering the next hole onwards. Several on the same hole is allowed and
+ * means several bets riding on the same golf.
+ */
+export function setManualPresses(
+  round: Round,
+  betId: string,
+  hole: number,
+  count: number,
+): Round {
+  const clamped = Math.max(0, Math.min(9, Math.floor(count)));
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "onedown") return bet;
+      const presses = { ...(bet.manualPresses ?? {}) };
+      if (clamped === 0) delete presses[hole];
+      else presses[hole] = clamped;
+      return { ...bet, manualPresses: presses };
+    }),
+  });
+}
+
+/** Nudge the press count for a hole up or down. */
+export function adjustManualPresses(
+  round: Round,
+  betId: string,
+  hole: number,
+  delta: number,
+): Round {
+  const bet = round.bets.find((entry) => entry.id === betId);
+  const current =
+    bet && bet.kind === "onedown" ? (bet.manualPresses?.[hole] ?? 0) : 0;
+  return setManualPresses(round, betId, hole, current + delta);
+}
+
+/** Hand the deal to a player for one hole, overriding the rotation. */
+export function setHoleBanker(
+  round: Round,
+  betId: string,
+  hole: number,
+  playerId: PlayerId | null,
+): Round {
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "banker") return bet;
+      const byHole = { ...(bet.bankerByHole ?? {}) };
+      if (playerId) byHole[hole] = playerId;
+      else delete byHole[hole];
+      return { ...bet, bankerByHole: byHole };
+    }),
+  });
+}
+
+/**
+ * Cycle one opponent's stake for a hole: flat, doubled, doubled back, flat.
+ *
+ * Kept as a single control because that is the order it happens in out there —
+ * a player doubles, the banker doubles back — and it means one tap per step
+ * with no separate "who doubled" bookkeeping.
+ */
+export function cycleBankerDouble(
+  round: Round,
+  betId: string,
+  hole: number,
+  playerId: PlayerId,
+): Round {
+  const steps = [1, 2, 4];
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "banker") return bet;
+      const holeDoubles = { ...(bet.doubles?.[hole] ?? {}) };
+      const current = holeDoubles[playerId] ?? 1;
+      const next = steps[(steps.indexOf(current) + 1) % steps.length] ?? 1;
+      if (next === 1) delete holeDoubles[playerId];
+      else holeDoubles[playerId] = next;
+
+      const doubles = { ...(bet.doubles ?? {}) };
+      if (Object.keys(holeDoubles).length === 0) delete doubles[hole];
+      else doubles[hole] = holeDoubles;
+      return { ...bet, doubles };
+    }),
+  });
+}
+
 /** Removing a player has to clean up their money and their side of every bet. */
 export function removePlayer(round: Round, playerId: PlayerId): Round {
   const players = round.players.filter((player) => player.id !== playerId);
@@ -152,12 +271,25 @@ export function removePlayer(round: Round, playerId: PlayerId): Round {
       ...entry,
       amounts: normalizeAmounts(entry.amounts, ids),
       bankerId: entry.bankerId === playerId ? null : entry.bankerId,
+      touched: (entry.touched ?? []).filter((id) => id !== playerId),
     };
   }
 
   const bets = round.bets.map((bet) => {
     if (bet.kind === "skins") {
       return { ...bet, playerIds: bet.playerIds.filter((id) => id !== playerId) };
+    }
+    if (bet.kind === "banker") {
+      const bankerByHole = Object.fromEntries(
+        Object.entries(bet.bankerByHole ?? {}).filter(([, id]) => id !== playerId),
+      );
+      return {
+        ...bet,
+        playerIds: bet.playerIds.filter((id) => id !== playerId),
+        firstBankerId:
+          bet.firstBankerId === playerId ? (ids[0] ?? null) : bet.firstBankerId,
+        bankerByHole,
+      };
     }
     return {
       ...bet,

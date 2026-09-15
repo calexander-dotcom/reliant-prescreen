@@ -11,11 +11,15 @@ import type {
 } from "../types";
 import { imbalance, ledgerTotals, normalizeAmounts } from "./ledger";
 import { evaluateNassau, type HoleResult, type NassauOutcome } from "./nassau";
+import { evaluateBanker, type BankerOutcome } from "./banker";
+import { evaluateOneDown, type OneDownOutcome } from "./onedown";
 import { settle, settlementResidual, type Transfer } from "./settle";
 import { evaluateSkins, type SkinsOutcome } from "./skins";
 
 export * from "./ledger";
 export * from "./nassau";
+export * from "./onedown";
+export * from "./banker";
 export * from "./skins";
 export * from "./settle";
 
@@ -55,6 +59,16 @@ export interface ScoreCell {
 
 export type BetResult =
   | { kind: "nassau"; config: Extract<BetConfig, { kind: "nassau" }>; outcome: NassauOutcome }
+  | {
+      kind: "onedown";
+      config: Extract<BetConfig, { kind: "onedown" }>;
+      outcome: OneDownOutcome;
+    }
+  | {
+      kind: "banker";
+      config: Extract<BetConfig, { kind: "banker" }>;
+      outcome: BankerOutcome;
+    }
   | { kind: "skins"; config: Extract<BetConfig, { kind: "skins" }>; outcome: SkinsOutcome };
 
 export interface RoundComputation {
@@ -140,15 +154,33 @@ export function computeRound(round: Round): RoundComputation {
     playerIds.map((id) => [id, 0]),
   );
 
+  /** Hole-by-hole side-vs-side outcomes, shared by the match-play games. */
+  const sideResults = (bet: Extract<BetConfig, { kind: "nassau" | "onedown" }>) => {
+    const score = scoreFor(bet.basis);
+    const results: Record<number, HoleResult> = {};
+    for (const hole of holes) {
+      results[hole.number] = holeResultFor(bet.sides, hole.number, score);
+    }
+    return results;
+  };
+
   for (const bet of round.bets) {
     if (bet.kind === "nassau") {
-      const score = scoreFor(bet.basis);
-      const results: Record<number, HoleResult> = {};
-      for (const hole of holes) {
-        results[hole.number] = holeResultFor(bet.sides, hole.number, score);
-      }
-      const outcome = evaluateNassau(bet, round.holeCount, results, playerIds);
+      const outcome = evaluateNassau(bet, round.holeCount, sideResults(bet), playerIds);
       betResults.push({ kind: "nassau", config: bet, outcome });
+      for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
+    } else if (bet.kind === "banker") {
+      const outcome = evaluateBanker(
+        bet,
+        round.holeCount,
+        scoreFor(bet.basis),
+        (hole) => round.manual[hole]?.amounts ?? {},
+      );
+      betResults.push({ kind: "banker", config: bet, outcome });
+      for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
+    } else if (bet.kind === "onedown") {
+      const outcome = evaluateOneDown(bet, round.holeCount, sideResults(bet), playerIds);
+      betResults.push({ kind: "onedown", config: bet, outcome });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else {
       const outcome = evaluateSkins(bet, round.holeCount, scoreFor(bet.basis), parFor);

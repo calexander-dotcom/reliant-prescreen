@@ -103,7 +103,86 @@ export interface SkinsConfig {
   requireBirdie: boolean;
 }
 
-export type BetConfig = NassauConfig | SkinsConfig;
+/**
+ * The "one down" game: a new bet opens whenever somebody falls behind in the
+ * newest bet, so live bets stack up as the round goes on.
+ *
+ * Standing is written as one number per open bet, oldest first — `3-2-1-1-0`
+ * is five simultaneous bets, the last of which has just opened at level.
+ */
+export interface OneDownConfig {
+  kind: "onedown";
+  id: string;
+  label: string;
+  /** Stake for each bet in the stack, in cents. */
+  amount: number;
+  sides: [Side, Side];
+  basis: ScoreBasis;
+  /**
+   * A new bet opens when the newest bet's margin reaches this many holes.
+   * 1 is the usual rule. 0 means presses only happen by hand.
+   */
+  autoPressAt: number;
+  /**
+   * Extra bets opened by hand, keyed by the hole they were called after:
+   * `{ 3: 1, 7: 2 }` is one press after the 3rd and two after the 7th. These
+   * add to any automatic bet on the same hole rather than replacing it.
+   */
+  manualPresses: Record<number, number>;
+  /** Whether the stack runs all 18 or starts over at the 10th. */
+  reset: "round" | "nines";
+  /**
+   * A single bet over all 18 at this multiple of the stake, alongside the
+   * nines. It never presses. 0 turns it off.
+   */
+  overallMultiplier: number;
+  stakeMode: "per-side" | "per-player";
+}
+
+/**
+ * Banker: one player takes the whole group on, hole by hole.
+ *
+ * The banker plays a separate bet against each other player, so a good hole
+ * collects from everybody and a bad one pays everybody. The deal then passes to
+ * whoever won the most money on the hole — which usually means a banker who is
+ * winning keeps it.
+ */
+export interface BankerConfig {
+  kind: "banker";
+  id: string;
+  label: string;
+  /**
+   * Where the money comes from.
+   *  - "manual"  you type what each player won or lost on the hole, and this
+   *              bet only tracks who holds the deal. No scores needed.
+   *  - "scores"  the app works it out from the scores and the doubles.
+   *
+   * Manual is the default because a banker hole usually carries side action
+   * that no stroke comparison can know about.
+   */
+  source: "manual" | "scores";
+  /** Base stake per opponent per hole, in cents. Used when source is "scores". */
+  amount: number;
+  basis: ScoreBasis;
+  playerIds: PlayerId[];
+  /** How the deal passes from hole to hole. */
+  rotation: "most-money" | "order" | "hole-winner" | "manual";
+  /** Who banks the first hole. Defaults to the first player in the game. */
+  firstBankerId: PlayerId | null;
+  /** Per-hole override, and the only source of bankers when rotation is manual. */
+  bankerByHole: Record<number, PlayerId>;
+  /**
+   * Stake multiplier per hole, per opponent: 1 flat, 2 when that player
+   * doubles, 4 when the banker doubles back. Keyed hole -> player -> multiple.
+   */
+  doubles: Record<number, Record<PlayerId, number>>;
+}
+
+export type BetConfig =
+  | NassauConfig
+  | SkinsConfig
+  | OneDownConfig
+  | BankerConfig;
 
 // ---------------------------------------------------------------------------
 // Round
@@ -115,6 +194,16 @@ export interface ManualHoleEntry {
   amounts: Record<PlayerId, number>;
   /** Optional banker for the hole; used by the UI to auto-derive their number. */
   bankerId?: PlayerId | null;
+  /**
+   * Players whose amount has actually been typed in.
+   *
+   * A cell nobody has touched and a cell holding a real $0 look identical in
+   * `amounts`, and the difference matters: once every player but one has been
+   * entered, the one left over is whatever balances the hole. Without this the
+   * app could not tell which player to fill in, or would overwrite a legitimate
+   * zero.
+   */
+  touched?: PlayerId[];
   note?: string;
 }
 
