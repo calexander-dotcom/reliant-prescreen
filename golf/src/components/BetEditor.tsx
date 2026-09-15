@@ -1,5 +1,6 @@
 "use client";
 
+import { labelledSides, sideLabel } from "@/lib/bets/sides";
 import {
   defaultBanker,
   defaultNassau,
@@ -149,17 +150,29 @@ function Toggle({
   options,
   value,
   onChange,
+  name,
 }: {
   options: { value: string; label: string }[];
   value: string;
   onChange: (value: string) => void;
+  /**
+   * What the choice is about, for a screen reader: several of these on one
+   * screen would otherwise all be "A", "B", "Out".
+   */
+  name?: string;
 }) {
   return (
-    <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+    <div
+      className="flex gap-1 rounded-xl bg-neutral-100 p-1"
+      role={name ? "group" : undefined}
+      aria-label={name}
+    >
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
+          aria-label={name ? `${name}: ${option.label}` : undefined}
+          aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
           className={`min-h-9 flex-1 rounded-lg px-2 text-sm font-semibold transition-colors ${
             value === option.value
@@ -210,6 +223,7 @@ function SideAssignment({
             </span>
             <div className="w-44">
               <Toggle
+                name={`${player.name} side`}
                 value={sideOf(player.id)}
                 onChange={(value) => assign(player.id, value as "a" | "b" | "out")}
                 options={[
@@ -223,9 +237,9 @@ function SideAssignment({
         ))}
       </ul>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Field label="Side A name">
+        <Field label="Side A name" hint="Follows who is on the side unless you type one.">
           <input
-            value={sides[0].name}
+            value={sideLabel(sides[0], players, "Side A")}
             onChange={(event) =>
               onSides([{ ...sides[0], name: event.target.value }, sides[1]])
             }
@@ -234,7 +248,7 @@ function SideAssignment({
         </Field>
         <Field label="Side B name">
           <input
-            value={sides[1].name}
+            value={sideLabel(sides[1], players, "Side B")}
             onChange={(event) =>
               onSides([sides[0], { ...sides[1], name: event.target.value }])
             }
@@ -700,7 +714,11 @@ const ROTATION_LABELS: Record<BankerConfig["rotation"], string> = {
   manual: "deal set by hand",
 };
 
-export function BetSummaryLine({ bet }: { bet: BetConfig }) {
+export function BetSummaryLine({ bet, players }: { bet: BetConfig; players: Player[] }) {
+  const sides =
+    bet.kind === "onedown" || bet.kind === "nassau"
+      ? labelledSides(bet.sides, players)
+      : null;
   if (bet.kind === "banker") {
     return (
       <span>
@@ -713,7 +731,7 @@ export function BetSummaryLine({ bet }: { bet: BetConfig }) {
   if (bet.kind === "onedown") {
     return (
       <span>
-        {bet.sides[0].name} vs {bet.sides[1].name} · {bet.basis} ·{" "}
+        {sides?.[0].name} vs {sides?.[1].name} · {bet.basis} ·{" "}
         {bet.autoPressAt > 0
           ? `new bet at ${bet.autoPressAt} down`
           : "presses by hand"}
@@ -727,7 +745,7 @@ export function BetSummaryLine({ bet }: { bet: BetConfig }) {
   if (bet.kind === "nassau") {
     return (
       <span>
-        {bet.sides[0].name} vs {bet.sides[1].name} · {bet.basis} ·{" "}
+        {sides?.[0].name} vs {sides?.[1].name} · {bet.basis} ·{" "}
         {bet.autoPressAt > 0
           ? `auto press at ${bet.autoPressAt} down`
           : "no presses"}

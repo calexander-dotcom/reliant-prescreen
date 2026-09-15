@@ -91,7 +91,7 @@ export function BetsView({
                 <span className="font-semibold text-neutral-900">
                   {bet.label} {formatMoney(bet.amount)}
                 </span>{" "}
-                — <BetSummaryLine bet={bet} />
+                — <BetSummaryLine bet={bet} players={round.players} />
               </li>
             ))}
           </ul>

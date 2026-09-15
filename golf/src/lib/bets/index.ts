@@ -10,6 +10,7 @@ import type {
   TeeSet,
 } from "../types";
 import { imbalance, ledgerTotals, normalizeAmounts, zeroAmounts } from "./ledger";
+import { labelledSides } from "./sides";
 import { evaluateNassau, type HoleResult, type NassauOutcome } from "./nassau";
 import { evaluateBanker, type BankerOutcome } from "./banker";
 import { evaluateOneDown, type OneDownOutcome } from "./onedown";
@@ -179,7 +180,13 @@ export function computeRound(round: Round): RoundComputation {
     return results;
   };
 
-  for (const bet of round.bets) {
+  for (const stored of round.bets) {
+    // Side labels follow the players, so every screen reads the same sides
+    // the money is going to.
+    const bet =
+      stored.kind === "nassau" || stored.kind === "onedown"
+        ? { ...stored, sides: labelledSides(stored.sides, round.players) }
+        : stored;
     if (bet.kind === "nassau") {
       const outcome = evaluateNassau(bet, round.holeCount, sideResults(bet), playerIds);
       betResults.push({ kind: "nassau", config: bet, outcome });
