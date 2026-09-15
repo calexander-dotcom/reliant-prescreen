@@ -6,6 +6,7 @@ import {
   evaluateNassau,
   matchPayout,
   matchStanding,
+  perspectiveSign,
   type HoleResult,
 } from "./nassau";
 
@@ -336,5 +337,22 @@ describe("money by segment", () => {
   it("has just the one segment on a nine-hole card", () => {
     const outcome = evaluateNassau(config(), 9, card, ids);
     expect(Object.keys(outcome.segmentTotals)).toEqual(["front"]);
+  });
+});
+
+describe("perspectiveSign", () => {
+  const a: Side = { id: "a", name: "A", playerIds: ["p1", "p2"] };
+  const b: Side = { id: "b", name: "B", playerIds: ["p3", "p4"] };
+
+  it("reads from side A for its players, and by default", () => {
+    expect(perspectiveSign([a, b], "p1")).toBe(1);
+    expect(perspectiveSign([a, b], null)).toBe(1);
+    expect(perspectiveSign([a, b], undefined)).toBe(1);
+    expect(perspectiveSign([a, b], "nobody")).toBe(1);
+  });
+
+  it("reads from side B for its players", () => {
+    expect(perspectiveSign([a, b], "p3")).toBe(-1);
+    expect(perspectiveSign([a, b], "p4")).toBe(-1);
   });
 });

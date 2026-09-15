@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import type { RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
-import { sideUp } from "@/lib/bets/nassau";
+import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
+import { standingFor } from "@/lib/bets/onedown";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
 import {
   balanceHoleOnto,
@@ -481,6 +482,8 @@ export function HoleView({
                 const stackMoney = stack?.sideTotals[0] ?? 0;
                 const overallMoney = result.outcome.overallSideTotals[0];
                 const totalMoney = result.outcome.sideTotals[0];
+                // Read from the scorer's side: positive and green are "us".
+                const sign = perspectiveSign(result.config.sides, round.perspectiveId);
 
                 return (
                   <li key={result.config.id}>
@@ -494,7 +497,7 @@ export function HoleView({
                     </div>
 
                     <div className="tabular mt-0.5 break-all font-mono text-lg font-bold text-turf-900">
-                      {stack?.standing || "—"}
+                      {stack ? standingFor(stack, sign) || "—" : "—"}
                     </div>
 
                     <dl className="mt-1 space-y-0.5 text-xs">
@@ -504,7 +507,7 @@ export function HoleView({
                           className={`tabular font-semibold ${
                             stackMoney === 0
                               ? "text-neutral-400"
-                              : stackMoney > 0
+                              : stackMoney * sign > 0
                                 ? "text-turf-700"
                                 : "text-red-700"
                           }`}
@@ -521,7 +524,7 @@ export function HoleView({
                             className={`tabular font-semibold ${
                               overallMoney === 0
                                 ? "text-neutral-400"
-                                : overallMoney > 0
+                                : overallMoney * sign > 0
                                   ? "text-turf-700"
                                   : "text-red-700"
                             }`}
@@ -536,7 +539,7 @@ export function HoleView({
                           className={`tabular font-bold ${
                             totalMoney === 0
                               ? "text-neutral-400"
-                              : totalMoney > 0
+                              : totalMoney * sign > 0
                                 ? "text-turf-700"
                                 : "text-red-700"
                           }`}

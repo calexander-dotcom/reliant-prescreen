@@ -207,6 +207,18 @@ export function sideUp(
   return { cents: sideCents, each: false };
 }
 
+/**
+ * +1 to read a match from side A, -1 from side B: the scorer's side, when
+ * they are in the game, so that positive and green mean "we are up". Someone
+ * on neither side, or nobody, reads it from side A.
+ */
+export function perspectiveSign(
+  sides: [Side, Side],
+  perspectiveId: PlayerId | null | undefined,
+): 1 | -1 {
+  return perspectiveId && sides[1].playerIds.includes(perspectiveId) ? -1 : 1;
+}
+
 export interface NassauOutcome {
   matches: NassauMatch[];
   /** Per-player money from this bet, in cents. Sums to zero. */

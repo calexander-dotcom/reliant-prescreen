@@ -146,6 +146,11 @@ export function formatStanding(margins: number[]): string {
     .join("-");
 }
 
+/** The stack's standing as read from one side; see perspectiveSign. */
+export function standingFor(stack: OneDownStack, sign: 1 | -1): string {
+  return formatStanding(stack.bets.map((bet) => bet.margin * sign));
+}
+
 export function evaluateOneDown(
   config: OneDownConfig,
   holeCount: number,
