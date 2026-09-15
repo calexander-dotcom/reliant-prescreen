@@ -1,25 +1,50 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createClient } from "redis";
 
 /**
  * Shared-round storage.
  *
- * Speaks the Upstash REST protocol, which is what both Vercel's KV stores and
- * the Upstash marketplace integration provide, so no client library and no
- * build-time dependency. Either set of environment variable names works, since
- * which one you get depends on how the store was provisioned.
+ * Two dialects, because the Vercel marketplace has two kinds of Redis and
+ * which one you end up with depends on which tile you tapped:
+ *
+ * - **REST** (Upstash, and Vercel's own KV): plain HTTPS with a bearer token.
+ *   No client library, no connection to manage.
+ * - **Wire** (Redis Cloud, or any `redis://` URL — an EC2 box, say): the real
+ *   Redis protocol over TCP, spoken by node-redis. One connection per command
+ *   rather than a cached client: a serverless function can be frozen and
+ *   thawed with a dead socket underneath it, and a fresh connect is ~50 ms
+ *   against a store that sees a few hundred commands a round.
+ *
+ * REST wins when both are present, since Upstash's integration injects both.
  */
 
-interface StoreConfig {
-  url: string;
-  token: string;
-}
+type Env = Record<string, string | undefined>;
 
-export function storeConfig(): StoreConfig | null {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token =
-    process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  return { url: url.replace(/\/+$/, ""), token };
+export type StoreConfig =
+  | { kind: "rest"; url: string; token: string }
+  | { kind: "redis"; url: string };
+
+const REDIS_SCHEME = /^rediss?:\/\//i;
+
+export function storeConfig(env: Env = process.env): StoreConfig | null {
+  const restUrl = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
+  const restToken = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
+  if (restUrl && restToken) {
+    return { kind: "rest", url: restUrl.replace(/\/+$/, ""), token: restToken };
+  }
+
+  if (env.REDIS_URL && REDIS_SCHEME.test(env.REDIS_URL)) {
+    return { kind: "redis", url: env.REDIS_URL };
+  }
+  // An integration installed with a custom prefix lands as FOO_REDIS_URL.
+  const prefixed = Object.keys(env)
+    .filter((name) => name.endsWith("REDIS_URL") && REDIS_SCHEME.test(env[name] ?? ""))
+    .sort();
+  if (prefixed.length > 0) {
+    return { kind: "redis", url: env[prefixed[0]] as string };
+  }
+
+  return null;
 }
 
 export class StoreError extends Error {
@@ -32,22 +57,36 @@ export class StoreError extends Error {
   }
 }
 
-async function command(args: (string | number)[]): Promise<unknown> {
-  const config = storeConfig();
-  if (!config) {
-    throw new StoreError(
-      "Sharing is not set up on this deployment. Add a KV store and redeploy.",
-      501,
-    );
-  }
+/**
+ * The not-configured error, with enough in it to fix the configuration from
+ * a screenshot: the *names* of any variables that look store-related but are
+ * not a shape this reads. Names only — a value would be a credential.
+ */
+export function missingStore(env: Env = process.env): StoreError {
+  const related = Object.keys(env)
+    .filter((name) => /REDIS|UPSTASH|KV_/.test(name))
+    .sort();
+  const hint =
+    related.length > 0
+      ? ` Present but not a shape this app reads: ${related.join(", ")}.`
+      : " No store variables were found.";
+  return new StoreError(
+    `Sharing is not set up on this deployment. Connect a Redis or KV store to the project and redeploy.${hint}`,
+    501,
+  );
+}
 
+async function restCommand(
+  config: Extract<StoreConfig, { kind: "rest" }>,
+  args: string[],
+): Promise<unknown> {
   const response = await fetch(config.url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${config.token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(args.map(String)),
+    body: JSON.stringify(args),
     cache: "no-store",
   });
 
@@ -58,6 +97,46 @@ async function command(args: (string | number)[]): Promise<unknown> {
   const payload = (await response.json()) as { result?: unknown; error?: string };
   if (payload.error) throw new StoreError(payload.error, 502);
   return payload.result ?? null;
+}
+
+async function redisCommand(
+  config: Extract<StoreConfig, { kind: "redis" }>,
+  args: string[],
+): Promise<unknown> {
+  const client = createClient({
+    url: config.url,
+    // Fail the request rather than retry in the background: the caller's next
+    // poll or publish is the retry, and a function that returns is one that
+    // is not holding a connection against the tier's limit of thirty.
+    socket: { connectTimeout: 5_000, reconnectStrategy: false },
+    disableOfflineQueue: true,
+  });
+  // node-redis also reports failures as events; unheard, they crash the
+  // process. The awaited promise below carries the same error.
+  client.on("error", () => {});
+
+  try {
+    await client.connect();
+    return await client.sendCommand(args);
+  } catch (error) {
+    throw new StoreError(
+      `Could not reach the share store: ${error instanceof Error ? error.message : String(error)}`,
+      502,
+    );
+  } finally {
+    if (client.isOpen) {
+      await client.close().catch(() => client.destroy());
+    }
+  }
+}
+
+async function command(args: (string | number)[]): Promise<unknown> {
+  const config = storeConfig();
+  if (!config) throw missingStore();
+  const strings = args.map(String);
+  return config.kind === "rest"
+    ? restCommand(config, strings)
+    : redisCommand(config, strings);
 }
 
 const KEY_PREFIX = "golfbets:share:";
@@ -99,13 +178,9 @@ function tokenSecret(): string {
   const explicit = process.env.SHARE_TOKEN_SECRET;
   if (explicit) return explicit;
   const config = storeConfig();
-  if (!config) {
-    throw new StoreError(
-      "Sharing is not set up on this deployment. Add a KV store and redeploy.",
-      501,
-    );
-  }
-  return config.token;
+  if (!config) throw missingStore();
+  // A redis:// URL carries its password, so it is secret material too.
+  return config.kind === "rest" ? config.token : config.url;
 }
 
 /**

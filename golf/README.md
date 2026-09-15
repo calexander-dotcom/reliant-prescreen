@@ -190,18 +190,35 @@ week past the final hole rather than a week past the first.
 
 ### Setting it up
 
-Sharing needs a Redis-style store. Create one in Vercel's **Storage** tab and
-redeploy — the integration injects its own credentials and nothing else is
-needed. Either naming works:
+Sharing needs a Redis-style store. Create one in Vercel's **Storage** tab,
+connect it to the project, and redeploy — the integration injects its own
+credentials and nothing else is needed. Vercel's marketplace has two kinds of
+Redis and the app reads both:
 
 ```
-KV_REST_API_URL / KV_REST_API_TOKEN            # Vercel KV
-UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN   # Upstash directly
+KV_REST_API_URL / KV_REST_API_TOKEN                # Vercel KV        (REST)
+UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN  # Upstash          (REST)
+REDIS_URL                                          # Redis Cloud, or any redis:// (wire)
 ```
 
-With neither set, the rest of the app is unaffected and the share button
-reports that sharing is not configured. The store is spoken to over the Upstash
-REST protocol directly, so there is no client library to install.
+The REST pair is plain HTTPS. `REDIS_URL` is the real Redis protocol over
+TCP, spoken by node-redis with **one connection per command** rather than a
+cached client — a serverless function can be thawed with a dead socket under
+it, and Redis Cloud's free tier allows thirty connections in total. REST wins
+when an integration injects both. A `REDIS_URL` under a custom prefix
+(`FOO_REDIS_URL`) is found too.
+
+With none set, the rest of the app is unaffected and the share button reports
+that sharing is not configured — naming any store-looking variables it *did*
+find (names only, never values), so a screenshot of the message is enough to
+see what an integration actually injected.
+
+The free Redis Cloud tier is **RAM-only with no persistence**, which the
+token design above is built for: a restart loses the rounds, and the next
+edit on the scoring phone puts one back on the same link.
+
+The wire path has a live test: `TEST_REDIS_URL=redis://:pw@127.0.0.1:6379
+npm test` runs it against a real Redis; without the variable it is skipped.
 
 **What leaves the device.** Only a shared round is copied to that store:
 player names, handicap indexes, scores and money. Everything else stays in the

@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { newShareId, tokenAuthorizes, writeTokenFor } from "./store";
+import {
+  missingStore,
+  newShareId,
+  storeConfig,
+  tokenAuthorizes,
+  writeTokenFor,
+} from "./store";
 
 beforeEach(() => {
   process.env.SHARE_TOKEN_SECRET = "test-secret-for-share-tokens";
@@ -57,5 +63,80 @@ describe("write tokens", () => {
     const token = writeTokenFor(id);
     expect(token).not.toContain(id);
     expect(token).not.toContain("test-secret-for-share-tokens");
+  });
+});
+
+describe("storeConfig", () => {
+  it("reads Vercel KV variables as REST", () => {
+    expect(
+      storeConfig({ KV_REST_API_URL: "https://kv.example/", KV_REST_API_TOKEN: "t" }),
+    ).toEqual({ kind: "rest", url: "https://kv.example", token: "t" });
+  });
+
+  it("reads Upstash variables as REST", () => {
+    expect(
+      storeConfig({
+        UPSTASH_REDIS_REST_URL: "https://up.example",
+        UPSTASH_REDIS_REST_TOKEN: "t",
+      }),
+    ).toEqual({ kind: "rest", url: "https://up.example", token: "t" });
+  });
+
+  it("prefers REST when an integration injects both", () => {
+    expect(
+      storeConfig({
+        KV_REST_API_URL: "https://kv.example",
+        KV_REST_API_TOKEN: "t",
+        REDIS_URL: "rediss://default:pw@host:6379",
+      }),
+    ).toMatchObject({ kind: "rest" });
+  });
+
+  it("reads REDIS_URL as the wire protocol", () => {
+    expect(storeConfig({ REDIS_URL: "redis://default:pw@host:6379" })).toEqual({
+      kind: "redis",
+      url: "redis://default:pw@host:6379",
+    });
+    expect(storeConfig({ REDIS_URL: "rediss://default:pw@host:6380" })).toMatchObject({
+      kind: "redis",
+    });
+  });
+
+  it("finds a REDIS_URL installed under a custom prefix", () => {
+    expect(
+      storeConfig({ GOLF_BETS_REDIS_URL: "redis://default:pw@host:6379" }),
+    ).toMatchObject({ kind: "redis", url: "redis://default:pw@host:6379" });
+  });
+
+  it("does not take something that merely mentions redis", () => {
+    expect(storeConfig({ REDIS_URL: "not a url" })).toBeNull();
+    expect(storeConfig({ REDIS_HOST: "host", REDIS_PASSWORD: "pw" })).toBeNull();
+    // A REST url without its token is no use either.
+    expect(storeConfig({ KV_REST_API_URL: "https://kv.example" })).toBeNull();
+    expect(storeConfig({})).toBeNull();
+  });
+});
+
+describe("missingStore", () => {
+  it("names related variables so a screenshot is enough to fix it", () => {
+    const error = missingStore({
+      REDIS_HOST: "some-host",
+      REDIS_PASSWORD: "hunter2",
+      PATH: "/usr/bin",
+      NEXT_PUBLIC_THING: "x",
+    });
+    expect(error.status).toBe(501);
+    expect(error.message).toContain("REDIS_HOST, REDIS_PASSWORD");
+    expect(error.message).not.toContain("PATH");
+  });
+
+  it("never includes a value", () => {
+    const error = missingStore({ REDIS_PASSWORD: "hunter2", REDIS_HOST: "some-host" });
+    expect(error.message).not.toContain("hunter2");
+    expect(error.message).not.toContain("some-host");
+  });
+
+  it("says when there is nothing at all", () => {
+    expect(missingStore({ PATH: "/usr/bin" }).message).toContain("No store variables");
   });
 });
