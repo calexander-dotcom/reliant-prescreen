@@ -1,7 +1,9 @@
 "use client";
 
-import type { RoundComputation } from "@/lib/bets";
+import type { BetResult, RoundComputation } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
+import { perspectiveSign } from "@/lib/bets/nassau";
+import { formatStanding } from "@/lib/bets/onedown";
 import { formatCompact } from "@/lib/money";
 import type { Round } from "@/lib/types";
 import { moneyTone } from "./MoneyByNine";
@@ -30,6 +32,17 @@ export function CardView({
 
   const front = comp.holes.filter((hole) => hole.number <= 9);
   const back = comp.holes.filter((hole) => hole.number > 9);
+
+  // One downs on the card: the standing beside each finished hole, read from
+  // the scorer's side, so the 9th carries the front nine's last word.
+  const oneDown = comp.betResults.find(
+    (result): result is Extract<BetResult, { kind: "onedown" }> => result.kind === "onedown",
+  );
+  const oneDownSign = oneDown ? perspectiveSign(oneDown.config.sides, round.perspectiveId) : 1;
+  const standingAt = (hole: number): string | null => {
+    const margins = oneDown?.byHole[hole];
+    return margins ? formatStanding(margins.map((margin) => margin * oneDownSign)) : null;
+  };
 
   return (
     <div className="space-y-4">
@@ -62,6 +75,9 @@ export function CardView({
                   </span>
                 </th>
               ))}
+              {oneDown ? (
+                <th className="px-1 py-2 text-left font-semibold">1 down</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -78,6 +94,7 @@ export function CardView({
                   unbalanced={unbalanced}
                   onPickHole={onPickHole}
                   readOnly={readOnly}
+                  standingAt={oneDown ? standingAt : null}
                 />
               ),
             )}
@@ -91,6 +108,7 @@ export function CardView({
                   {comp.totalsByPlayer[player.id]?.gross || "–"}
                 </td>
               ))}
+              {oneDown ? <td /> : null}
             </tr>
             <tr className="text-neutral-600">
               <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase">
@@ -104,6 +122,7 @@ export function CardView({
                     : "–"}
                 </td>
               ))}
+              {oneDown ? <td /> : null}
             </tr>
             {comp.nineTotals.hasOverall ? (
               <tr className="border-t border-neutral-200">
@@ -122,6 +141,7 @@ export function CardView({
                     </td>
                   );
                 })}
+                {oneDown ? <td /> : null}
               </tr>
             ) : null}
             <tr className="border-t border-neutral-200">
@@ -146,6 +166,7 @@ export function CardView({
                   </td>
                 );
               })}
+              {oneDown ? <td /> : null}
             </tr>
           </tbody>
         </table>
@@ -203,10 +224,13 @@ function HoleGroup({
   unbalanced,
   onPickHole,
   readOnly,
+  standingAt,
 }: {
   label: string;
   /** This nine's money per player, shown under the score subtotal. */
   nineMoney: Record<string, number>;
+  /** The one-down standing after a hole, when that is the game. */
+  standingAt: ((hole: number) => string | null) | null;
   holes: RoundComputation["holes"];
   round: Round;
   comp: RoundComputation;
@@ -262,6 +286,11 @@ function HoleGroup({
                 </td>
               );
             })}
+            {standingAt ? (
+              <td className="whitespace-nowrap px-1 py-1.5 text-left font-mono text-[0.65rem] text-neutral-700">
+                {standingAt(hole.number) ?? ""}
+              </td>
+            ) : null}
           </tr>
         );
       })}
@@ -287,6 +316,7 @@ function HoleGroup({
             </td>
           );
         })}
+        {standingAt ? <td /> : null}
       </tr>
     </>
   );
