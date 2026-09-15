@@ -16,10 +16,30 @@
  * Offline still works, because every network-first path falls back to the cache.
  */
 
-const CACHE = "golfbets-v2";
+const CACHE = "golfbets-v3";
 const SHELL = ["/", "/new", "/manifest.webmanifest", "/icon-192.png"];
 /** Long enough for a weak signal, short enough not to feel broken. */
 const NETWORK_TIMEOUT_MS = 3000;
+/**
+ * A reload the page asked for because a newer build is live carries ?u=<id>.
+ * The network was reachable a moment ago — that is how the page found out —
+ * so this one waits for it rather than settling for the very copy it is
+ * trying to replace.
+ */
+const UPDATE_PARAM = "u";
+const UPDATE_TIMEOUT_MS = 15000;
+
+/** The marker is not part of the page's identity; cache it under the plain URL. */
+function cacheKey(request) {
+  const url = new URL(request.url);
+  if (!url.searchParams.has(UPDATE_PARAM)) return request;
+  url.searchParams.delete(UPDATE_PARAM);
+  return new Request(url.toString());
+}
+
+function isUpdateReload(request) {
+  return new URL(request.url).searchParams.has(UPDATE_PARAM);
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -45,15 +65,15 @@ self.addEventListener("activate", (event) => {
 function putInCache(request, response) {
   if (response && response.ok && response.type === "basic") {
     const copy = response.clone();
-    caches.open(CACHE).then((cache) => cache.put(request, copy));
+    caches.open(CACHE).then((cache) => cache.put(cacheKey(request), copy));
   }
   return response;
 }
 
 /** Race the network against a timer so a dead spot does not hang the page. */
-function fetchWithTimeout(request) {
+function fetchWithTimeout(request, timeoutMs) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("timeout")), NETWORK_TIMEOUT_MS);
+    const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
     fetch(request)
       .then((response) => {
         clearTimeout(timer);
@@ -68,9 +88,10 @@ function fetchWithTimeout(request) {
 
 async function networkFirst(request) {
   try {
-    return putInCache(request, await fetchWithTimeout(request));
+    const timeoutMs = isUpdateReload(request) ? UPDATE_TIMEOUT_MS : NETWORK_TIMEOUT_MS;
+    return putInCache(request, await fetchWithTimeout(request, timeoutMs));
   } catch {
-    const cached = await caches.match(request);
+    const cached = await caches.match(cacheKey(request));
     if (cached) return cached;
     if (request.mode === "navigate") {
       const shell = await caches.match("/");
