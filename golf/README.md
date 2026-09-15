@@ -54,6 +54,37 @@ text summary to paste into the group chat.
 
 ## Automatic bets
 
+### One downs (the house game)
+
+A new bet opens whenever somebody falls behind in the newest bet, so live bets
+stack up as the round goes on. The standing is written as one margin per open
+bet, oldest first, signed from side A:
+
+```
+after 1   1-0              A won the 1st; a new bet opened for the 2nd
+after 2   2-1-0
+after 3   2-1-0-0          the 3rd halved, so B pressed by hand
+after 4   3-2-1-1-0        five bets live
+after 5   2-1-0-0-(-1)-0   B won the 5th; B leads the bet that opened on it
+```
+
+The rules, precisely:
+
+- After each hole, look at the **newest** bet. If either side is down in it, a
+  fresh bet opens covering the next hole to the end of that nine.
+- A hole that leaves the newest bet all square opens nothing. That is the
+  moment somebody **presses by hand** instead — and several presses can be
+  called on one hole, each opening its own bet over the same holes.
+- Each bet pays its stake to **whoever leads it right now**. Ahead by one pays
+  the same as ahead by five; a square bet pays nothing. So
+  `2-1-0-0-(-1)-0` at $10 a bet is two bets to A and one to B: **A up $10**.
+- The stack **ends at the turn** and a new one starts on the 10th.
+- Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
+  which never presses.
+
+A parenthesised number means the other side leads that bet — `(-1)` is side B
+one up — both because that is the convention and because `0--1` is unreadable.
+
 ### Nassau, with presses
 
 Front nine, back nine and total eighteen, each playing for the same stake,
@@ -178,7 +209,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 125 unit tests over the betting math and GHIN parsing
+npm test             # 156 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```
@@ -208,6 +239,7 @@ src/lib/
   bets/
     ledger.ts       the zero-sum hole ledger
     nassau.ts       segments, presses, match status, payouts
+    onedown.ts      the stacking one-down game
     skins.ts        carryover, validation
     settle.ts       net positions -> fewest payments
     index.ts        ties it all together (computeRound)

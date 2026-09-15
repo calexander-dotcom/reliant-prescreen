@@ -138,6 +138,46 @@ export function setHoleNote(round: Round, hole: number, note: string): Round {
   });
 }
 
+/**
+ * Set how many presses were called by hand after a hole.
+ *
+ * A press is recorded against the hole it was called after, which is how it
+ * gets said out there — "press it after this one" — and each one opens a bet
+ * covering the next hole onwards. Several on the same hole is allowed and
+ * means several bets riding on the same golf.
+ */
+export function setManualPresses(
+  round: Round,
+  betId: string,
+  hole: number,
+  count: number,
+): Round {
+  const clamped = Math.max(0, Math.min(9, Math.floor(count)));
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "onedown") return bet;
+      const presses = { ...(bet.manualPresses ?? {}) };
+      if (clamped === 0) delete presses[hole];
+      else presses[hole] = clamped;
+      return { ...bet, manualPresses: presses };
+    }),
+  });
+}
+
+/** Nudge the press count for a hole up or down. */
+export function adjustManualPresses(
+  round: Round,
+  betId: string,
+  hole: number,
+  delta: number,
+): Round {
+  const bet = round.bets.find((entry) => entry.id === betId);
+  const current =
+    bet && bet.kind === "onedown" ? (bet.manualPresses?.[hole] ?? 0) : 0;
+  return setManualPresses(round, betId, hole, current + delta);
+}
+
 /** Removing a player has to clean up their money and their side of every bet. */
 export function removePlayer(round: Round, playerId: PlayerId): Round {
   const players = round.players.filter((player) => player.id !== playerId);

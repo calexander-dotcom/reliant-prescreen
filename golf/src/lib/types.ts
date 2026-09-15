@@ -103,7 +103,43 @@ export interface SkinsConfig {
   requireBirdie: boolean;
 }
 
-export type BetConfig = NassauConfig | SkinsConfig;
+/**
+ * The "one down" game: a new bet opens whenever somebody falls behind in the
+ * newest bet, so live bets stack up as the round goes on.
+ *
+ * Standing is written as one number per open bet, oldest first — `3-2-1-1-0`
+ * is five simultaneous bets, the last of which has just opened at level.
+ */
+export interface OneDownConfig {
+  kind: "onedown";
+  id: string;
+  label: string;
+  /** Stake for each bet in the stack, in cents. */
+  amount: number;
+  sides: [Side, Side];
+  basis: ScoreBasis;
+  /**
+   * A new bet opens when the newest bet's margin reaches this many holes.
+   * 1 is the usual rule. 0 means presses only happen by hand.
+   */
+  autoPressAt: number;
+  /**
+   * Extra bets opened by hand, keyed by the hole they were called after:
+   * `{ 3: 1, 7: 2 }` is one press after the 3rd and two after the 7th. These
+   * add to any automatic bet on the same hole rather than replacing it.
+   */
+  manualPresses: Record<number, number>;
+  /** Whether the stack runs all 18 or starts over at the 10th. */
+  reset: "round" | "nines";
+  /**
+   * A single bet over all 18 at this multiple of the stake, alongside the
+   * nines. It never presses. 0 turns it off.
+   */
+  overallMultiplier: number;
+  stakeMode: "per-side" | "per-player";
+}
+
+export type BetConfig = NassauConfig | SkinsConfig | OneDownConfig;
 
 // ---------------------------------------------------------------------------
 // Round

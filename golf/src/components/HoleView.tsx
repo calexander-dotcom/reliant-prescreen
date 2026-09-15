@@ -10,6 +10,7 @@ import {
   setBanker,
   setManualAmount,
   setScore,
+  adjustManualPresses,
 } from "@/lib/mutations";
 import type { Round } from "@/lib/types";
 import { MoneyInput } from "./MoneyInput";
@@ -253,8 +254,142 @@ export function HoleView({
         </div>
       </Card>
 
+      {comp.betResults.some((result) => result.kind === "onedown") ? (
+        <Card>
+          <SectionTitle hint="A new bet opens on its own when someone goes down. Press to add one by hand.">
+            One downs
+          </SectionTitle>
+          <ul className="space-y-3">
+            {comp.betResults
+              .filter(
+                (result): result is Extract<typeof result, { kind: "onedown" }> =>
+                  result.kind === "onedown",
+              )
+              .map((result) => {
+                const presses = result.config.manualPresses?.[hole] ?? 0;
+                const [sideA, sideB] = result.config.sides;
+                const stack = result.outcome.stacks.find(
+                  (entry) => hole >= entry.startHole && hole <= entry.endHole,
+                );
+                // Each line pairs with the figure it actually describes: the
+                // stack standing with the stack money, the 18-hole bet on its
+                // own, then the two added up.
+                const upText = (cents: number) =>
+                  cents === 0
+                    ? "all square"
+                    : `${cents > 0 ? sideA.name : sideB.name} up ${formatMoney(
+                        Math.abs(cents),
+                      )}`;
+                const stackMoney = stack?.sideTotals[0] ?? 0;
+                const overallMoney = result.outcome.overallSideTotals[0];
+                const totalMoney = result.outcome.sideTotals[0];
+
+                return (
+                  <li key={result.config.id}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-semibold text-neutral-900">
+                        {result.config.label}
+                      </span>
+                      <span className="text-xs font-semibold text-neutral-500">
+                        {stack?.label}
+                      </span>
+                    </div>
+
+                    <div className="tabular mt-0.5 break-all font-mono text-lg font-bold text-turf-900">
+                      {stack?.standing || "—"}
+                    </div>
+
+                    <dl className="mt-1 space-y-0.5 text-xs">
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-neutral-500">{stack?.label}</dt>
+                        <dd
+                          className={`tabular font-semibold ${
+                            stackMoney === 0
+                              ? "text-neutral-400"
+                              : stackMoney > 0
+                                ? "text-turf-700"
+                                : "text-red-700"
+                          }`}
+                        >
+                          {upText(stackMoney)}
+                        </dd>
+                      </div>
+                      {result.outcome.overall ? (
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-neutral-500">
+                            Overall 18 ({formatMoney(result.outcome.overall.amount)})
+                          </dt>
+                          <dd
+                            className={`tabular font-semibold ${
+                              overallMoney === 0
+                                ? "text-neutral-400"
+                                : overallMoney > 0
+                                  ? "text-turf-700"
+                                  : "text-red-700"
+                            }`}
+                          >
+                            {upText(overallMoney)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-between gap-2 border-t border-neutral-100 pt-0.5">
+                        <dt className="font-semibold text-neutral-700">Total</dt>
+                        <dd
+                          className={`tabular font-bold ${
+                            totalMoney === 0
+                              ? "text-neutral-400"
+                              : totalMoney > 0
+                                ? "text-turf-700"
+                                : "text-red-700"
+                          }`}
+                        >
+                          {upText(totalMoney)}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-neutral-600">
+                        Presses after {hole}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`One fewer press after hole ${hole}`}
+                        disabled={presses === 0}
+                        onClick={() =>
+                          update(adjustManualPresses(round, result.config.id, hole, -1))
+                        }
+                        className="h-9 w-9 shrink-0 rounded-lg bg-neutral-100 text-xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
+                      >
+                        &minus;
+                      </button>
+                      <span
+                        className={`tabular w-8 text-center text-base font-bold ${
+                          presses > 0 ? "text-turf-800" : "text-neutral-400"
+                        }`}
+                      >
+                        {presses}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`One more press after hole ${hole}`}
+                        onClick={() =>
+                          update(adjustManualPresses(round, result.config.id, hole, 1))
+                        }
+                        className="h-9 w-9 shrink-0 rounded-lg bg-turf-50 text-xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </Card>
+      ) : null}
+
       <Card>
-        <SectionTitle hint="Manual money only. Nassau and skins settle on the Bets tab.">
+        <SectionTitle hint="Hand-entered money only. The automatic bets settle on the Bets tab.">
           Running money
         </SectionTitle>
         <ul className="grid grid-cols-2 gap-2">

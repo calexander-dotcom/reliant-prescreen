@@ -7,7 +7,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel } from "@/components/GhinPanel";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
-import { defaultNassau, defaultSkins } from "@/lib/bets/defaults";
+import { defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
 import { createRound, newId, saveRound } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
@@ -40,7 +40,7 @@ export default function NewRoundPage() {
     const bets =
       round.bets.length > 0
         ? round.bets
-        : [defaultNassau(round.players, newId()), defaultSkins(round.players, newId())];
+        : [defaultOneDown(round.players, newId()), defaultSkins(round.players, newId())];
     const next = { ...round, bets, courseName: round.courseName || "Untitled round" };
     saveRound(next);
     router.push(`/round/${next.id}`);
@@ -99,7 +99,7 @@ export default function NewRoundPage() {
       </Card>
 
       <Card>
-        <SectionTitle hint="Skip this and you get a $20 nassau with one-down presses plus $5 skins. Change it any time.">
+        <SectionTitle hint="Skip this and you get $10 one downs plus $5 skins. Change it any time.">
           Bets
         </SectionTitle>
         {round.players.length < 2 ? (

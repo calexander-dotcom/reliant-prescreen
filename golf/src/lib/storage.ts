@@ -54,7 +54,17 @@ function migrateRound(round: Round): Round {
     players: Array.isArray(round.players) ? round.players : [],
     scores: round.scores ?? {},
     manual: round.manual ?? {},
-    bets: Array.isArray(round.bets) ? round.bets : [],
+    bets: (Array.isArray(round.bets) ? round.bets : []).map((bet) => {
+      // Presses used to be a list of holes; they are counts per hole now.
+      if (bet.kind === "onedown" && Array.isArray(bet.manualPresses)) {
+        const counts: Record<number, number> = {};
+        for (const hole of bet.manualPresses as unknown as number[]) {
+          counts[hole] = (counts[hole] ?? 0) + 1;
+        }
+        return { ...bet, manualPresses: counts };
+      }
+      return bet;
+    }),
     handicapMode: round.handicapMode ?? "off-low",
   };
 }

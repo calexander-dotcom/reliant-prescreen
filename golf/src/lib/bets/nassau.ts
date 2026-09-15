@@ -145,9 +145,14 @@ export function evaluateSegment(
   return out;
 }
 
-/** Money a single decided match moves, keyed by player. */
+/**
+ * Money a single decided match moves, keyed by player.
+ *
+ * Takes just the outcome and the stake, so every bet type that resolves to
+ * "one side beat the other for this much" shares the same payout rules.
+ */
 export function matchPayout(
-  match: NassauMatch,
+  match: { status: NassauMatch["status"]; amount: number },
   sides: [Side, Side],
   stakeMode: NassauConfig["stakeMode"],
   playerIds: PlayerId[],

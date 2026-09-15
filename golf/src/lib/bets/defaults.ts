@@ -1,4 +1,11 @@
-import type { BetConfig, NassauConfig, Player, SkinsConfig, Side } from "../types";
+import type {
+  BetConfig,
+  NassauConfig,
+  OneDownConfig,
+  Player,
+  SkinsConfig,
+  Side,
+} from "../types";
 
 /** Split a group into two sides: first half against the rest. */
 export function defaultSides(players: Player[]): [Side, Side] {
@@ -33,6 +40,25 @@ export function defaultNassau(players: Player[], id: string): NassauConfig {
   };
 }
 
+/** The house game: $10 a bet, a new one every time somebody goes 1 down. */
+export function defaultOneDown(players: Player[], id: string): OneDownConfig {
+  return {
+    kind: "onedown",
+    id,
+    label: "One downs",
+    amount: 1000,
+    sides: defaultSides(players),
+    basis: "net",
+    autoPressAt: 1,
+    manualPresses: [],
+    // The bet ends at the turn and starts again on the 10th.
+    reset: "nines",
+    // Plus one bet over all 18 at double, with no presses on it.
+    overallMultiplier: 2,
+    stakeMode: "per-side",
+  };
+}
+
 export function defaultSkins(players: Player[], id: string): SkinsConfig {
   return {
     kind: "skins",
@@ -47,5 +73,8 @@ export function defaultSkins(players: Player[], id: string): SkinsConfig {
 }
 
 export function betLabel(bet: BetConfig): string {
-  return bet.label || (bet.kind === "nassau" ? "Nassau" : "Skins");
+  if (bet.label) return bet.label;
+  if (bet.kind === "nassau") return "Nassau";
+  if (bet.kind === "onedown") return "One downs";
+  return "Skins";
 }
