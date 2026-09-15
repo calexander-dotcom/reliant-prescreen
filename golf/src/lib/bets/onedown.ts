@@ -140,10 +140,16 @@ export function pressCounts(
   return counts;
 }
 
+/**
+ * The standing as it is written: one signed number per open bet, oldest
+ * first, slashes between — `+2/+1/0/-1/0`. Plus is our side up in that bet,
+ * minus the other side, 0 square. Every number carries its sign so a
+ * negative never needs wrapping and the row can be read at a glance.
+ */
 export function formatStanding(margins: number[]): string {
   return margins
-    .map((margin) => (margin < 0 ? `(${margin})` : String(margin)))
-    .join("-");
+    .map((margin) => (margin > 0 ? `+${margin}` : String(margin)))
+    .join("/");
 }
 
 /** The stack's standing as read from one side; see perspectiveSign. */

@@ -49,26 +49,26 @@ describe("the house one-down rules", () => {
   const pressedAfter3 = config({ manualPresses: { 3: 1 } });
 
   it("after hole 1 reads 1-0", () => {
-    expect(evaluateOneDown(pressedAfter3, 18, through(1), ids).standing).toBe("1-0");
+    expect(evaluateOneDown(pressedAfter3, 18, through(1), ids).standing).toBe("+1/0");
   });
 
   it("after hole 2 reads 2-1-0", () => {
     expect(evaluateOneDown(pressedAfter3, 18, through(1, 1), ids).standing).toBe(
-      "2-1-0",
+      "+2/+1/0",
     );
   });
 
   it("after hole 3 reads 2-1-0-0", () => {
     // The tie opens nothing on its own, so the fourth bet is Team B's press.
     const outcome = evaluateOneDown(pressedAfter3, 18, through(1, 1, 0), ids);
-    expect(outcome.standing).toBe("2-1-0-0");
+    expect(outcome.standing).toBe("+2/+1/0/0");
     expect(outcome.bets).toHaveLength(4);
     expect(outcome.bets[3]).toMatchObject({ startHole: 4, openedBy: "manual" });
   });
 
   it("after hole 4 reads 3-2-1-1-0", () => {
     const outcome = evaluateOneDown(pressedAfter3, 18, through(1, 1, 0, 1), ids);
-    expect(outcome.standing).toBe("3-2-1-1-0");
+    expect(outcome.standing).toBe("+3/+2/+1/+1/0");
     expect(outcome.bets).toHaveLength(5);
     expect(outcome.bets.map((bet) => bet.startHole)).toEqual([1, 2, 3, 4, 5]);
     expect(outcome.bets.map((bet) => bet.margin)).toEqual([3, 2, 1, 1, 0]);
@@ -76,7 +76,7 @@ describe("the house one-down rules", () => {
 
   it("after hole 5, with team B winning it, reads 2-1-0-0-(-1)-0", () => {
     const outcome = evaluateOneDown(pressedAfter3, 18, through(1, 1, 0, 1, -1), ids);
-    expect(outcome.standing).toBe("2-1-0-0-(-1)-0");
+    expect(outcome.standing).toBe("+2/+1/0/0/-1/0");
     expect(outcome.bets).toHaveLength(6);
     expect(outcome.bets.map((bet) => bet.margin)).toEqual([2, 1, 0, 0, -1, 0]);
     // Team B losing hole 5 in its own new bet opens the next one.
@@ -103,7 +103,7 @@ describe("the house one-down rules", () => {
   it("opens nothing extra without the press, giving 3-2-1-0", () => {
     // Same golf, no press after the tied hole: one fewer bet.
     expect(evaluateOneDown(config(), 18, through(1, 1, 0, 1), ids).standing).toBe(
-      "3-2-1-0",
+      "+3/+2/+1/0",
     );
   });
 });
@@ -132,7 +132,7 @@ describe("opening new bets", () => {
     // Three presses after the 2nd: three separate bets from hole 3.
     expect(outcome.bets.map((bet) => bet.startHole)).toEqual([1, 3, 3, 3]);
     // Same golf, so identical margins — and triple the money.
-    expect(outcome.standing).toBe("3-1-1-1");
+    expect(outcome.standing).toBe("+3/+1/+1/+1");
     expect(outcome.stackSideTotals).toEqual([4000, -4000]);
   });
 
@@ -144,13 +144,13 @@ describe("opening new bets", () => {
       through(1, 1, 0, 1),
       ids,
     );
-    expect(outcome.standing).toBe("3-2-1-1-0");
+    expect(outcome.standing).toBe("+3/+2/+1/+1/0");
   });
 
   it("stacks a bet every hole while one side keeps losing", () => {
     const outcome = evaluateOneDown(config(), 18, through(1, 1, 1, 1, 1, 1), ids);
     expect(outcome.bets).toHaveLength(7);
-    expect(outcome.standing).toBe("6-5-4-3-2-1-0");
+    expect(outcome.standing).toBe("+6/+5/+4/+3/+2/+1/0");
   });
 
   it("stops opening bets when a halve keeps the newest one square", () => {
@@ -168,7 +168,7 @@ describe("opening new bets", () => {
   it("works the same when side B is the one ahead", () => {
     const outcome = evaluateOneDown(config(), 18, through(-1, -1), ids);
     // Signed from side A, so B being up two reads as (-2).
-    expect(outcome.standing).toBe("(-2)-(-1)-0");
+    expect(outcome.standing).toBe("-2/-1/0");
     expect(outcome.bets[0].margin).toBe(-2);
   });
 
@@ -313,10 +313,10 @@ describe("betStanding", () => {
 
 describe("formatStanding", () => {
   it("writes the house notation", () => {
-    expect(formatStanding([3, 2, 1, 1, 0])).toBe("3-2-1-1-0");
-    expect(formatStanding([2, 1, 0, 0, -1, 0])).toBe("2-1-0-0-(-1)-0");
+    expect(formatStanding([3, 2, 1, 1, 0])).toBe("+3/+2/+1/+1/0");
+    expect(formatStanding([2, 1, 0, 0, -1, 0])).toBe("+2/+1/0/0/-1/0");
     expect(formatStanding([0])).toBe("0");
-    expect(formatStanding([-2, -1, 0])).toBe("(-2)-(-1)-0");
+    expect(formatStanding([-2, -1, 0])).toBe("-2/-1/0");
   });
 });
 
@@ -361,7 +361,7 @@ describe("the nines and the 18-hole bet", () => {
     // Double the stake, and it is the only bet over the full round.
     expect(outcome.overallSideTotals).toEqual([2000, -2000]);
     // The standing stays the stack; the 18-hole bet is its own line.
-    expect(outcome.standing).toBe("2-1-0-0-(-1)-0");
+    expect(outcome.standing).toBe("+2/+1/0/0/-1/0");
     expect(outcome.bets.some((bet) => bet.openedBy === "overall")).toBe(false);
   });
 
@@ -445,16 +445,16 @@ describe("standingFor", () => {
 
   it("reads the same stack from either side", () => {
     expect(standingFor(stack, 1)).toBe(stack.standing);
-    expect(stack.standing).toBe("1-0-(-1)-(-1)-0");
+    expect(stack.standing).toBe("+1/0/-1/-1/0");
     // Every non-zero number changes sign; every zero stays a plain 0.
-    expect(standingFor(stack, -1)).toBe("(-1)-0-1-1-0");
+    expect(standingFor(stack, -1)).toBe("-1/0/+1/+1/0");
     const a = stack.bets.map((bet) => bet.margin);
     expect(standingFor(stack, -1)).toBe(formatStanding(a.map((m) => -m)));
   });
 
   it("puts the leading side's numbers in the open", () => {
     const aLeads = evaluateOneDown(config(), 18, through(1, 1), ids).stacks[0];
-    expect(standingFor(aLeads, 1)).toBe("2-1-0");
-    expect(standingFor(aLeads, -1)).toBe("(-2)-(-1)-0");
+    expect(standingFor(aLeads, 1)).toBe("+2/+1/0");
+    expect(standingFor(aLeads, -1)).toBe("-2/-1/0");
   });
 });
