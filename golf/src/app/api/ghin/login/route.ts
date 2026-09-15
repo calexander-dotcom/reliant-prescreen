@@ -6,11 +6,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST { emailOrGhin, password } -> { token }
+ * POST { emailOrGhin, password } -> { token, golferId, shape }
  *
- * The credentials are used once, to get a token, and are never stored or
- * logged. The token goes back to the browser, which keeps it in sessionStorage
- * and sends it on later requests.
+ * The read endpoints turned out to need this token after all, so signing in is
+ * required and not optional. The credentials are used once, here, and are never
+ * stored or logged; the token goes back to the browser and lives in
+ * sessionStorage.
+ *
+ * `golferId` is the signed-in golfer's own GHIN number when the response
+ * carries it, since the following and courses endpoints take it as a path
+ * segment. `shape` is the key-only structure of the response, which is how to
+ * find that number if it is somewhere this does not yet look.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -31,8 +37,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const token = await ghinLogin(emailOrGhin.trim(), password);
-    return NextResponse.json({ token });
+    const session = await ghinLogin(emailOrGhin.trim(), password);
+    return NextResponse.json(session);
   } catch (error) {
     return handleRouteError(error);
   }

@@ -12,10 +12,12 @@ export function CoursePicker({
   round,
   update,
   golferId,
+  token,
 }: {
   round: Round;
   update: (next: Round) => void;
   golferId: string | null;
+  token: string | null;
 }) {
   const [saved, setSaved] = useState<CourseSummary[]>([]);
   const [savedProbes, setSavedProbes] = useState<GhinProbe[] | null>(null);
@@ -25,10 +27,10 @@ export function CoursePicker({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!golferId) return;
+    if (!golferId || !token) return;
     let cancelled = false;
     setBusy("saved");
-    apiMyCourses(golferId)
+    apiMyCourses(golferId, token)
       .then((result) => {
         if (cancelled) return;
         setSaved(result.courses);
@@ -44,13 +46,13 @@ export function CoursePicker({
     return () => {
       cancelled = true;
     };
-  }, [golferId]);
+  }, [golferId, token]);
 
   const search = async () => {
     setBusy("search");
     setError(null);
     try {
-      setResults(await apiSearchCourses(null, query.trim()));
+      setResults(await apiSearchCourses(token, query.trim()));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Course search failed.");
       setResults([]);
@@ -63,7 +65,7 @@ export function CoursePicker({
     setBusy(summary.id);
     setError(null);
     try {
-      const course = await apiCourse(null, summary.id);
+      const course = await apiCourse(token, summary.id);
       const tee = course.tees[0] ?? null;
       update({
         ...round,
@@ -138,7 +140,7 @@ export function CoursePicker({
             />
           </Field>
 
-          {golferId ? (
+          {token ? (
             <>
               {saved.length > 0 ? (
                 <div>
@@ -208,8 +210,8 @@ export function CoursePicker({
             </>
           ) : (
             <Banner>
-              Add your GHIN number above to see your courses, or just type the
-              name and play off a plain par-72 card.
+              Sign in to GHIN above to look up a course, or just type the name
+              and play off a plain par-72 card.
             </Banner>
           )}
 

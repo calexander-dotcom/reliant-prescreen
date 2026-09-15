@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BetEditor } from "@/components/BetEditor";
 import { CoursePicker } from "@/components/CoursePicker";
-import { GhinPanel } from "@/components/GhinPanel";
+import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
 import { defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
@@ -26,7 +26,7 @@ const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
 export default function NewRoundPage() {
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
-  const [golferId, setGolferId] = useState<string | null>(null);
+  const [ghin, setGhin] = useState<GhinConnection>({ token: null, golferId: null });
 
   useEffect(() => {
     setRound(createRound());
@@ -55,11 +55,21 @@ export default function NewRoundPage() {
         </LinkButton>
       </header>
 
-      <GhinPanel golferId={golferId} onChange={setGolferId} />
+      <GhinPanel connection={ghin} onChange={setGhin} />
 
-      <CoursePicker round={round} update={setRound} golferId={golferId} />
+      <CoursePicker
+        round={round}
+        update={setRound}
+        golferId={ghin.golferId}
+        token={ghin.token}
+      />
 
-      <PlayerPicker round={round} update={setRound} golferId={golferId} />
+      <PlayerPicker
+        round={round}
+        update={setRound}
+        golferId={ghin.golferId}
+        token={ghin.token}
+      />
 
       <Card>
         <SectionTitle>Handicaps</SectionTitle>

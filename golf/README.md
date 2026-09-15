@@ -210,14 +210,30 @@ correctly from GHIN, where `+1.2` means numerically **−1.2**.
 > calls. They can change without warning. Everything in the app works without
 > them — add players and a course by hand and you lose nothing but typing.
 
-**No password required.** These endpoints are served from a GHIN number alone,
-with no `Authorization` header and no cookie. That is GHIN's design, not a
-choice made here, and it has two consequences worth knowing: this app never
-asks for or handles a GHIN password, and anyone who knows your GHIN number can
-read the same data.
+**Signing in is required.** An earlier version of this app concluded otherwise:
+the captured traffic showed no `Authorization` header and no cookies, so the
+read endpoints looked open. That capture had been taken with Chrome's
+*sanitized* HAR export, which strips exactly those headers. Without a token the
+endpoints answer:
+
+```
+401  {"error":"Invalid token"}
+```
+
+So the flow needs two things: a **session token** from `golfer_login.json` to
+authorise the call, and the golfer's own **GHIN number**, which is a path
+segment in the endpoints below. The number normally comes out of the login
+response; when it does not, the app asks for it and shows the key-only shape of
+that response so the right field can be found.
+
+The password is posted to this app's own route handler, exchanged once for a
+token, and never stored or logged. The token lives in `sessionStorage` and is
+gone when the tab closes.
 
 The endpoints and response shapes below were confirmed against a capture of
 ghin.com's own network traffic:
+
+All of these need `Authorization: Bearer <token>`.
 
 | What | Endpoint | Response |
 |---|---|---|
@@ -261,10 +277,12 @@ deployed publicly.
 
 ### Sign-in
 
-`POST /golfer_login.json` works and is still wired up at `/api/ghin/login` (it
-needs a non-empty `token` field in the body alongside the credentials), but
-nothing in the app calls it, because nothing needs it. It is there for the day
-GHIN starts requiring auth on the read endpoints.
+`POST /golfer_login.json`, at `/api/ghin/login`. One quirk: the body needs a
+non-empty `token` field of its own, alongside the credentials and separate from
+the session token it returns. Omitting it returns
+`400 {"errors":{"token":["can't be blank"]}}`. It is a presence check rather
+than a value check, so the default satisfies it; `GHIN_CLIENT_TOKEN` overrides
+it if that changes.
 
 ## Running it
 
@@ -274,7 +292,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 202 unit tests over the betting math, GHIN parsing and sharing
+npm test             # 204 unit tests over the betting math, GHIN parsing and sharing
 npm run typecheck
 npm run build && npm start
 ```

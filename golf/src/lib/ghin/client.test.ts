@@ -148,7 +148,9 @@ describe("ghinLogin", () => {
       status: 200,
       body: '{"golfer_user":{"golfer_user_token":"abc123"}}',
     }));
-    await expect(ghinLogin("me@example.com", "pw")).resolves.toBe("abc123");
+    await expect(ghinLogin("me@example.com", "pw")).resolves.toMatchObject({
+      token: "abc123",
+    });
   });
 
   it("fails clearly when the response carries no token", async () => {
@@ -253,7 +255,7 @@ describe("ghinGolferCourses", () => {
       calls.some((url) => url.includes("golfer_most_recent_courses.json")),
     ).toBe(true);
     // Deduped by course id, pinned first.
-    expect(items.map((course) => course.id)).toEqual(["1", "2"]);
+    expect(items.map((course: { id: string }) => course.id)).toEqual(["1", "2"]);
     expect(items[1]).toMatchObject({ name: "Recent CC", city: "Reno" });
     expect(probes).toHaveLength(2);
   });

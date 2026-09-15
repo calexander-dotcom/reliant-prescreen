@@ -3,6 +3,7 @@ import {
   normalizeCourseDetail,
   normalizeCourseSummaries,
   normalizeGolfers,
+  normalizeLoginGolferId,
   normalizeLoginToken,
   parseHandicapIndex,
 } from "./normalize";
@@ -361,5 +362,28 @@ describe("real GHIN payload shapes", () => {
     // Allocation is the stroke index, which is what strokes get assigned by.
     expect(tee.holes[0]).toMatchObject({ number: 1, par: 4, yardage: 317, strokeIndex: 17 });
     expect(tee.holes[1]).toMatchObject({ number: 2, par: 5, strokeIndex: 3 });
+  });
+});
+
+describe("normalizeLoginGolferId", () => {
+  it("finds the golfer's own number however it is nested", () => {
+    expect(normalizeLoginGolferId({ golfer_id: 5694340 })).toBe("5694340");
+    expect(normalizeLoginGolferId({ golfer_user: { golfer_id: "1234567" } })).toBe(
+      "1234567",
+    );
+    expect(normalizeLoginGolferId({ golfer_user: { golfer: { ghin: "7654321" } } })).toBe(
+      "7654321",
+    );
+    expect(normalizeLoginGolferId({ data: { golfers: [{ id: 4455667 }] } })).toBe(
+      "4455667",
+    );
+  });
+
+  it("ignores ids that are not GHIN numbers", () => {
+    // Record ids and tokens are not golfer numbers.
+    expect(normalizeLoginGolferId({ id: 7 })).toBeNull();
+    expect(normalizeLoginGolferId({ id: "abc" })).toBeNull();
+    expect(normalizeLoginGolferId({ golfer_user: { id: "not-a-number" } })).toBeNull();
+    expect(normalizeLoginGolferId(null)).toBeNull();
   });
 });
