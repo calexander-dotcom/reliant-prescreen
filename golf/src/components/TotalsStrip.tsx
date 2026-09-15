@@ -8,11 +8,13 @@ import type { Round } from "@/lib/types";
  * Everyone's running total, one tile each, at the top of the round and of
  * the shared view.
  *
- * A money figure is never cut short. The tiles size to what is in them and
- * share the width when there is room; when there is not — long names, cents,
- * a big group — the row scrolls sideways instead of turning "-$15" into
- * "-$1…". Names are first names, and the figure drops the cents when there
- * are none, so four across fits an ordinary phone with room to spare.
+ * A money figure is never cut short and never pushed off the edge. Four
+ * across is the shape when it fits; when the screen is narrow — a small
+ * phone, or an ordinary one with Safari's page zoom or a larger text size
+ * turned up, which shrinks the width the page has to work with — the tiles
+ * go two by two instead. The columns size to their contents rather than to
+ * a fixed share, so a long name widens its tile rather than losing digits,
+ * and the figure drops the cents when there are none.
  */
 export function TotalsStrip({
   round,
@@ -21,17 +23,27 @@ export function TotalsStrip({
   round: Round;
   comp: RoundComputation;
 }) {
+  const count = round.players.length;
+  const columns =
+    count <= 1
+      ? "grid-cols-1"
+      : count === 2
+        ? "grid-cols-[repeat(2,auto)]"
+        : count === 3
+          ? "grid-cols-[repeat(3,auto)]"
+          : "grid-cols-[repeat(2,auto)] min-[340px]:grid-cols-[repeat(4,auto)]";
+
   return (
     <ul
       aria-label="Running totals"
-      className="tabular flex gap-1.5 overflow-x-auto pb-1"
+      className={`tabular grid gap-1.5 overflow-x-auto pb-1 ${columns}`}
     >
       {round.players.map((player) => {
         const total = comp.grandTotals[player.id] ?? 0;
         return (
           <li
             key={player.id}
-            className="flex-1 shrink-0 basis-auto rounded-xl bg-white px-1.5 py-1.5 text-center shadow-sm ring-1 ring-black/5"
+            className="rounded-xl bg-white px-1.5 py-1.5 text-center shadow-sm ring-1 ring-black/5"
           >
             <div className="whitespace-nowrap text-[0.7rem] font-semibold text-neutral-600">
               {player.name.split(" ")[0]}
