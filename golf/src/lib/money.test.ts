@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   distributeCents,
   formatCompact,
+  formatShort,
   formatMoney,
   formatSigned,
   parseMoney,
@@ -57,6 +58,15 @@ describe("formatting", () => {
     expect(formatCompact(-4000)).toBe("-40");
     expect(formatCompact(2050)).toBe("+20.50");
     expect(formatCompact(0)).toBe("—");
+  });
+
+  it("keeps the strip short: cents only when there are any", () => {
+    expect(formatShort(1500)).toBe("+$15");
+    expect(formatShort(-1500)).toBe("-$15");
+    expect(formatShort(-1250)).toBe("-$12.50");
+    expect(formatShort(5)).toBe("+$0.05");
+    expect(formatShort(0)).toBe("$0");
+    expect(formatShort(-100000)).toBe("-$1000");
   });
 });
 
