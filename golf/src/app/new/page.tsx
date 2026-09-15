@@ -26,7 +26,7 @@ const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
 export default function NewRoundPage() {
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [golferId, setGolferId] = useState<string | null>(null);
 
   useEffect(() => {
     setRound(createRound());
@@ -55,11 +55,11 @@ export default function NewRoundPage() {
         </LinkButton>
       </header>
 
-      <GhinPanel token={token} onToken={setToken} />
+      <GhinPanel golferId={golferId} onChange={setGolferId} />
 
-      <CoursePicker round={round} update={setRound} token={token} />
+      <CoursePicker round={round} update={setRound} golferId={golferId} />
 
-      <PlayerPicker round={round} update={setRound} token={token} />
+      <PlayerPicker round={round} update={setRound} golferId={golferId} />
 
       <Card>
         <SectionTitle>Handicaps</SectionTitle>

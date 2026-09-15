@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, apiCourse, apiFavoriteCourses, apiSearchCourses } from "@/lib/api";
+import { ApiError, apiCourse, apiMyCourses, apiSearchCourses } from "@/lib/api";
 import { GhinDiagnostics } from "./GhinDiagnostics";
 import type { CourseSummary } from "@/lib/ghin/normalize";
 import type { GhinProbe } from "@/lib/ghin/shape";
@@ -11,11 +11,11 @@ import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "
 export function CoursePicker({
   round,
   update,
-  token,
+  golferId,
 }: {
   round: Round;
   update: (next: Round) => void;
-  token: string | null;
+  golferId: string | null;
 }) {
   const [saved, setSaved] = useState<CourseSummary[]>([]);
   const [savedProbes, setSavedProbes] = useState<GhinProbe[] | null>(null);
@@ -25,10 +25,10 @@ export function CoursePicker({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!golferId) return;
     let cancelled = false;
     setBusy("saved");
-    apiFavoriteCourses(token)
+    apiMyCourses(golferId)
       .then((result) => {
         if (cancelled) return;
         setSaved(result.courses);
@@ -44,14 +44,13 @@ export function CoursePicker({
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [golferId]);
 
   const search = async () => {
-    if (!token) return;
     setBusy("search");
     setError(null);
     try {
-      setResults(await apiSearchCourses(token, query.trim()));
+      setResults(await apiSearchCourses(null, query.trim()));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Course search failed.");
       setResults([]);
@@ -61,11 +60,10 @@ export function CoursePicker({
   };
 
   const choose = async (summary: CourseSummary) => {
-    if (!token) return;
     setBusy(summary.id);
     setError(null);
     try {
-      const course = await apiCourse(token, summary.id);
+      const course = await apiCourse(null, summary.id);
       const tee = course.tees[0] ?? null;
       update({
         ...round,
@@ -140,7 +138,7 @@ export function CoursePicker({
             />
           </Field>
 
-          {token ? (
+          {golferId ? (
             <>
               {saved.length > 0 ? (
                 <div>
@@ -210,8 +208,8 @@ export function CoursePicker({
             </>
           ) : (
             <Banner>
-              Connect GHIN above to import a course, or just type the name and play
-              off a plain par-72 card.
+              Add your GHIN number above to see your courses, or just type the
+              name and play off a plain par-72 card.
             </Banner>
           )}
 

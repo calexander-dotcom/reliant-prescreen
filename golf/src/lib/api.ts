@@ -65,14 +65,21 @@ export interface GolferLookup {
   probes: GhinProbe[];
 }
 
-export async function apiFollowing(token: string): Promise<GolferLookup> {
-  const payload = await request<GolferLookup>("/api/ghin/following", { token });
+/** The golfers a GHIN number follows. No sign-in needed. */
+export async function apiFollowing(
+  golferId: string,
+  token?: string | null,
+): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>(
+    `/api/ghin/following?golferId=${encodeURIComponent(golferId)}`,
+    { token },
+  );
   return { players: payload.players ?? [], probes: payload.probes ?? [] };
 }
 
 /** Name or GHIN number lookup — does not need saved favorites. */
 export async function apiSearchGolfers(
-  token: string,
+  token: string | null,
   query: string,
 ): Promise<GolferLookup> {
   const payload = await request<GolferLookup>(
@@ -87,15 +94,20 @@ export interface CourseLookup {
   probes: GhinProbe[];
 }
 
-export async function apiFavoriteCourses(token: string): Promise<CourseLookup> {
-  const payload = await request<CourseLookup>("/api/ghin/favorite-courses", {
-    token,
-  });
+/** This golfer's pinned and recently played courses. No sign-in needed. */
+export async function apiMyCourses(
+  golferId: string,
+  token?: string | null,
+): Promise<CourseLookup> {
+  const payload = await request<CourseLookup>(
+    `/api/ghin/courses/mine?golferId=${encodeURIComponent(golferId)}`,
+    { token },
+  );
   return { courses: payload.courses ?? [], probes: payload.probes ?? [] };
 }
 
 export async function apiSearchCourses(
-  token: string,
+  token: string | null,
   query: string,
 ): Promise<CourseSummary[]> {
   const { courses } = await request<{ courses: CourseSummary[] }>(
@@ -105,7 +117,7 @@ export async function apiSearchCourses(
   return courses ?? [];
 }
 
-export async function apiCourse(token: string, id: string): Promise<Course> {
+export async function apiCourse(token: string | null, id: string): Promise<Course> {
   const { course } = await request<{ course: Course }>(
     `/api/ghin/courses/${encodeURIComponent(id)}`,
     { token },

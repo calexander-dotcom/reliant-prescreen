@@ -110,69 +110,65 @@ correctly from GHIN, where `+1.2` means numerically **−1.2**.
 
 ## GHIN import
 
-> **GHIN has no public API.** This talks to the same private endpoints the GHIN
-> mobile app uses. It can break without warning, and **it has not been verified
-> against a live account** — the sandbox this was built in blocks
-> `api2.ghin.com`. Everything in the app works without it: add players and a
-> course by hand and you lose nothing but typing.
+> **GHIN has no public API.** This talks to the same endpoints ghin.com itself
+> calls. They can change without warning. Everything in the app works without
+> them — add players and a course by hand and you lose nothing but typing.
 
-What it imports:
+**No password required.** These endpoints are served from a GHIN number alone,
+with no `Authorization` header and no cookie. That is GHIN's design, not a
+choice made here, and it has two consequences worth knowing: this app never
+asks for or handles a GHIN password, and anyone who knows your GHIN number can
+read the same data.
 
-- **Golfer lookup** → search by last name or GHIN number and get that golfer's
-  name and current handicap index. This is the reliable path: it does not
-  depend on anything being saved to the account.
-- **Following** → the golfers the account follows. The GHIN app calls this
-  "following", not "favorites", and the endpoints follow that vocabulary.
-- **Courses** → name search, plus any saved courses, then tees, course/slope
-  ratings and hole-by-hole par and stroke index.
+The endpoints and response shapes below were confirmed against a capture of
+ghin.com's own network traffic:
+
+| What | Endpoint | Response |
+|---|---|---|
+| Golfers you follow | `GET /followed_golfers/{golferId}.json` | `{golfers: [{id, first_name, last_name, handicap_index_display, low_hi_display, club_name, …}]}` |
+| Your pinned courses | `GET /golfers/{golferId}/my_courses.json` | `{golfer_course_preference: [{course_id, course_name, tee_id, facility_name, …}]}` |
+| Recently played | `GET /golfers/{golferId}/golfer_most_recent_courses.json` | `{courses: [{CourseId, CourseName, CourseCity, Ratings: [...]}]}` |
+| Course detail | `GET /crsCourseMethods.asmx/GetCourseDetails.json?courseId=…` | `{CourseName, CourseCity, TeeSets: [{TeeSetRatingName, Gender, TotalPar, TotalYardage, Ratings: [{RatingType, CourseRating, SlopeRating}], Holes: [{Number, Par, Length, Allocation}]}]}` |
+
+All take `source=GHINcom`. `Allocation` on a hole is its stroke index, and the
+18-hole course/slope ratings are the `Ratings` entry whose `RatingType` is
+`"Total"` — not the first entry in the array.
+
+Two gotchas that cost real debugging:
+
+- The handicap index lives in **`handicap_index_display`**, not
+  `handicap_index`. And `+1.4` means numerically **−1.4** — a plus handicap
+  gives strokes back, so reading the sign literally flips strokes for the best
+  player in the group.
+- The feature is called **following** in the GHIN app, not "favorites", and the
+  endpoints use that vocabulary.
+
+Parsing in `src/lib/ghin/normalize.ts` stays tolerant of key and casing
+variants anyway, so a renamed field degrades one value instead of breaking the
+import.
 
 ### When a lookup returns nothing
 
-Every lookup tries a list of candidate endpoints and records what each one
-returned — status, and the **key names** of the response body, never the
-values. If nothing comes back the UI shows that log behind a "What GHIN
-returned" button with a copy action, which distinguishes the three causes that
-otherwise look identical:
+Every lookup records what each endpoint returned — status, and the **key
+names** of the body, never the values — and the UI shows that log behind a
+"What GHIN returned" button with a copy action. It distinguishes the three
+causes that otherwise look identical:
 
-- every path 404'd → the endpoint moved, add the right path
+- every path 404'd → the endpoint moved
 - the call was refused → network or permissions, not an empty list
-- a path answered fine but `parsed 0 records` → the field names changed, fix
-  the key lists in `normalize.ts`
+- a path answered but `parsed 0 records` → field names changed, fix the key
+  lists in `normalize.ts`
 
-Because it is keys-only it is safe to paste into a bug report. `GHIN_ALLOW_RAW=1`
-plus `/api/ghin/raw?path=…` still exists for the full body when that is needed.
+Being keys-only it is safe to paste into a bug report. For the full body,
+`GHIN_ALLOW_RAW=1` enables `/api/ghin/raw?path=…`; keep it off in anything
+deployed publicly.
 
-How it is wired:
+### Sign-in
 
-- Your password goes to **this app's own route handler**, which calls GHIN
-  server-side. GHIN sends no CORS headers for browser origins, and a password
-  should not be posted to a third party from the page.
-- The password is used once, for a token, and is never stored or logged. The
-  token lives in `sessionStorage` and is gone when the tab closes.
-- The login body carries a `token` field separate from the session token GHIN
-  returns. It is a presence check, not a value check, so the default
-  (`"nonblank"`) satisfies it; set `GHIN_CLIENT_TOKEN` if that ever changes.
-  Omitting it returns `400 {"errors":{"token":["can't be blank"]}}`.
-- Response parsing in `src/lib/ghin/normalize.ts` is deliberately tolerant:
-  every field is looked up through a list of plausible names and both
-  `snake_case` and `PascalCase` shapes are handled, so one renamed key degrades
-  a single field instead of breaking the import.
-
-### When an import comes back empty
-
-Set `GHIN_ALLOW_RAW=1` and hit the passthrough to see what GHIN actually
-returned:
-
-```bash
-curl -H "Authorization: Bearer $TOKEN" \
-  'http://localhost:3000/api/ghin/raw?path=golfers/favorites.json'
-```
-
-Then fix the key lists in `src/lib/ghin/normalize.ts`. The tests in
-`normalize.test.ts` show the shapes already covered. Keep the raw route off in
-anything you deploy publicly — it is an open proxy into GHIN otherwise.
-
----
+`POST /golfer_login.json` works and is still wired up at `/api/ghin/login` (it
+needs a non-empty `token` field in the body alongside the credentials), but
+nothing in the app calls it, because nothing needs it. It is there for the day
+GHIN starts requiring auth on the read endpoints.
 
 ## Running it
 
@@ -182,7 +178,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 113 unit tests over the betting math and GHIN parsing
+npm test             # 125 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```

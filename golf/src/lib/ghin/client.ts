@@ -191,7 +191,7 @@ export interface ProbeResult<T> {
  * the probe log distinguishes them without needing a debugger or a raw dump.
  */
 async function probeCandidates<T>(
-  token: string,
+  token: string | null,
   candidates: Candidate[],
   parse: (payload: unknown) => T[],
 ): Promise<ProbeResult<T>> {
@@ -229,28 +229,113 @@ async function probeCandidates<T>(
 }
 
 /**
+ * A GHIN number, validated before it goes into a URL path.
+ *
+ * These endpoints take the golfer id as a path segment rather than a query
+ * parameter, so anything that is not plainly a number is rejected here instead
+ * of being interpolated into a request.
+ */
+export function normalizeGolferId(value: string): string | null {
+  const digits = value.trim().replace(/[\s-]/g, "");
+  return /^\d{4,12}$/.test(digits) ? digits : null;
+}
+
+/**
  * The golfers this account follows.
  *
- * The GHIN app calls this "following", so that is the vocabulary the endpoints
- * use and the word the UI should show. The older "favorites" spellings are
- * kept at the end of the list as fallbacks in case some builds still serve
- * them.
+ * Endpoint and response shape confirmed against a capture of GHIN's own site:
+ *
+ *     GET /followed_golfers/{golferId}.json?source=GHINcom
+ *     -> { golfers: [{ id, first_name, last_name, handicap_index_display, … }] }
+ *
+ * It needs no Authorization header and no cookie — the golfer id in the path
+ * is the whole request. That is GHIN's design, not a choice made here, and it
+ * is why this app can skip asking for a password.
  */
-export async function ghinFollowing(token: string): Promise<ProbeResult<Player>> {
+export async function ghinFollowedGolfers(
+  golferId: string,
+  token?: string | null,
+): Promise<ProbeResult<Player>> {
+  const id = normalizeGolferId(golferId);
+  if (!id) {
+    return {
+      items: [],
+      probes: [
+        {
+          path: "followed_golfers/{golferId}.json",
+          status: 0,
+          ok: false,
+          error: "That does not look like a GHIN number.",
+        },
+      ],
+    };
+  }
+
   return probeCandidates(
-    token,
+    token ?? null,
     [
-      { path: "golfers/following.json" },
-      { path: "following.json" },
-      { path: "golfers/followed.json" },
-      { path: "followed_golfers.json" },
-      { path: "follows.json" },
-      { path: "golfers/following_golfers.json" },
-      { path: "golfers/favorites.json" },
-      { path: "golfer_favorites.json" },
+      { path: `followed_golfers/${id}.json` },
+      // Fallbacks, in case the path moves again.
+      { path: `golfers/${id}/followed_golfers.json` },
+      { path: "followed_golfers.json", query: { golfer_id: id } },
     ],
     normalizeGolfers,
   );
+}
+
+/**
+ * Courses tied to this golfer: the ones they have pinned, plus the ones they
+ * have posted scores at recently. Both lists are small and either can be
+ * empty, so they are merged rather than tried in sequence.
+ *
+ *     GET /golfers/{id}/my_courses.json
+ *     -> { golfer_course_preference: [{ course_id, course_name, … }] }
+ *     GET /golfers/{id}/golfer_most_recent_courses.json
+ *     -> { courses: [{ CourseId, CourseName, CourseCity, … }] }
+ */
+export async function ghinGolferCourses(
+  golferId: string,
+  token?: string | null,
+): Promise<ProbeResult<CourseSummary>> {
+  const id = normalizeGolferId(golferId);
+  if (!id) {
+    return {
+      items: [],
+      probes: [
+        {
+          path: "golfers/{golferId}/my_courses.json",
+          status: 0,
+          ok: false,
+          error: "That does not look like a GHIN number.",
+        },
+      ],
+    };
+  }
+
+  const [pinned, recent] = await Promise.all([
+    probeCandidates(
+      token ?? null,
+      [{ path: `golfers/${id}/my_courses.json` }],
+      normalizeCourseSummaries,
+    ),
+    probeCandidates(
+      token ?? null,
+      [
+        {
+          path: `golfers/${id}/golfer_most_recent_courses.json`,
+          query: { scores_to_use: 20, include_altered_tees: true },
+        },
+      ],
+      normalizeCourseSummaries,
+    ),
+  ]);
+
+  const byId = new Map<string, CourseSummary>();
+  for (const course of [...pinned.items, ...recent.items]) {
+    if (!byId.has(course.id)) byId.set(course.id, course);
+  }
+
+  return { items: [...byId.values()], probes: [...pinned.probes, ...recent.probes] };
 }
 
 /**
@@ -262,7 +347,7 @@ export async function ghinFollowing(token: string): Promise<ProbeResult<Player>>
  * plausible shapes are tried in turn.
  */
 export async function ghinSearchGolfers(
-  token: string,
+  token: string | null,
   query: string,
 ): Promise<ProbeResult<Player>> {
   const trimmed = query.trim();
@@ -300,7 +385,7 @@ export async function ghinSearchGolfers(
 }
 
 export async function ghinSearchCourses(
-  token: string,
+  token: string | null,
   query: string,
   state?: string,
 ): Promise<CourseSummary[]> {
@@ -317,7 +402,10 @@ export async function ghinSearchCourses(
   return normalizeCourseSummaries(payload);
 }
 
-export async function ghinCourse(token: string, courseId: string): Promise<Course> {
+export async function ghinCourse(
+  token: string | null,
+  courseId: string,
+): Promise<Course> {
   const payload = await ghinRequest("crsCourseMethods.asmx/GetCourseDetails.json", {
     token,
     query: { courseId, include_altered_tees: true },
@@ -338,20 +426,3 @@ export async function ghinCourse(token: string, courseId: string): Promise<Cours
   return course;
 }
 
-/** Courses this account follows or has saved. */
-export async function ghinFavoriteCourses(
-  token: string,
-): Promise<ProbeResult<CourseSummary>> {
-  return probeCandidates(
-    token,
-    [
-      { path: "courses/following.json" },
-      { path: "followed_courses.json" },
-      { path: "course_favorites.json" },
-      { path: "courses/favorites.json" },
-      { path: "favorite_courses.json" },
-      { path: "golfers/course_favorites.json" },
-    ],
-    normalizeCourseSummaries,
-  );
-}

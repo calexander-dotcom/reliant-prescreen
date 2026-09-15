@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GhinError,
-  ghinFollowing,
+  ghinFollowedGolfers,
   ghinLogin,
   ghinRequest,
+  ghinGolferCourses,
   ghinSearchGolfers,
 } from "./client";
 
@@ -158,52 +159,123 @@ describe("ghinLogin", () => {
   });
 });
 
-describe("ghinFollowing", () => {
-  it("walks past a 404 path to one that works", async () => {
-    const calls = stubFetch((url) => {
-      if (url.includes("golfers/following.json")) return { status: 404, body: "" };
-      if (url.includes("/following.json")) {
-        return {
-          status: 200,
-          body: '{"golfers":[{"first_name":"Chris","last_name":"A","ghin":"1","handicap_index":"12.4"}]}',
-        };
-      }
-      return { status: 404, body: "" };
-    });
+describe("ghinFollowedGolfers", () => {
+  it("asks the endpoint GHIN's own site uses", async () => {
+    const calls = stubFetch(() => ({
+      status: 200,
+      body: '{"golfers":[{"id":1,"first_name":"Ada","last_name":"B","handicap_index_display":"14.2"}]}',
+    }));
 
-    const { items, probes } = await ghinFollowing("tok");
+    const { items, probes } = await ghinFollowedGolfers("1234567");
+    expect(calls[0]).toContain("/followed_golfers/1234567.json");
+    expect(calls[0]).toContain("source=");
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ name: "Chris A", handicapIndex: 12.4 });
-    expect(calls.length).toBe(2);
-    // Stops at the first path that produced records.
-    expect(probes).toHaveLength(2);
-    expect(probes[0]).toMatchObject({ status: 404, ok: false });
-    expect(probes[1]).toMatchObject({ status: 200, ok: true, parsed: 1 });
+    expect(items[0]).toMatchObject({ name: "Ada B", handicapIndex: 14.2 });
+    expect(probes).toHaveLength(1);
+    expect(probes[0]).toMatchObject({ status: 200, ok: true, parsed: 1 });
+  });
+
+  it("works with no token, because the endpoint needs none", async () => {
+    let auth: string | null = "unset";
+    stubFetch((_url, init) => {
+      auth = new Headers(init.headers).get("Authorization");
+      return { status: 200, body: '{"golfers":[]}' };
+    });
+    await ghinFollowedGolfers("1234567");
+    expect(auth).toBeNull();
+  });
+
+  it("forwards a token when one happens to be available", async () => {
+    let auth: string | null = null;
+    stubFetch((_url, init) => {
+      auth = new Headers(init.headers).get("Authorization");
+      return { status: 200, body: '{"golfers":[]}' };
+    });
+    await ghinFollowedGolfers("1234567", "tok");
+    expect(auth).toBe("Bearer tok");
+  });
+
+  it("refuses anything that is not a GHIN number rather than building a URL from it", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: "{}" }));
+    for (const bad of ["../../etc/passwd", "abc", "", "12"]) {
+      const { items, probes } = await ghinFollowedGolfers(bad);
+      expect(items).toEqual([]);
+      expect(probes[0].error).toMatch(/does not look like a GHIN number/i);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tolerates a GHIN number typed with spaces or dashes", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: '{"golfers":[]}' }));
+    await ghinFollowedGolfers(" 123-4567 ");
+    expect(calls[0]).toContain("/followed_golfers/1234567.json");
   });
 
   it("records why every path failed instead of just coming back empty", async () => {
     stubFetch(() => ({ status: 403, body: "blocked by proxy" }));
-    const { items, probes } = await ghinFollowing("tok");
+    const { items, probes } = await ghinFollowedGolfers("1234567");
     expect(items).toEqual([]);
-    expect(probes.length).toBeGreaterThan(1);
-    expect(probes.every((probe) => !probe.ok)).toBe(true);
-    expect(probes[0].error).toMatch(/blocked/i);
+    expect(probes.every((probe: { ok: boolean }) => !probe.ok)).toBe(true);
     expect(probes[0].error).toContain("blocked by proxy");
   });
 
-  it("reports the shape when a path answers but the keys are unexpected", async () => {
+  it("reports the shape when the keys are not the ones expected", async () => {
     stubFetch(() => ({
       status: 200,
       body: '{"data":{"items":[{"GolferName":"X","Idx":"9.9"}]}}',
     }));
-    const { items, probes } = await ghinFollowing("tok");
+    const { items, probes } = await ghinFollowedGolfers("1234567");
     expect(items).toEqual([]);
-    // This is the line that makes a mapping mismatch fixable.
-    expect(probes[0].shape).toContain("data:");
     expect(probes[0].shape).toContain("GolferName");
     expect(probes[0].parsed).toBe(0);
-    // Keys only — no golfer data leaks into something meant for sharing.
     expect(probes[0].shape).not.toContain("9.9");
+  });
+});
+
+describe("ghinGolferCourses", () => {
+  it("merges the pinned list with the recently played one", async () => {
+    const calls = stubFetch((url) => {
+      if (url.includes("my_courses.json")) {
+        return {
+          status: 200,
+          body: '{"golfer_course_preference":[{"course_id":1,"course_name":"Pinned GC"}]}',
+        };
+      }
+      return {
+        status: 200,
+        body: '{"courses":[{"CourseId":"2","CourseName":"Recent CC","CourseCity":"Reno"},{"CourseId":"1","CourseName":"Pinned GC"}]}',
+      };
+    });
+
+    const { items, probes } = await ghinGolferCourses("1234567");
+    expect(calls.some((url) => url.includes("/golfers/1234567/my_courses.json"))).toBe(true);
+    expect(
+      calls.some((url) => url.includes("golfer_most_recent_courses.json")),
+    ).toBe(true);
+    // Deduped by course id, pinned first.
+    expect(items.map((course) => course.id)).toEqual(["1", "2"]);
+    expect(items[1]).toMatchObject({ name: "Recent CC", city: "Reno" });
+    expect(probes).toHaveLength(2);
+  });
+
+  it("still returns the list that worked when the other fails", async () => {
+    stubFetch((url) => {
+      if (url.includes("my_courses.json")) return { status: 500, body: "" };
+      return {
+        status: 200,
+        body: '{"courses":[{"CourseId":"2","CourseName":"Recent CC"}]}',
+      };
+    });
+    const { items, probes } = await ghinGolferCourses("1234567");
+    expect(items).toHaveLength(1);
+    expect(probes.some((probe: { ok: boolean }) => !probe.ok)).toBe(true);
+  });
+
+  it("validates the GHIN number", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: "{}" }));
+    const { probes } = await ghinGolferCourses("nope");
+    expect(probes[0].error).toMatch(/GHIN number/i);
+    expect(calls).toHaveLength(0);
   });
 });
 

@@ -11,11 +11,11 @@ import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "
 export function PlayerPicker({
   round,
   update,
-  token,
+  golferId,
 }: {
   round: Round;
   update: (next: Round) => void;
-  token: string | null;
+  golferId: string | null;
 }) {
   const [following, setFollowing] = useState<GolferLookup | null>(null);
   const [search, setSearch] = useState<GolferLookup | null>(null);
@@ -175,7 +175,7 @@ export function PlayerPicker({
       <Card>
         <SectionTitle>Add players</SectionTitle>
 
-        {token ? (
+        {golferId ? (
           <div className="mb-5 space-y-5">
             <div>
               <Field
@@ -192,7 +192,7 @@ export function PlayerPicker({
                       if (event.key === "Enter" && query.trim().length >= 3) {
                         void run(
                           "search",
-                          () => apiSearchGolfers(token, query.trim()),
+                          () => apiSearchGolfers(null, query.trim()),
                           setSearch,
                           "Could not search GHIN.",
                         );
@@ -203,7 +203,7 @@ export function PlayerPicker({
                     onClick={() =>
                       void run(
                         "search",
-                        () => apiSearchGolfers(token, query.trim()),
+                        () => apiSearchGolfers(null, query.trim()),
                         setSearch,
                         "Could not search GHIN.",
                       )
@@ -246,7 +246,7 @@ export function PlayerPicker({
                   onClick={() =>
                     void run(
                       "following",
-                      () => apiFollowing(token),
+                      () => apiFollowing(golferId),
                       setFollowing,
                       "Could not read who you follow on GHIN.",
                     )
