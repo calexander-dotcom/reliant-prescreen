@@ -6,10 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BetsView } from "@/components/BetsView";
 import { CardView } from "@/components/CardView";
 import { SettleView } from "@/components/SettleView";
+import { TotalsStrip } from "@/components/TotalsStrip";
 import { Banner, Card, SectionTitle, Spinner } from "@/components/ui";
 import { ApiError, apiFetchShare } from "@/lib/api";
 import { computeRound } from "@/lib/bets";
-import { formatSigned } from "@/lib/money";
 import type { SharedRound } from "@/lib/share/payload";
 
 type Tab = "card" | "bets" | "settle";
@@ -170,36 +170,7 @@ export default function WatchPage() {
         </Banner>
       ) : null}
 
-      <ul
-        className={`tabular gap-1.5 pb-1 ${
-          round.players.length <= 4 ? "grid grid-cols-4" : "flex overflow-x-auto"
-        }`}
-      >
-        {round.players.map((player) => {
-          const total = comp.grandTotals[player.id] ?? 0;
-          return (
-            <li
-              key={player.id}
-              className="min-w-0 shrink-0 rounded-xl bg-white px-2 py-1.5 text-center shadow-sm ring-1 ring-black/5"
-            >
-              <div className="truncate text-[0.7rem] font-semibold text-neutral-600">
-                {player.name.split(" ")[0]}
-              </div>
-              <div
-                className={`truncate text-sm font-bold ${
-                  total > 0
-                    ? "text-turf-700"
-                    : total < 0
-                      ? "text-red-700"
-                      : "text-neutral-400"
-                }`}
-              >
-                {formatSigned(total)}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <TotalsStrip round={round} comp={comp} />
 
       {round.players.length === 0 ? (
         <Card>

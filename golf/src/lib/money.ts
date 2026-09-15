@@ -62,6 +62,19 @@ export function formatSigned(cents: number, opts: { cents?: boolean } = {}): str
   return cents > 0 ? `+${formatMoney(cents, opts)}` : formatMoney(cents, opts);
 }
 
+/**
+ * Sign, dollars, and cents only when there are any: "+$15", "-$12.50", "$0".
+ * For the totals strip, where "$15.00" is three characters more than fits.
+ */
+export function formatShort(cents: number): string {
+  const abs = Math.abs(cents);
+  const dollars = Math.floor(abs / 100);
+  const rest = abs % 100;
+  const body = rest === 0 ? String(dollars) : `${dollars}.${String(rest).padStart(2, "0")}`;
+  const sign = cents > 0 ? "+" : cents < 0 ? "-" : "";
+  return `${sign}$${body}`;
+}
+
 /** Compact form for tight scorecard cells: "+20", "-40", "—". */
 export function formatCompact(cents: number): string {
   if (cents === 0) return "—";
