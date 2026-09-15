@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { OneDownConfig, Side } from "../types";
-import type { HoleResult } from "./nassau";
+import { sideUp, type HoleResult } from "./nassau";
 import { betStanding, evaluateOneDown, formatStanding } from "./onedown";
 
 const sideA: Side = { id: "a", name: "Team A", playerIds: ["a1", "a2"] };
@@ -254,15 +254,31 @@ describe("settling one downs", () => {
     expect(outcome.totals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
   });
 
-  it("charges every loser the full stake in per-player mode", () => {
-    const outcome = evaluateOneDown(
-      config({ stakeMode: "per-player" }),
+  it("has each player in for the stake per player, and splitting it per side", () => {
+    // One bet, A one up after the 1st: it pays A now.
+    const perPlayer = evaluateOneDown(
+      config({ stakeMode: "per-player", autoPressAt: 0 }),
       18,
-      through(1, 1),
+      through(1),
       ids,
     );
-    // Only the closed-out bets pay; nothing is decided two holes in.
-    expect(sumCents(Object.values(outcome.totals))).toBe(0);
+    expect(perPlayer.totals).toEqual({ a1: 1000, a2: 1000, b1: -1000, b2: -1000 });
+    const perSide = evaluateOneDown(
+      config({ stakeMode: "per-side", autoPressAt: 0 }),
+      18,
+      through(1),
+      ids,
+    );
+    expect(perSide.totals).toEqual({ a1: 500, a2: 500, b1: -500, b2: -500 });
+    expect(sumCents(Object.values(perPlayer.totals))).toBe(0);
+  });
+
+  it("reads a pair's money out per head", () => {
+    // Seven bets up between two players is $70 each, not $140.
+    expect(sideUp(14000, sideA, "per-player")).toEqual({ cents: 7000, each: true });
+    expect(sideUp(14000, sideA, "per-side")).toEqual({ cents: 14000, each: false });
+    const single: Side = { id: "s", name: "Solo", playerIds: ["s1"] };
+    expect(sideUp(2000, single, "per-player")).toEqual({ cents: 2000, each: false });
   });
 });
 

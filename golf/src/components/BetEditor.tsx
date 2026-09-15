@@ -338,15 +338,15 @@ function OneDownFields({
             ]}
           />
         </Field>
-        <Field label="Team stake" hint="Split the stake, or each loser pays each winner.">
+        <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
             value={bet.stakeMode}
             onChange={(value) =>
               onChange({ ...bet, stakeMode: value as OneDownConfig["stakeMode"] })
             }
             options={[
-              { value: "per-side", label: "Per side" },
               { value: "per-player", label: "Per player" },
+              { value: "per-side", label: "Per side" },
             ]}
           />
         </Field>
@@ -446,15 +446,15 @@ function NassauFields({
             ]}
           />
         </Field>
-        <Field label="Team stake" hint="Split the stake, or each loser pays each winner.">
+        <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
             value={bet.stakeMode}
             onChange={(value) =>
               onChange({ ...bet, stakeMode: value as NassauConfig["stakeMode"] })
             }
             options={[
-              { value: "per-side", label: "Per side" },
               { value: "per-player", label: "Per player" },
+              { value: "per-side", label: "Per side" },
             ]}
           />
         </Field>

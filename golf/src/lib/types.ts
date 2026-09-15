@@ -82,8 +82,10 @@ export interface NassauConfig {
   includeTotal: boolean;
   /**
    * How a team stake converts to money between individuals.
-   *  - "per-side"   the stake moves side-to-side and is split within each side
-   *  - "per-player" every losing player pays every winning player the stake
+   *  - "per-player" every player on the losing side is in for the stake and
+   *                 every player on the winning side collects it; a lone
+   *                 player against two is in for double
+   *  - "per-side"   one stake changes hands and each side splits its share
    * Identical for singles matches.
    */
   stakeMode: "per-side" | "per-player";
@@ -136,6 +138,7 @@ export interface OneDownConfig {
    * nines. It never presses. 0 turns it off.
    */
   overallMultiplier: number;
+  /** As for a nassau. */
   stakeMode: "per-side" | "per-player";
 }
 

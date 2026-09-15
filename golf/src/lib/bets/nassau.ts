@@ -1,6 +1,5 @@
 import { distributeCents } from "../money";
 import type { NassauConfig, PlayerId, Side } from "../types";
-import { teamTransfer } from "./ledger";
 
 /** 1 = side A won the hole, -1 = side B, 0 = halved, null = not played yet. */
 export type HoleResult = 1 | -1 | 0 | null;
@@ -169,13 +168,20 @@ export function matchPayout(
   );
   if (winners.length === 0 || losers.length === 0) return zero;
 
-  if (stakeMode === "per-player") {
-    return teamTransfer(winners, losers, match.amount, playerIds);
-  }
+  // Per player, everyone on the losing side is in for the stake and everyone
+  // on the winning side collects it: a team of two that is seven bets up is
+  // up $70 each, which is how the group says it. Uneven sides settle on the
+  // larger side's count, so a lone player against two is in for double — the
+  // single is playing both of them. Per side, one stake changes hands and
+  // each side splits its share.
+  const pot =
+    stakeMode === "per-player"
+      ? match.amount * Math.max(winners.length, losers.length)
+      : match.amount;
 
   const totals = { ...zero };
-  const winnerShares = distributeCents(match.amount, winners.length);
-  const loserShares = distributeCents(match.amount, losers.length);
+  const winnerShares = distributeCents(pot, winners.length);
+  const loserShares = distributeCents(pot, losers.length);
   winners.forEach((id, index) => {
     totals[id] += winnerShares[index];
   });
@@ -183,6 +189,22 @@ export function matchPayout(
     totals[id] -= loserShares[index];
   });
   return totals;
+}
+
+/**
+ * A side's money as it gets said: per player, a pair that is up $140 between
+ * them is "up $70 each"; per side, or for a side of one, it is the figure.
+ */
+export function sideUp(
+  sideCents: number,
+  side: Side,
+  stakeMode: NassauConfig["stakeMode"],
+): { cents: number; each: boolean } {
+  const heads = side.playerIds.length;
+  if (stakeMode === "per-player" && heads > 1) {
+    return { cents: Math.round(sideCents / heads), each: true };
+  }
+  return { cents: sideCents, each: false };
 }
 
 export interface NassauOutcome {
