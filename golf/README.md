@@ -85,7 +85,7 @@ The rules, precisely:
   called on one hole, each opening its own bet over the same holes.
 - Each bet pays its stake to **whoever leads it right now**. Ahead by one pays
   the same as ahead by five; a square bet pays nothing. So
-  `2-1-0-0-(-1)-0` at $10 a bet is two bets to A and one to B: **A up $10**.
+  `+2/+1/0/0/-1/0` at $10 a bet is two bets to us and one to them: **up $10**.
 - The stake is **per player**: $10 a bet means every player on the side that
   is down loses $10 and every player on the side that is up wins $10, so a
   pair that is seven bets up is up $70 *each*. A lone player against two is
@@ -95,9 +95,9 @@ The rules, precisely:
 - Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
   which never presses.
 
-A parenthesised number means the other side leads that bet — `(-1)` is the
-other side one up — both because that is the convention and because `0--1` is
-unreadable.
+Each number carries its sign: `+2` is our side two up in that bet, `-1` the
+other side one up, `0` square. Oldest bet first, so the opening bet is the
+first number and the newest press the last.
 
 The standing is written from the **scorer's side**: positive numbers and green
 mean you are up, whichever side of the bet you were put on. The app takes the
