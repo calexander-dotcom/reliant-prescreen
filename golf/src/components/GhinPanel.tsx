@@ -3,12 +3,23 @@
 import { useEffect, useState } from "react";
 import { ApiError, apiLogin } from "@/lib/api";
 import { normalizeGolferId } from "@/lib/ghin/client";
-import { loadGolferId, loadToken, saveGolferId, saveToken } from "@/lib/storage";
+import {
+  loadGolferId,
+  loadMe,
+  loadToken,
+  saveGolferId,
+  saveMe,
+  saveRoster,
+  saveToken,
+} from "@/lib/storage";
+import type { Player } from "@/lib/types";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
 
 export interface GhinConnection {
   token: string | null;
   golferId: string | null;
+  /** The account holder, so they can be added with one tap. */
+  me: Player | null;
 }
 
 /**
@@ -41,8 +52,9 @@ export function GhinPanel({
   useEffect(() => {
     const token = loadToken();
     const golferId = loadGolferId();
-    if ((token || golferId) && !connection.token && !connection.golferId) {
-      onChange({ token, golferId });
+    const me = loadMe();
+    if ((token || golferId || me) && !connection.token && !connection.golferId) {
+      onChange({ token, golferId, me });
     }
     if (golferId) setNumberDraft(golferId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,9 +73,17 @@ export function GhinPanel({
       if (golferId) saveGolferId(golferId);
       if (golferId) setNumberDraft(golferId);
 
+      // Keep the account holder around: the following list is other people,
+      // so without this they are the one player typed in every round.
+      const me = session.me ?? loadMe();
+      if (session.me) {
+        saveMe(session.me);
+        saveRoster([session.me]);
+      }
+
       // Only worth showing when the number could not be found.
       setShape(session.golferId ? null : session.shape);
-      onChange({ token: session.token, golferId });
+      onChange({ token: session.token, golferId, me });
       setPassword("");
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Could not sign in to GHIN.");
@@ -89,10 +109,17 @@ export function GhinPanel({
       <Card>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-bold text-turf-900">GHIN connected</div>
+            <div className="font-bold text-turf-900">
+              {connection.me ? connection.me.name : "GHIN connected"}
+            </div>
             <p className="text-sm text-neutral-600">
               {connection.golferId
-                ? `Using GHIN ${connection.golferId}.`
+                ? `GHIN ${connection.golferId}${
+                    connection.me?.handicapIndex !== null &&
+                    connection.me?.handicapIndex !== undefined
+                      ? ` · index ${connection.me.handicapIndex.toFixed(1)}`
+                      : ""
+                  }`
                 : "Add your GHIN number below to pull in who you follow."}
             </p>
           </div>
@@ -100,7 +127,7 @@ export function GhinPanel({
             variant="secondary"
             onClick={() => {
               saveToken(null);
-              onChange({ token: null, golferId: connection.golferId });
+              onChange({ ...connection, token: null });
             }}
           >
             Sign out

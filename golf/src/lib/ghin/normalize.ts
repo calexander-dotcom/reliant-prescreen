@@ -370,6 +370,40 @@ export function normalizeLoginGolferId(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * The signed-in golfer themselves, from a login response.
+ *
+ * The following list is by definition other people, so without this the
+ * account holder is the one player who has to be typed in by hand every round.
+ *
+ * Only accepted with a real name attached: `normalizeGolfer` will happily build
+ * a player called "GHIN 5694340" from an id alone, which is worse than
+ * offering nothing.
+ */
+export function normalizeLoginGolfer(raw: unknown): Player | null {
+  const candidates = [raw];
+  for (const key of ["golfer_user", "golfer", "user", "data"]) {
+    const nested = pick(raw, [key]);
+    if (nested) candidates.push(nested);
+  }
+
+  for (const candidate of candidates) {
+    if (!fullName(candidate)) continue;
+    const player = normalizeGolfer(candidate);
+    if (player) return player;
+  }
+
+  // One level deeper, for a payload that wraps the golfer twice.
+  for (const key of ["golfer_user", "golfer", "user", "data"]) {
+    const nested = pick(raw, [key]);
+    if (!nested || nested === raw) continue;
+    const found = normalizeLoginGolfer(nested);
+    if (found) return found;
+  }
+
+  return null;
+}
+
 export function slug(value: string): string {
   return value
     .toLowerCase()

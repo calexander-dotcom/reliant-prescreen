@@ -3,6 +3,7 @@ import {
   normalizeCourseDetail,
   normalizeCourseSummaries,
   normalizeGolfers,
+  normalizeLoginGolfer,
   normalizeLoginGolferId,
   normalizeLoginToken,
   type CourseSummary,
@@ -144,6 +145,8 @@ export interface GhinSession {
   token: string;
   /** The signed-in golfer's own GHIN number, when the response carries it. */
   golferId: string | null;
+  /** The signed-in golfer themselves, so they need not be typed in by hand. */
+  me: Player | null;
   /**
    * Key-only shape of the login response.
    *
@@ -185,6 +188,7 @@ export async function ghinLogin(
   return {
     token,
     golferId: normalizeLoginGolferId(payload),
+    me: normalizeLoginGolfer(payload),
     shape: describeShape(payload),
   };
 }
@@ -367,6 +371,43 @@ export async function ghinGolferCourses(
  * point of the integration. Parameter names for search have varied, so the
  * plausible shapes are tried in turn.
  */
+/**
+ * The signed-in golfer's own record, for when the login response did not
+ * include their name. Same tolerant parsing as everything else.
+ */
+export async function ghinGolferProfile(
+  golferId: string,
+  token?: string | null,
+): Promise<ProbeResult<Player>> {
+  const id = normalizeGolferId(golferId);
+  if (!id) {
+    return {
+      items: [],
+      probes: [
+        {
+          path: "golfers/{golferId}.json",
+          status: 0,
+          ok: false,
+          error: "That does not look like a GHIN number.",
+        },
+      ],
+    };
+  }
+
+  return probeCandidates(
+    token ?? null,
+    [
+      { path: `golfers/${id}.json` },
+      { path: "golfers/search.json", query: { golfer_id: id } },
+    ],
+    (payload) => {
+      const one = normalizeLoginGolfer(payload);
+      if (one) return [one];
+      return normalizeGolfers(payload);
+    },
+  );
+}
+
 export async function ghinSearchGolfers(
   token: string | null,
   query: string,

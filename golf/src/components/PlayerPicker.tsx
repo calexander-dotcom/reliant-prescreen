@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, apiFollowing, apiSearchGolfers, type GolferLookup } from "@/lib/api";
+import {
+  ApiError,
+  apiFollowing,
+  apiGolferProfile,
+  apiSearchGolfers,
+  type GolferLookup,
+} from "@/lib/api";
 import { removePlayer } from "@/lib/mutations";
-import { loadRoster, newId, saveRoster } from "@/lib/storage";
+import { loadRoster, newId, saveMe, saveRoster } from "@/lib/storage";
+import type { GhinProbe } from "@/lib/ghin/shape";
 import type { Player, Round } from "@/lib/types";
 import { GhinDiagnostics } from "./GhinDiagnostics";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
@@ -13,16 +20,21 @@ export function PlayerPicker({
   update,
   golferId,
   token,
+  me,
 }: {
   round: Round;
   update: (next: Round) => void;
   golferId: string | null;
   token: string | null;
+  /** The account holder, offered as a one-tap add. */
+  me?: Player | null;
 }) {
   const [following, setFollowing] = useState<GolferLookup | null>(null);
   const [search, setSearch] = useState<GolferLookup | null>(null);
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState<"following" | "search" | null>(null);
+  const [busy, setBusy] = useState<"following" | "search" | "me" | null>(null);
+  const [foundMe, setFoundMe] = useState<Player | null>(null);
+  const [meProbes, setMeProbes] = useState<GhinProbe[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [index, setIndex] = useState("");
@@ -37,7 +49,7 @@ export function PlayerPicker({
   };
 
   const run = async (
-    kind: "following" | "search",
+    kind: "following" | "search" | "me",
     call: () => Promise<GolferLookup>,
     apply: (result: GolferLookup) => void,
     fallbackMessage: string,
@@ -176,6 +188,64 @@ export function PlayerPicker({
 
       <Card>
         <SectionTitle>Add players</SectionTitle>
+
+        {/*
+          The following list is other people by definition, so without this the
+          account holder is the one player who has to be typed in every round.
+        */}
+        {(() => {
+          const self = me ?? foundMe;
+          if (self) {
+            return inRound.has(self.id) ? null : (
+              <div className="mb-4 rounded-xl bg-turf-50 p-3 ring-1 ring-inset ring-turf-200">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-bold text-turf-900">
+                      {self.name}
+                    </div>
+                    <div className="text-xs text-turf-800">
+                      {self.handicapIndex === null
+                        ? "no index"
+                        : `index ${self.handicapIndex.toFixed(1)}`}
+                      {self.ghinNumber ? ` · GHIN ${self.ghinNumber}` : ""}
+                    </div>
+                  </div>
+                  <Button onClick={() => addPlayer(self)}>Add me</Button>
+                </div>
+              </div>
+            );
+          }
+          if (!token || !golferId) return null;
+          return (
+            <div className="mb-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  disabled={busy === "me"}
+                  onClick={() =>
+                    void run(
+                      "me",
+                      () => apiGolferProfile(golferId, token),
+                      (result) => {
+                        const self = result.players[0] ?? null;
+                        setFoundMe(self);
+                        setMeProbes(self ? null : result.probes);
+                        if (self) saveMe(self);
+                      },
+                      "Could not look you up on GHIN.",
+                    )
+                  }
+                >
+                  Find me on GHIN
+                </Button>
+                {busy === "me" ? <Spinner label="Asking GHIN…" /> : null}
+              </div>
+              {meProbes ? (
+                <GhinDiagnostics probes={meProbes} subject="your own record" />
+              ) : null}
+            </div>
+          );
+        })()}
 
         {token ? (
           <div className="mb-5 space-y-5">

@@ -26,7 +26,7 @@ const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
 export default function NewRoundPage() {
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
-  const [ghin, setGhin] = useState<GhinConnection>({ token: null, golferId: null });
+  const [ghin, setGhin] = useState<GhinConnection>({ token: null, golferId: null, me: null });
 
   useEffect(() => {
     setRound(createRound());
@@ -69,6 +69,7 @@ export default function NewRoundPage() {
         update={setRound}
         golferId={ghin.golferId}
         token={ghin.token}
+        me={ghin.me}
       />
 
       <Card>
