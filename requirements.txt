@@ -1,3 +1,0 @@
-# car_watch.py has a single third-party dependency.
-# Everything else (sqlite3, argparse, logging, json, html) ships with Python 3.
-requests>=2.28,<3
