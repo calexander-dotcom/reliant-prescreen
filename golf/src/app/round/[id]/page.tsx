@@ -11,6 +11,7 @@ import { ShareCard } from "@/components/ShareCard";
 import { TotalsStrip } from "@/components/TotalsStrip";
 import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
+import { guessPerspective } from "@/lib/perspective";
 import { loadRound, saveRound } from "@/lib/storage";
 import type { Round } from "@/lib/types";
 
@@ -35,8 +36,15 @@ export default function RoundPage() {
   useEffect(() => {
     if (!id) return;
     const found = loadRound(id);
-    if (found) setRound(found);
-    else setMissing(true);
+    if (!found) {
+      setMissing(true);
+      return;
+    }
+    // First open: work out whose side the bets are read from, and keep it,
+    // so a shared copy reads the same way as the scorer's phone.
+    const ready = found.perspectiveId === undefined ? guessPerspective(found) : found;
+    setRound(ready);
+    if (ready !== found) saveRound(ready);
   }, [id]);
 
   // Persist on every change: the tab can be closed at any moment out there.

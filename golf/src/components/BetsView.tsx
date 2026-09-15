@@ -3,8 +3,9 @@
 import { useState } from "react";
 import type { BetResult, RoundComputation } from "@/lib/bets";
 import { matchStanding } from "@/lib/bets/nassau";
-import { betStanding } from "@/lib/bets/onedown";
-import { sideUp } from "@/lib/bets/nassau";
+import { betStanding, standingFor } from "@/lib/bets/onedown";
+import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
+import { setPerspective } from "@/lib/mutations";
 import { formatMoney, formatSigned } from "@/lib/money";
 import type { Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
@@ -28,6 +29,10 @@ export function BetsView({
   const nameOf = (playerId: string) =>
     round.players.find((player) => player.id === playerId)?.name ?? "—";
 
+  const sided = comp.betResults.some(
+    (result) => result.kind === "nassau" || result.kind === "onedown",
+  );
+
   return (
     <div className="space-y-4">
       {round.bets.length === 0 && !editing ? (
@@ -43,8 +48,28 @@ export function BetsView({
           result={result}
           nameOf={nameOf}
           comp={comp}
+          perspectiveId={round.perspectiveId}
         />
       ))}
+
+      {sided && !readOnly && update ? (
+        <Card>
+          <SectionTitle hint="Positive numbers and green mean that player's side is up. Anyone following the round sees it the same way.">
+            Read the bets as
+          </SectionTitle>
+          <div role="group" aria-label="Read the bets as" className="flex flex-wrap gap-2">
+            {round.players.map((player) => (
+              <Button
+                key={player.id}
+                variant={round.perspectiveId === player.id ? "primary" : "secondary"}
+                onClick={() => update(setPerspective(round, player.id))}
+              >
+                {player.name.split(" ")[0]}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <div className="flex items-center justify-between gap-2">
@@ -80,12 +105,19 @@ function BetResultCard({
   result,
   nameOf,
   comp,
+  perspectiveId,
 }: {
   result: BetResult;
   nameOf: (playerId: string) => string;
   comp: RoundComputation;
+  perspectiveId: string | null | undefined;
 }) {
   const totals = result.outcome.totals;
+  // Which way round the match is read: positive and green are "our" side.
+  const sign =
+    result.kind === "nassau" || result.kind === "onedown"
+      ? perspectiveSign(result.config.sides, perspectiveId)
+      : 1;
 
   return (
     <Card>
@@ -122,7 +154,7 @@ function BetResultCard({
       </SectionTitle>
 
       {result.kind === "onedown" ? (
-        <OneDownBody result={result} />
+        <OneDownBody result={result} sign={sign} />
       ) : result.kind === "banker" ? (
         <BankerBody result={result} nameOf={nameOf} />
       ) : result.kind === "nassau" ? (
@@ -153,7 +185,9 @@ function BetResultCard({
                     ? "text-neutral-400"
                     : match.status === "halved"
                       ? "text-neutral-500"
-                      : "text-turf-700"
+                      : (match.status === "won-a" ? sign : -sign) > 0
+                        ? "text-turf-700"
+                        : "text-red-700"
                 }`}
               >
                 {match.status === "in-progress"
@@ -202,8 +236,10 @@ function stakeWord(mode: "per-side" | "per-player"): string {
 
 function OneDownBody({
   result,
+  sign,
 }: {
   result: Extract<BetResult, { kind: "onedown" }>;
+  sign: 1 | -1;
 }) {
   const { outcome, config } = result;
   const [sideA, sideB] = config.sides;
@@ -214,7 +250,7 @@ function OneDownBody({
     const leader = cents > 0 ? sideA : sideB;
     const up = sideUp(Math.abs(cents), leader, config.stakeMode);
     return (
-      <span className={cents > 0 ? "text-turf-700" : "text-red-700"}>
+      <span className={cents * sign > 0 ? "text-turf-700" : "text-red-700"}>
         {leader.name} up {formatMoney(up.cents)}
         {up.each ? " each" : ""}
       </span>
@@ -237,12 +273,14 @@ function OneDownBody({
           {/* The standing as it gets said out loud: one number per open bet. */}
           <div className="mt-1 rounded-xl bg-neutral-900 px-3 py-2">
             <div className="tabular break-all font-mono text-lg font-bold text-white">
-              {stack.standing || "—"}
+              {standingFor(stack, sign) || "—"}
             </div>
             <div className="mt-0.5 text-xs text-neutral-400">
               {stack.bets.length} bet{stack.bets.length === 1 ? "" : "s"} ·{" "}
-              {stack.led.a} to {sideA.name} · {stack.led.b} to {sideB.name} ·{" "}
-              {stack.led.square} square
+              {sign > 0
+                ? `${stack.led.a} to ${sideA.name} · ${stack.led.b} to ${sideB.name}`
+                : `${stack.led.b} to ${sideB.name} · ${stack.led.a} to ${sideA.name}`}{" "}
+              · {stack.led.square} square
             </div>
           </div>
 
@@ -271,7 +309,7 @@ function OneDownBody({
                   className={`tabular shrink-0 font-bold ${
                     bet.margin === 0
                       ? "text-neutral-400"
-                      : bet.margin > 0
+                      : bet.margin * sign > 0
                         ? "text-turf-700"
                         : "text-red-700"
                   }`}
@@ -311,16 +349,18 @@ function OneDownBody({
           className={`tabular text-xl font-bold ${
             totalA === 0
               ? "text-neutral-400"
-              : totalA > 0
+              : totalA * sign > 0
                 ? "text-turf-700"
                 : "text-red-700"
           }`}
         >
           {totalA === 0
             ? "all square"
-            : `${totalA > 0 ? sideA.name : sideB.name} +${formatMoney(
-                Math.abs(totalA),
-              )}`}
+            : (() => {
+                const leader = totalA > 0 ? sideA : sideB;
+                const up = sideUp(Math.abs(totalA), leader, config.stakeMode);
+                return `${leader.name} +${formatMoney(up.cents)}${up.each ? " each" : ""}`;
+              })()}
         </span>
       </div>
     </div>

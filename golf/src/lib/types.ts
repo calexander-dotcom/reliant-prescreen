@@ -227,6 +227,13 @@ export interface Round {
   /** Manual zero-sum money entries, keyed by hole number. */
   manual: Record<number, ManualHoleEntry>;
   bets: BetConfig[];
+  /**
+   * Whose side the standings are read from — the scorer's, normally.
+   * Positive numbers and green mean this player's side is up. Undefined
+   * until the round is first opened, when it is set from the "me" player if
+   * they are in the round; null means nobody in particular (side A).
+   */
+  perspectiveId?: PlayerId | null;
   /** Free-text notes for the round. */
   notes?: string;
   /**

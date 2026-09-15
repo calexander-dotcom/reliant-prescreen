@@ -302,3 +302,8 @@ export function removePlayer(round: Round, playerId: PlayerId): Round {
 
   return touch({ ...round, players, scores, manual, bets });
 }
+
+/** Whose side the standings are read from. null reads them from side A. */
+export function setPerspective(round: Round, playerId: PlayerId | null): Round {
+  return touch({ ...round, perspectiveId: playerId });
+}

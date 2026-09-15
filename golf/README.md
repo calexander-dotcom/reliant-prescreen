@@ -95,8 +95,14 @@ The rules, precisely:
 - Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
   which never presses.
 
-A parenthesised number means the other side leads that bet — `(-1)` is side B
-one up — both because that is the convention and because `0--1` is unreadable.
+A parenthesised number means the other side leads that bet — `(-1)` is the
+other side one up — both because that is the convention and because `0--1` is
+unreadable.
+
+The standing is written from the **scorer's side**: positive numbers and green
+mean you are up, whichever side of the bet you were put on. The app takes the
+scorer to be the "me" player when they are in the round, and the Bets tab has a
+**Read the bets as** row to change it. A shared link reads the same way.
 
 ### Banker
 

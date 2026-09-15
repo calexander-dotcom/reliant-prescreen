@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { OneDownConfig, Side } from "../types";
 import { sideUp, type HoleResult } from "./nassau";
-import { betStanding, evaluateOneDown, formatStanding } from "./onedown";
+import { betStanding, evaluateOneDown, formatStanding, standingFor } from "./onedown";
 
 const sideA: Side = { id: "a", name: "Team A", playerIds: ["a1", "a2"] };
 const sideB: Side = { id: "b", name: "Team B", playerIds: ["b1", "b2"] };
@@ -429,5 +429,32 @@ describe("money by stack", () => {
     const none = evaluateOneDown(config({ reset: "nines" }), 18, through(1, 1), ids);
     expect(none.overall).toBeNull();
     expect(none.overallTotals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+  });
+});
+
+describe("standingFor", () => {
+  // A wins 1 and 2, B presses on 3 and wins 4: A reads 2-1-0-(-1), and B
+  // reads the same bets the other way up.
+  const outcome = evaluateOneDown(
+    config({ manualPresses: { 3: 1 } }),
+    18,
+    through(1, 1, 0, -1),
+    ids,
+  );
+  const stack = outcome.stacks[0];
+
+  it("reads the same stack from either side", () => {
+    expect(standingFor(stack, 1)).toBe(stack.standing);
+    expect(stack.standing).toBe("1-0-(-1)-(-1)-0");
+    // Every non-zero number changes sign; every zero stays a plain 0.
+    expect(standingFor(stack, -1)).toBe("(-1)-0-1-1-0");
+    const a = stack.bets.map((bet) => bet.margin);
+    expect(standingFor(stack, -1)).toBe(formatStanding(a.map((m) => -m)));
+  });
+
+  it("puts the leading side's numbers in the open", () => {
+    const aLeads = evaluateOneDown(config(), 18, through(1, 1), ids).stacks[0];
+    expect(standingFor(aLeads, 1)).toBe("2-1-0");
+    expect(standingFor(aLeads, -1)).toBe("(-2)-(-1)-0");
   });
 });
