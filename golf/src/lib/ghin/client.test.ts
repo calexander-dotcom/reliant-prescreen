@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GhinError, ghinFavorites, ghinLogin, ghinRequest } from "./client";
+import {
+  GhinError,
+  ghinFollowing,
+  ghinLogin,
+  ghinRequest,
+  ghinSearchGolfers,
+} from "./client";
 
 /** Stand in for fetch with a canned status and body. */
 function stubFetch(
@@ -152,11 +158,11 @@ describe("ghinLogin", () => {
   });
 });
 
-describe("ghinFavorites", () => {
+describe("ghinFollowing", () => {
   it("walks past a 404 path to one that works", async () => {
     const calls = stubFetch((url) => {
-      if (url.includes("golfers/favorites.json")) return { status: 404, body: "" };
-      if (url.includes("golfer_favorites.json")) {
+      if (url.includes("golfers/following.json")) return { status: 404, body: "" };
+      if (url.includes("/following.json")) {
         return {
           status: 200,
           body: '{"golfers":[{"first_name":"Chris","last_name":"A","ghin":"1","handicap_index":"12.4"}]}',
@@ -165,14 +171,62 @@ describe("ghinFavorites", () => {
       return { status: 404, body: "" };
     });
 
-    const players = await ghinFavorites("tok");
-    expect(players).toHaveLength(1);
-    expect(players[0]).toMatchObject({ name: "Chris A", handicapIndex: 12.4 });
+    const { items, probes } = await ghinFollowing("tok");
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ name: "Chris A", handicapIndex: 12.4 });
     expect(calls.length).toBe(2);
+    // Stops at the first path that produced records.
+    expect(probes).toHaveLength(2);
+    expect(probes[0]).toMatchObject({ status: 404, ok: false });
+    expect(probes[1]).toMatchObject({ status: 200, ok: true, parsed: 1 });
   });
 
-  it("surfaces a real failure instead of silently returning nothing", async () => {
+  it("records why every path failed instead of just coming back empty", async () => {
     stubFetch(() => ({ status: 403, body: "blocked by proxy" }));
-    await expect(ghinFavorites("tok")).rejects.toThrow(/blocked/i);
+    const { items, probes } = await ghinFollowing("tok");
+    expect(items).toEqual([]);
+    expect(probes.length).toBeGreaterThan(1);
+    expect(probes.every((probe) => !probe.ok)).toBe(true);
+    expect(probes[0].error).toMatch(/blocked/i);
+    expect(probes[0].error).toContain("blocked by proxy");
+  });
+
+  it("reports the shape when a path answers but the keys are unexpected", async () => {
+    stubFetch(() => ({
+      status: 200,
+      body: '{"data":{"items":[{"GolferName":"X","Idx":"9.9"}]}}',
+    }));
+    const { items, probes } = await ghinFollowing("tok");
+    expect(items).toEqual([]);
+    // This is the line that makes a mapping mismatch fixable.
+    expect(probes[0].shape).toContain("data:");
+    expect(probes[0].shape).toContain("GolferName");
+    expect(probes[0].parsed).toBe(0);
+    // Keys only — no golfer data leaks into something meant for sharing.
+    expect(probes[0].shape).not.toContain("9.9");
+  });
+});
+
+describe("ghinSearchGolfers", () => {
+  it("treats an all-digits query as a GHIN number lookup", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: '{"golfers":[]}' }));
+    await ghinSearchGolfers("tok", "1234567");
+    expect(calls[0]).toContain("golfer_id=1234567");
+  });
+
+  it("treats anything else as a name search", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: '{"golfers":[]}' }));
+    await ghinSearchGolfers("tok", "Alexander");
+    expect(calls[0]).toContain("search=Alexander");
+    expect(calls[0]).toContain("global_search=true");
+  });
+
+  it("returns the golfers it finds", async () => {
+    stubFetch(() => ({
+      status: 200,
+      body: '{"golfers":[{"first_name":"Pat","last_name":"Lee","ghin":"987","handicap_index":"+1.1"}]}',
+    }));
+    const { items } = await ghinSearchGolfers("tok", "Lee");
+    expect(items[0]).toMatchObject({ name: "Pat Lee", handicapIndex: -1.1 });
   });
 });

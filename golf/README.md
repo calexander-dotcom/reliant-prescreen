@@ -118,10 +118,29 @@ correctly from GHIN, where `+1.2` means numerically **−1.2**.
 
 What it imports:
 
-- **Favorite golfers** → names, GHIN numbers and handicap indexes, straight
-  into the round.
-- **Courses** → favorites and name search, then tees, course/slope ratings and
-  hole-by-hole par and stroke index.
+- **Golfer lookup** → search by last name or GHIN number and get that golfer's
+  name and current handicap index. This is the reliable path: it does not
+  depend on anything being saved to the account.
+- **Following** → the golfers the account follows. The GHIN app calls this
+  "following", not "favorites", and the endpoints follow that vocabulary.
+- **Courses** → name search, plus any saved courses, then tees, course/slope
+  ratings and hole-by-hole par and stroke index.
+
+### When a lookup returns nothing
+
+Every lookup tries a list of candidate endpoints and records what each one
+returned — status, and the **key names** of the response body, never the
+values. If nothing comes back the UI shows that log behind a "What GHIN
+returned" button with a copy action, which distinguishes the three causes that
+otherwise look identical:
+
+- every path 404'd → the endpoint moved, add the right path
+- the call was refused → network or permissions, not an empty list
+- a path answered fine but `parsed 0 records` → the field names changed, fix
+  the key lists in `normalize.ts`
+
+Because it is keys-only it is safe to paste into a bug report. `GHIN_ALLOW_RAW=1`
+plus `/api/ghin/raw?path=…` still exists for the full body when that is needed.
 
 How it is wired:
 
@@ -163,7 +182,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 102 unit tests over the betting math and GHIN parsing
+npm test             # 113 unit tests over the betting math and GHIN parsing
 npm run typecheck
 npm run build && npm start
 ```

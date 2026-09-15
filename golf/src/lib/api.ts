@@ -1,6 +1,7 @@
 "use client";
 
 import type { CourseSummary } from "./ghin/normalize";
+import type { GhinProbe } from "./ghin/shape";
 import type { Course, Player } from "./types";
 
 /** Browser-side calls to this app's own routes, which proxy GHIN server-side. */
@@ -59,19 +60,38 @@ export async function apiLogin(emailOrGhin: string, password: string): Promise<s
   return token;
 }
 
-export async function apiFavorites(token: string): Promise<Player[]> {
-  const { players } = await request<{ players: Player[] }>("/api/ghin/favorites", {
-    token,
-  });
-  return players ?? [];
+export interface GolferLookup {
+  players: Player[];
+  probes: GhinProbe[];
 }
 
-export async function apiFavoriteCourses(token: string): Promise<CourseSummary[]> {
-  const { courses } = await request<{ courses: CourseSummary[] }>(
-    "/api/ghin/favorite-courses",
+export async function apiFollowing(token: string): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>("/api/ghin/following", { token });
+  return { players: payload.players ?? [], probes: payload.probes ?? [] };
+}
+
+/** Name or GHIN number lookup — does not need saved favorites. */
+export async function apiSearchGolfers(
+  token: string,
+  query: string,
+): Promise<GolferLookup> {
+  const payload = await request<GolferLookup>(
+    `/api/ghin/golfers/search?q=${encodeURIComponent(query)}`,
     { token },
   );
-  return courses ?? [];
+  return { players: payload.players ?? [], probes: payload.probes ?? [] };
+}
+
+export interface CourseLookup {
+  courses: CourseSummary[];
+  probes: GhinProbe[];
+}
+
+export async function apiFavoriteCourses(token: string): Promise<CourseLookup> {
+  const payload = await request<CourseLookup>("/api/ghin/favorite-courses", {
+    token,
+  });
+  return { courses: payload.courses ?? [], probes: payload.probes ?? [] };
 }
 
 export async function apiSearchCourses(

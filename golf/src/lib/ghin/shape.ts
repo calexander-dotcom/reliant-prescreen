@@ -1,0 +1,70 @@
+/**
+ * Structural summary of an unknown JSON payload — KEYS ONLY, never values.
+ *
+ * When a GHIN import comes back empty the question is always "what shape did
+ * it actually return", and the answer has to be safe to paste into a chat or a
+ * bug report. Key names are enough to fix a field mapping; the values are
+ * somebody's name, GHIN number and handicap, so they never appear here.
+ */
+/**
+ * Deep enough to reach the leaf object in a payload like
+ * `{data: {items: [{...}]}}`, where the leaf key names are the whole answer.
+ * The limit only exists to stop pathological nesting.
+ */
+const MAX_DEPTH = 6;
+
+export function describeShape(value: unknown, depth = 0): string {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "array(0)";
+    const inner = depth >= MAX_DEPTH ? "…" : describeShape(value[0], depth + 1);
+    return `array(${value.length}) of ${inner}`;
+  }
+
+  if (typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>);
+    if (keys.length === 0) return "{}";
+    if (depth >= MAX_DEPTH) return `{${keys.length} keys}`;
+
+    const parts = keys.slice(0, 40).map((key) => {
+      const child = (value as Record<string, unknown>)[key];
+      // Only recurse into containers; scalars would just be noise.
+      if (Array.isArray(child) || (child !== null && typeof child === "object")) {
+        return `${key}: ${describeShape(child, depth + 1)}`;
+      }
+      return key;
+    });
+    if (keys.length > 40) parts.push(`…+${keys.length - 40} more`);
+    return `{${parts.join(", ")}}`;
+  }
+
+  return typeof value;
+}
+
+/** One attempted endpoint and what came back, safe to share. */
+export interface GhinProbe {
+  path: string;
+  status: number;
+  ok: boolean;
+  /** Key-only shape of a successful response. */
+  shape?: string;
+  /** How many usable records were parsed out of it. */
+  parsed?: number;
+  /** Error text for a failed call. */
+  error?: string;
+}
+
+export function formatProbes(probes: GhinProbe[]): string {
+  if (probes.length === 0) return "No endpoints were tried.";
+  return probes
+    .map((probe) => {
+      const head = `${probe.ok ? "OK " : "ERR"} ${probe.status || "---"}  ${probe.path}`;
+      if (probe.ok) {
+        return `${head}\n    parsed ${probe.parsed ?? 0} records from ${probe.shape ?? "?"}`;
+      }
+      return `${head}\n    ${probe.error ?? ""}`;
+    })
+    .join("\n");
+}

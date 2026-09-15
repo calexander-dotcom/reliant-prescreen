@@ -57,7 +57,7 @@ export function GhinPanel({
           <div>
             <div className="font-bold text-turf-900">GHIN connected</div>
             <p className="text-sm text-neutral-600">
-              Your favorites and courses can be imported.
+              You can look up golfers and courses now.
             </p>
           </div>
           <Button
@@ -76,7 +76,7 @@ export function GhinPanel({
 
   return (
     <Card>
-      <SectionTitle hint="Used once to pull your favorites and course list. Optional — you can enter players by hand instead.">
+      <SectionTitle hint="Used once to look up golfers and courses. Optional — you can enter players by hand instead.">
         Connect GHIN
       </SectionTitle>
 

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { ApiError, apiCourse, apiFavoriteCourses, apiSearchCourses } from "@/lib/api";
+import { GhinDiagnostics } from "./GhinDiagnostics";
 import type { CourseSummary } from "@/lib/ghin/normalize";
+import type { GhinProbe } from "@/lib/ghin/shape";
 import type { Round } from "@/lib/types";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
 
@@ -15,7 +17,8 @@ export function CoursePicker({
   update: (next: Round) => void;
   token: string | null;
 }) {
-  const [favorites, setFavorites] = useState<CourseSummary[]>([]);
+  const [saved, setSaved] = useState<CourseSummary[]>([]);
+  const [savedProbes, setSavedProbes] = useState<GhinProbe[] | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CourseSummary[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -24,13 +27,16 @@ export function CoursePicker({
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    setBusy("favorites");
+    setBusy("saved");
     apiFavoriteCourses(token)
-      .then((courses) => {
-        if (!cancelled) setFavorites(courses);
+      .then((result) => {
+        if (cancelled) return;
+        setSaved(result.courses);
+        // Keep the attempt log so an empty list is explainable, not a mystery.
+        setSavedProbes(result.courses.length === 0 ? result.probes : null);
       })
       .catch(() => {
-        // No favorites endpoint on this account is fine — search still works.
+        // A missing saved-courses endpoint is fine — search still works.
       })
       .finally(() => {
         if (!cancelled) setBusy(null);
@@ -136,13 +142,13 @@ export function CoursePicker({
 
           {token ? (
             <>
-              {favorites.length > 0 ? (
+              {saved.length > 0 ? (
                 <div>
                   <div className="mb-1.5 text-sm font-semibold text-neutral-700">
-                    Your GHIN course favorites
+                    Your GHIN courses
                   </div>
                   <ul className="space-y-1.5">
-                    {favorites.map((course) => (
+                    {saved.map((course) => (
                       <CourseRow
                         key={course.id}
                         course={course}
@@ -154,8 +160,12 @@ export function CoursePicker({
                 </div>
               ) : null}
 
+              {savedProbes ? (
+                <GhinDiagnostics probes={savedProbes} subject="saved courses" />
+              ) : null}
+
               <div>
-                <Field label="Search GHIN courses">
+                <Field label="Search GHIN courses" hint="This is the reliable path — GHIN's saved-course list is not always available.">
                   <div className="flex gap-2">
                     <input
                       value={query}
@@ -172,11 +182,11 @@ export function CoursePicker({
                       onClick={() => void search()}
                       disabled={query.trim().length < 3 || busy === "search"}
                     >
-                      Find
+                      Find course
                     </Button>
                   </div>
                 </Field>
-                {busy === "search" || busy === "favorites" ? (
+                {busy === "search" || busy === "saved" ? (
                   <div className="mt-2">
                     <Spinner label="Asking GHIN…" />
                   </div>

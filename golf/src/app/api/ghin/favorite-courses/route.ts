@@ -5,14 +5,14 @@ import { bearerToken, handleRouteError, unauthorized } from "@/lib/ghin/route-he
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET -> { courses } — courses saved as favorites on the GHIN account. */
+/** GET -> { courses, probes } */
 export async function GET(request: Request) {
   const token = bearerToken(request);
   if (!token) return unauthorized();
 
   try {
-    const courses = await ghinFavoriteCourses(token);
-    return NextResponse.json({ courses });
+    const { items, probes } = await ghinFavoriteCourses(token);
+    return NextResponse.json({ courses: items, probes });
   } catch (error) {
     return handleRouteError(error);
   }
