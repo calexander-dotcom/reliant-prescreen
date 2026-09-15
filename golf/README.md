@@ -141,6 +141,47 @@ player picks up, enter their max score rather than leaving the cell blank.
 
 ---
 
+## Letting others follow along
+
+A round can be published to a **view-only link**. Anyone you send it to sees the
+scorecard, the bets and the settlement, updating a few seconds behind you. None
+of them can change anything.
+
+That is enforced by how it is built, not by hiding buttons:
+
+- The link carries only a random 128-bit share id.
+- Publishing an update requires a **write token** that never leaves the scoring
+  device. `publishableRound` strips it from the payload before anything is sent,
+  which is asserted in a test — publishing the round as-is would hand that
+  token to everybody who opened the link.
+- Only a SHA-256 of the token is stored, compared in constant time, so reading
+  the store does not let anyone publish either.
+- The viewer page issues nothing but `GET`.
+
+Updates are debounced a few seconds rather than sent per keystroke, since
+entering a hole is several edits in a row. The shared copy is deleted a week
+after the last update, and each publish pushes that out again, so it lives a
+week past the final hole rather than a week past the first.
+
+### Setting it up
+
+Sharing needs a Redis-style store. Create one in Vercel's **Storage** tab and
+redeploy — the integration injects its own credentials and nothing else is
+needed. Either naming works:
+
+```
+KV_REST_API_URL / KV_REST_API_TOKEN            # Vercel KV
+UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN   # Upstash directly
+```
+
+With neither set, the rest of the app is unaffected and the share button
+reports that sharing is not configured. The store is spoken to over the Upstash
+REST protocol directly, so there is no client library to install.
+
+**What leaves the device.** Only a shared round is copied to that store:
+player names, handicap indexes, scores and money. Everything else stays in the
+browser. Treat the link as the password — anyone holding it can watch.
+
 ## Handicaps
 
 Course Handicap uses the WHS formula:
@@ -233,7 +274,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 193 unit tests over the betting math and GHIN parsing
+npm test             # 202 unit tests over the betting math, GHIN parsing and sharing
 npm run typecheck
 npm run build && npm start
 ```
@@ -271,6 +312,9 @@ src/lib/
   ghin/
     client.ts       server-side GHIN calls
     normalize.ts    tolerant response mapping
+  share/
+    store.ts        shared-round storage and write tokens
+    payload.ts      what a follower is allowed to see
 src/components/     UI
 src/app/            pages + /api/ghin routes
 ```
@@ -283,8 +327,9 @@ fraction of a cent.
 
 ## Not built
 
-- No cloud sync or sharing. Rounds are per-device — they do not follow you to
-  another phone, and a private window starts empty.
+- No cloud sync. Rounds are per-device — they do not follow you to another
+  phone, and a private window starts empty. Sharing publishes a read-only copy;
+  it does not let a second device score.
 - No live scoring between players' phones. One person keeps the card.
 - Wolf, bingo-bango-bongo and other rotation games are not modelled as
   automatic bets; the manual ledger covers them.

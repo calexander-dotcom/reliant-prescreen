@@ -1,0 +1,208 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BetsView } from "@/components/BetsView";
+import { CardView } from "@/components/CardView";
+import { SettleView } from "@/components/SettleView";
+import { Banner, Card, SectionTitle, Spinner } from "@/components/ui";
+import { ApiError, apiFetchShare } from "@/lib/api";
+import { computeRound } from "@/lib/bets";
+import { formatSigned } from "@/lib/money";
+import type { SharedRound } from "@/lib/share/payload";
+
+type Tab = "card" | "bets" | "settle";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "card", label: "Card" },
+  { id: "bets", label: "Bets" },
+  { id: "settle", label: "Settle" },
+];
+
+/** How often to ask for a newer copy of the round. */
+const POLL_MS = 10_000;
+
+/**
+ * Following a round, read only.
+ *
+ * There is no editing here by construction, not just by hiding buttons:
+ * publishing an update needs the write token, and that never leaves the
+ * scoring device. This page only ever issues a GET.
+ */
+export default function WatchPage() {
+  const params = useParams<{ id: string }>();
+  const id = typeof params.id === "string" ? params.id : params.id?.[0];
+
+  const [shared, setShared] = useState<SharedRound | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [gone, setGone] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    try {
+      setShared(await apiFetchShare(id));
+      setError(null);
+      setGone(false);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 404) setGone(true);
+      else setError(caught instanceof ApiError ? caught.message : "Could not load.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), POLL_MS);
+    // Catch up straight away when the phone comes back out of a pocket.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [load]);
+
+  const [tab, setTab] = useState<Tab>("card");
+  const comp = useMemo(() => (shared ? computeRound(shared.round) : null), [shared]);
+
+  if (loading) {
+    return (
+      <main className="py-8">
+        <Spinner label="Loading the round…" />
+      </main>
+    );
+  }
+
+  if (gone) {
+    return (
+      <main className="space-y-4 pt-4">
+        <Banner tone="warn">
+          This round is no longer being shared. Shared rounds are removed a week
+          after the last update, and whoever is keeping the card can also stop
+          sharing at any point.
+        </Banner>
+        <Link href="/" className="text-sm font-semibold text-turf-700">
+          Go to Golf Bets
+        </Link>
+      </main>
+    );
+  }
+
+  if (!shared || !comp) {
+    return (
+      <main className="space-y-4 pt-4">
+        <Banner tone="error">{error ?? "Could not load that round."}</Banner>
+      </main>
+    );
+  }
+
+  const round = shared.round;
+
+  return (
+    <main className="space-y-4">
+      <header className="pt-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-turf-100 px-2 py-0.5 text-xs font-bold text-turf-800">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-turf-600" />
+            Following
+          </span>
+          <span className="text-xs text-neutral-500">
+            updated {new Date(shared.updatedAt).toLocaleTimeString()}
+          </span>
+        </div>
+        <h1 className="mt-1 truncate text-xl font-black tracking-tight text-turf-900">
+          {round.courseName || "Round"}
+        </h1>
+        <p className="truncate text-xs text-neutral-500">
+          {round.date} · {round.players.length} players · view only
+        </p>
+      </header>
+
+      {error ? (
+        <Banner tone="warn">
+          {error} Showing the last copy that came through.
+        </Banner>
+      ) : null}
+
+      <ul
+        className={`tabular gap-1.5 pb-1 ${
+          round.players.length <= 4 ? "grid grid-cols-4" : "flex overflow-x-auto"
+        }`}
+      >
+        {round.players.map((player) => {
+          const total = comp.grandTotals[player.id] ?? 0;
+          return (
+            <li
+              key={player.id}
+              className="min-w-0 shrink-0 rounded-xl bg-white px-2 py-1.5 text-center shadow-sm ring-1 ring-black/5"
+            >
+              <div className="truncate text-[0.7rem] font-semibold text-neutral-600">
+                {player.name.split(" ")[0]}
+              </div>
+              <div
+                className={`truncate text-sm font-bold ${
+                  total > 0
+                    ? "text-turf-700"
+                    : total < 0
+                      ? "text-red-700"
+                      : "text-neutral-400"
+                }`}
+              >
+                {formatSigned(total)}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {round.players.length === 0 ? (
+        <Card>
+          <SectionTitle>Nothing to show yet</SectionTitle>
+          <p className="text-sm text-neutral-600">
+            The round has not been set up yet. This page updates on its own.
+          </p>
+        </Card>
+      ) : null}
+
+      {/* No editing handlers are passed in, so there is nothing to change. */}
+      {tab === "card" ? (
+        <CardView round={round} comp={comp} onPickHole={() => undefined} readOnly />
+      ) : null}
+      {tab === "bets" ? <BetsView round={round} comp={comp} readOnly /> : null}
+      {tab === "settle" ? <SettleView round={round} comp={comp} /> : null}
+
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-neutral-200 bg-white/95 backdrop-blur">
+        <div
+          className="mx-auto flex max-w-3xl"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
+          {TABS.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => setTab(entry.id)}
+              className={`flex-1 py-3 text-sm font-bold transition-colors ${
+                tab === entry.id
+                  ? "text-turf-800"
+                  : "text-neutral-500 active:text-neutral-700"
+              }`}
+            >
+              <span
+                className={`block ${
+                  tab === entry.id ? "border-t-2 border-turf-700 pt-2" : "pt-2"
+                }`}
+              >
+                {entry.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    </main>
+  );
+}

@@ -7,6 +7,7 @@ import { BetsView } from "@/components/BetsView";
 import { CardView } from "@/components/CardView";
 import { HoleView } from "@/components/HoleView";
 import { SettleView } from "@/components/SettleView";
+import { ShareCard } from "@/components/ShareCard";
 import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
 import { formatSigned } from "@/lib/money";
@@ -132,14 +133,17 @@ export default function RoundPage() {
         />
       ) : null}
       {tab === "card" ? (
-        <CardView
-          round={round}
-          comp={comp}
-          onPickHole={(picked) => {
-            setHole(picked);
-            setTab("hole");
-          }}
-        />
+        <>
+          <CardView
+            round={round}
+            comp={comp}
+            onPickHole={(picked) => {
+              setHole(picked);
+              setTab("hole");
+            }}
+          />
+          <ShareCard round={round} update={update} />
+        </>
       ) : null}
       {tab === "bets" ? <BetsView round={round} comp={comp} update={update} /> : null}
       {tab === "settle" ? <SettleView round={round} comp={comp} /> : null}
