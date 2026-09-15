@@ -3,6 +3,7 @@ import {
   normalizeCourseDetail,
   normalizeCourseSummaries,
   normalizeGolfers,
+  normalizeLoginGolferId,
   normalizeLoginToken,
   type CourseSummary,
 } from "./normalize";
@@ -139,11 +140,25 @@ export async function ghinRequest(
   }
 }
 
+export interface GhinSession {
+  token: string;
+  /** The signed-in golfer's own GHIN number, when the response carries it. */
+  golferId: string | null;
+  /**
+   * Key-only shape of the login response.
+   *
+   * The login payload has never been captured, so when the golfer id is not
+   * found this is what says where to look — without putting the account's own
+   * details into a diagnostic.
+   */
+  shape: string;
+}
+
 /** Exchange a GHIN email (or GHIN number) and password for a session token. */
 export async function ghinLogin(
   emailOrGhin: string,
   password: string,
-): Promise<string> {
+): Promise<GhinSession> {
   const payload = await ghinRequest("golfer_login.json", {
     method: "POST",
     body: {
@@ -166,7 +181,12 @@ export async function ghinLogin(
       502,
     );
   }
-  return token;
+
+  return {
+    token,
+    golferId: normalizeLoginGolferId(payload),
+    shape: describeShape(payload),
+  };
 }
 
 type Candidate = {
@@ -187,8 +207,9 @@ export interface ProbeResult<T> {
  * The recording is the point. These paths are guesses at an undocumented API,
  * and an import that just comes back empty gives nobody anything to work with
  * — not the user, and not whoever has to fix the mapping. A 404 on every path
- * is a different problem from a 200 whose keys were not the ones expected, and
- * the probe log distinguishes them without needing a debugger or a raw dump.
+ * is a different problem from a 200 whose keys were not the ones expected, or
+ * from a 401 saying the call needed a session it was not given, and the probe
+ * log distinguishes them without needing a debugger or a raw dump.
  */
 async function probeCandidates<T>(
   token: string | null,

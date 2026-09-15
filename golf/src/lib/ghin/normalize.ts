@@ -335,6 +335,41 @@ export function normalizeLoginToken(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * The signed-in golfer's own GHIN number, from a login response.
+ *
+ * The endpoints that list who you follow take that number as a path segment,
+ * so finding it here saves asking for something the account already knows.
+ * The login response shape is not captured anywhere, so this searches the
+ * plausible places rather than assuming one.
+ */
+export function normalizeLoginGolferId(raw: unknown): string | null {
+  const direct = pickString(raw, [
+    "golfer_id",
+    "ghin",
+    "ghin_number",
+    "GHINNumber",
+    "id",
+  ]);
+  if (direct && /^\d{4,12}$/.test(direct)) return direct;
+
+  for (const key of ["golfer_user", "golfer", "user", "data", "golfers"]) {
+    const nested = pick(raw, [key]);
+    if (Array.isArray(nested)) {
+      for (const item of nested) {
+        const found = normalizeLoginGolferId(item);
+        if (found) return found;
+      }
+      continue;
+    }
+    if (nested) {
+      const found = normalizeLoginGolferId(nested);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export function slug(value: string): string {
   return value
     .toLowerCase()

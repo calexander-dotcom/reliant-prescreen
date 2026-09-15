@@ -53,12 +53,22 @@ async function request<T>(
   return payload as T;
 }
 
-export async function apiLogin(emailOrGhin: string, password: string): Promise<string> {
-  const { token } = await request<{ token: string }>("/api/ghin/login", {
+export interface GhinSessionInfo {
+  token: string;
+  /** The signed-in golfer's own GHIN number, when GHIN returns it. */
+  golferId: string | null;
+  /** Key-only shape of the login response, for finding the number if not. */
+  shape: string;
+}
+
+export async function apiLogin(
+  emailOrGhin: string,
+  password: string,
+): Promise<GhinSessionInfo> {
+  return request<GhinSessionInfo>("/api/ghin/login", {
     method: "POST",
     body: JSON.stringify({ emailOrGhin, password }),
   });
-  return token;
 }
 
 export interface GolferLookup {

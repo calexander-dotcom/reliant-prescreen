@@ -12,10 +12,12 @@ export function PlayerPicker({
   round,
   update,
   golferId,
+  token,
 }: {
   round: Round;
   update: (next: Round) => void;
   golferId: string | null;
+  token: string | null;
 }) {
   const [following, setFollowing] = useState<GolferLookup | null>(null);
   const [search, setSearch] = useState<GolferLookup | null>(null);
@@ -175,7 +177,7 @@ export function PlayerPicker({
       <Card>
         <SectionTitle>Add players</SectionTitle>
 
-        {golferId ? (
+        {token ? (
           <div className="mb-5 space-y-5">
             <div>
               <Field
@@ -192,7 +194,7 @@ export function PlayerPicker({
                       if (event.key === "Enter" && query.trim().length >= 3) {
                         void run(
                           "search",
-                          () => apiSearchGolfers(null, query.trim()),
+                          () => apiSearchGolfers(token, query.trim()),
                           setSearch,
                           "Could not search GHIN.",
                         );
@@ -203,7 +205,7 @@ export function PlayerPicker({
                     onClick={() =>
                       void run(
                         "search",
-                        () => apiSearchGolfers(null, query.trim()),
+                        () => apiSearchGolfers(token, query.trim()),
                         setSearch,
                         "Could not search GHIN.",
                       )
@@ -246,12 +248,12 @@ export function PlayerPicker({
                   onClick={() =>
                     void run(
                       "following",
-                      () => apiFollowing(golferId),
+                      () => apiFollowing(golferId ?? "", token),
                       setFollowing,
                       "Could not read who you follow on GHIN.",
                     )
                   }
-                  disabled={busy === "following"}
+                  disabled={busy === "following" || !golferId}
                 >
                   {following === null
                     ? "Import who you follow on GHIN"
