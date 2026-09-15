@@ -352,6 +352,17 @@ function OneDownFields({
             ]}
           />
         </Field>
+        <Field label="Greenies" hint="Closest to the hole on the par 3s, for the stake. Every par 3 to one side doubles them.">
+          <Toggle
+            name="Greenies"
+            value={bet.greenies === false ? "off" : "on"}
+            onChange={(value) => onChange({ ...bet, greenies: value === "on" })}
+            options={[
+              { value: "on", label: "On" },
+              { value: "off", label: "Off" },
+            ]}
+          />
+        </Field>
         <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
             value={bet.stakeMode}
@@ -739,6 +750,7 @@ export function BetSummaryLine({ bet, players }: { bet: BetConfig; players: Play
         {bet.overallMultiplier > 0
           ? ` · overall ${bet.overallMultiplier}x`
           : ""}
+        {bet.greenies === false ? "" : " · greenies"}
       </span>
     );
   }

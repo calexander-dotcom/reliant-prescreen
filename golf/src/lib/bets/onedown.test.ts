@@ -506,3 +506,89 @@ describe("marginsByHole", () => {
     expect(nines[10]).toEqual([-1, 0]);
   });
 });
+
+describe("greenies", () => {
+  // Par 3s at 3, 7, 12 and 16, like most cards.
+  const par = (hole: number) => ([3, 7, 12, 16].includes(hole) ? 3 : 4);
+  const withGreenies = (winners: Record<number, string | null>) =>
+    evaluateOneDown(
+      // $10 a man, as the house plays it; the test config's default is per side.
+      config({
+        reset: "nines",
+        autoPressAt: 0,
+        stakeMode: "per-player",
+        greenies: true,
+        greenieWinners: winners,
+      }),
+      18,
+      through(),
+      ids,
+      par,
+    );
+
+  it("nets three to one as two greenies' worth", () => {
+    const outcome = withGreenies({ 3: "a1", 7: "a2", 12: "b1", 16: "a1" });
+    expect(outcome.greenies.counts).toEqual([3, 1]);
+    expect(outcome.greenies.sweptBy).toBeNull();
+    // $10 a man per greenie: +30 -10 = +20 each for A.
+    expect(outcome.greenies.totals).toEqual({ a1: 2000, a2: 2000, b1: -2000, b2: -2000 });
+    expect(outcome.totals).toEqual(outcome.greenies.totals);
+  });
+
+  it("doubles a sweep: four for four is $80 each, not $40", () => {
+    const outcome = withGreenies({ 3: "a1", 7: "a2", 12: "a1", 16: "a2" });
+    expect(outcome.greenies.sweptBy).toBe(0);
+    expect(outcome.greenies.sweepBonus).toEqual({ a1: 4000, a2: 4000, b1: -4000, b2: -4000 });
+    expect(outcome.greenies.totals).toEqual({ a1: 8000, a2: 8000, b1: -8000, b2: -8000 });
+  });
+
+  it("does not sweep past a greenie nobody won, or one not yet asked", () => {
+    const nobody = withGreenies({ 3: "a1", 7: "a2", 12: null, 16: "a1" });
+    expect(nobody.greenies.sweptBy).toBeNull();
+    expect(nobody.greenies.totals.a1).toBe(3000);
+    const pending = withGreenies({ 3: "a1", 7: "a2", 12: "a1" });
+    expect(pending.greenies.unanswered).toEqual([16]);
+    expect(pending.greenies.sweptBy).toBeNull();
+    expect(pending.greenies.totals.a1).toBe(3000);
+  });
+
+  it("pays two or three to none as just that", () => {
+    expect(withGreenies({ 3: "b1", 7: "b2" }).greenies.totals.b1).toBe(2000);
+    expect(withGreenies({ 3: "b1", 7: "b2", 16: "b1" }).greenies.totals.b1).toBe(3000);
+  });
+
+  it("puts each greenie on its hole and only the bonus on the round", () => {
+    const outcome = withGreenies({ 3: "a1", 7: "a2", 12: "a1", 16: "a2" });
+    const holes = outcome.greenies.holes;
+    expect(holes.map((h) => h.hole)).toEqual([3, 7, 12, 16]);
+    for (const hole of holes) expect(hole.amounts.a1).toBe(1000);
+    const fromHoles = holes.reduce((sum, h) => sum + h.amounts.a1, 0);
+    expect(fromHoles + outcome.greenies.sweepBonus.a1).toBe(outcome.greenies.totals.a1);
+  });
+
+  it("stays out of it when turned off, and without par 3s", () => {
+    const off = evaluateOneDown(
+      config({ greenies: false, greenieWinners: { 3: "a1" } }),
+      18,
+      through(),
+      ids,
+      par,
+    );
+    expect(off.greenies.enabled).toBe(false);
+    expect(off.greenies.holes).toEqual([]);
+    expect(sumCents(Object.values(off.totals))).toBe(0);
+    const flat = evaluateOneDown(config({ greenieWinners: { 3: "a1" } }), 18, through(), ids);
+    expect(flat.greenies.holes).toEqual([]);
+  });
+
+  it("splits a greenie per side when the stake is per side", () => {
+    const outcome = evaluateOneDown(
+      config({ stakeMode: "per-side", autoPressAt: 0, greenieWinners: { 3: "a1" } }),
+      18,
+      through(),
+      ids,
+      par,
+    );
+    expect(outcome.greenies.totals).toEqual({ a1: 500, a2: 500, b1: -500, b2: -500 });
+  });
+});

@@ -154,7 +154,7 @@ function BetResultCard({
       </SectionTitle>
 
       {result.kind === "onedown" ? (
-        <OneDownBody result={result} sign={sign} />
+        <OneDownBody result={result} sign={sign} nameOf={nameOf} />
       ) : result.kind === "banker" ? (
         <BankerBody result={result} nameOf={nameOf} />
       ) : result.kind === "nassau" ? (
@@ -237,9 +237,11 @@ function stakeWord(mode: "per-side" | "per-player"): string {
 function OneDownBody({
   result,
   sign,
+  nameOf,
 }: {
   result: Extract<BetResult, { kind: "onedown" }>;
   sign: 1 | -1;
+  nameOf: (playerId: string) => string;
 }) {
   const { outcome, config } = result;
   const [sideA, sideB] = config.sides;
@@ -338,6 +340,53 @@ function OneDownBody({
           <div className="mt-0.5 text-xs text-neutral-600">
             {betStanding(outcome.overall, config.sides)}
           </div>
+        </div>
+      ) : null}
+
+      {outcome.greenies.enabled ? (
+        <div className="border-t border-neutral-100 pt-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-sm font-semibold text-neutral-900">
+              Greenies
+              <span className="ml-1.5 text-xs font-normal text-neutral-500">
+                {formatMoney(config.amount)} each · par 3s · a sweep doubles
+              </span>
+            </span>
+            <span className="tabular text-sm font-bold">
+              {upLine(outcome.greenies.sideTotals[0])}
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs text-neutral-600">
+            {sign > 0
+              ? `${outcome.greenies.counts[0]} to ${sideA.name} · ${outcome.greenies.counts[1]} to ${sideB.name}`
+              : `${outcome.greenies.counts[1]} to ${sideB.name} · ${outcome.greenies.counts[0]} to ${sideA.name}`}
+            {outcome.greenies.sweptBy !== null
+              ? ` · swept by ${config.sides[outcome.greenies.sweptBy].name}, doubled`
+              : outcome.greenies.unanswered.length > 0
+                ? ` · ${outcome.greenies.unanswered.length} par 3${
+                    outcome.greenies.unanswered.length === 1 ? "" : "s"
+                  } still to answer`
+                : ""}
+          </div>
+          {outcome.greenies.holes.length > 0 ? (
+            <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+              {outcome.greenies.holes.map((greenie) => (
+                <li
+                  key={greenie.hole}
+                  className="rounded-md bg-neutral-50 px-2 py-1 text-neutral-700"
+                >
+                  <span className="font-semibold">{greenie.hole}</span>{" "}
+                  {greenie.winnerId === undefined
+                    ? "—"
+                    : greenie.winnerId === null
+                      ? "nobody"
+                      : nameOf(greenie.winnerId).split(" ")[0]}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-neutral-500">No par 3s on this card.</p>
+          )}
         </div>
       ) : null}
 

@@ -307,3 +307,25 @@ export function removePlayer(round: Round, playerId: PlayerId): Round {
 export function setPerspective(round: Round, playerId: PlayerId | null): Round {
   return touch({ ...round, perspectiveId: playerId });
 }
+
+/**
+ * Who won the greenie on a par 3: a player, null for nobody, or undefined to
+ * take the answer back.
+ */
+export function setGreenie(
+  round: Round,
+  betId: string,
+  hole: number,
+  winnerId: PlayerId | null | undefined,
+): Round {
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "onedown") return bet;
+      const winners = { ...(bet.greenieWinners ?? {}) };
+      if (winnerId === undefined) delete winners[hole];
+      else winners[hole] = winnerId;
+      return { ...bet, greenieWinners: winners };
+    }),
+  });
+}

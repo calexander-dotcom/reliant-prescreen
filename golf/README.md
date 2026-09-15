@@ -94,6 +94,13 @@ The rules, precisely:
 - The stack **ends at the turn** and a new one starts on the 10th.
 - Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
   which never presses.
+- **Greenies** on the par 3s: closest to the hole wins one for their side,
+  worth a bet, netted between the sides at the end — three to one is two
+  greenies' worth, two to none is two. One side taking **every par 3 of the
+  round doubles them**: four for four at $10 a man is $80 each. A greenie
+  nobody won is a hole nobody swept. The hole screen asks who won it once the
+  scores on a par 3 are in; each greenie counts on its own nine and the sweep
+  on the round.
 
 Each number carries its sign: `+2` is our side two up in that bet, `-1` the
 other side one up, `0` square. Oldest bet first, so the opening bet is the

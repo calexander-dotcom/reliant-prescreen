@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
-import type { Course, Player, Round } from "../types";
+import type { Course, Player, Round, Side } from "../types";
 import { computeRound, holeResultFor } from "./index";
 
 const course: Course = {
@@ -410,5 +410,55 @@ describe("money by nine", () => {
     expect(result.nineTotals.back).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
     expect(result.nineTotals.hasOverall).toBe(false);
     expectAddsUp(result);
+  });
+});
+
+describe("greenies in the round", () => {
+  const par3Course: Course = {
+    ...course,
+    tees: [
+      {
+        ...course.tees[0],
+        holes: course.tees[0].holes.map((hole) =>
+          [3, 7, 12, 16].includes(hole.number) ? { ...hole, par: 3 } : hole,
+        ),
+      },
+    ],
+  };
+  const oneDown = (winners: Record<number, string | null>) => ({
+    kind: "onedown" as const,
+    id: "od1",
+    label: "One downs",
+    amount: 1000,
+    sides: [
+      { id: "a", name: "A", playerIds: ["p1", "p3"] },
+      { id: "b", name: "B", playerIds: ["p2", "p4"] },
+    ] as [Side, Side],
+    basis: "gross" as const,
+    autoPressAt: 0,
+    manualPresses: {},
+    reset: "nines" as const,
+    overallMultiplier: 0,
+    stakeMode: "per-player" as const,
+    greenies: true,
+    greenieWinners: winners,
+  });
+
+  it("lands each greenie on its nine and a sweep on the round", () => {
+    const result = computeRound(
+      round({ course: par3Course, bets: [oneDown({ 3: "p1", 7: "p3", 12: "p1", 16: "p3" })] }),
+    );
+    expect(result.grandTotals).toEqual({ p1: 8000, p2: -8000, p3: 8000, p4: -8000 });
+    expect(result.nineTotals.front.p1).toBe(2000);
+    expect(result.nineTotals.back.p1).toBe(2000);
+    expect(result.nineTotals.overall.p1).toBe(4000);
+    expect(result.nineTotals.hasOverall).toBe(true);
+  });
+
+  it("asks nothing where there are no par 3s", () => {
+    const result = computeRound(round({ bets: [oneDown({ 3: "p1" })] }));
+    const oneDownResult = result.betResults[0];
+    expect(oneDownResult.kind === "onedown" && oneDownResult.outcome.greenies.holes).toEqual([]);
+    expect(result.grandTotals.p1).toBe(0);
   });
 });

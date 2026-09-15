@@ -15,6 +15,7 @@ import {
   adjustManualPresses,
   cycleBankerDouble,
   setHoleBanker,
+  setGreenie,
 } from "@/lib/mutations";
 import type { BetConfig, Round } from "@/lib/types";
 import { MoneyByNine } from "./MoneyByNine";
@@ -169,6 +170,85 @@ export function HoleView({
           })}
         </ul>
       </CollapsibleCard>
+
+      {/* Greenies: on a par 3, once the scores are in, who was closest? */}
+      {comp.betResults
+        .filter(
+          (result): result is Extract<typeof result, { kind: "onedown" }> =>
+            result.kind === "onedown" && result.outcome.greenies.enabled,
+        )
+        .filter(() => info?.par === 3)
+        .map((result) => {
+          const winners = result.config.greenieWinners ?? {};
+          const answered = hole in winners;
+          const winner = winners[hole];
+          const scoresIn = round.players.every(
+            (player) => (round.scores[player.id]?.[hole] ?? null) !== null,
+          );
+          const [sideA, sideB] = result.config.sides;
+          const wonBy =
+            winner && sideA.playerIds.includes(winner)
+              ? sideA.name
+              : winner && sideB.playerIds.includes(winner)
+                ? sideB.name
+                : null;
+          return (
+            <Card key={`greenie-${result.config.id}`}>
+              <SectionTitle hint="Closest to the hole takes a greenie for their side, worth a bet. Every par 3 to one side doubles them.">
+                Greenie
+              </SectionTitle>
+              {!answered && scoresIn ? (
+                <Banner tone="warn">Scores are in — who won the greenie?</Banner>
+              ) : null}
+              {answered ? (
+                <Banner tone={winner ? "good" : undefined}>
+                  {winner
+                    ? `${round.players.find((p) => p.id === winner)?.name ?? "—"} — a greenie to ${wonBy ?? "nobody in the game"}.`
+                    : "Nobody won this one."}
+                </Banner>
+              ) : null}
+              <div
+                role="group"
+                aria-label={`Greenie on hole ${hole}`}
+                className="mt-3 flex flex-wrap gap-2"
+              >
+                {round.players.map((player) => (
+                  <Button
+                    key={player.id}
+                    variant={winner === player.id ? "primary" : "secondary"}
+                    onClick={() =>
+                      update(
+                        setGreenie(
+                          round,
+                          result.config.id,
+                          hole,
+                          winner === player.id ? undefined : player.id,
+                        ),
+                      )
+                    }
+                  >
+                    {player.name.split(" ")[0]}
+                  </Button>
+                ))}
+                <Button
+                  variant={answered && winner === null ? "primary" : "ghost"}
+                  onClick={() =>
+                    update(
+                      setGreenie(
+                        round,
+                        result.config.id,
+                        hole,
+                        answered && winner === null ? undefined : null,
+                      ),
+                    )
+                  }
+                >
+                  Nobody
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
 
       <CollapsibleCard
         title="Money this hole"
@@ -530,6 +610,26 @@ export function HoleView({
                             }`}
                           >
                             {upText(overallMoney)}
+                          </dd>
+                        </div>
+                      ) : null}
+                      {result.outcome.greenies.enabled ? (
+                        <div className="flex justify-between gap-2">
+                          <dt className="text-neutral-500">
+                            Greenies {result.outcome.greenies.counts[sign > 0 ? 0 : 1]}–
+                            {result.outcome.greenies.counts[sign > 0 ? 1 : 0]}
+                            {result.outcome.greenies.sweptBy !== null ? " · swept, doubled" : ""}
+                          </dt>
+                          <dd
+                            className={`tabular font-semibold ${
+                              result.outcome.greenies.sideTotals[0] === 0
+                                ? "text-neutral-400"
+                                : result.outcome.greenies.sideTotals[0] * sign > 0
+                                  ? "text-turf-700"
+                                  : "text-red-700"
+                            }`}
+                          >
+                            {upText(result.outcome.greenies.sideTotals[0])}
                           </dd>
                         </div>
                       ) : null}
