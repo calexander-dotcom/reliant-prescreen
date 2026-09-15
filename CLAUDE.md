@@ -57,12 +57,28 @@ have been told; it is not what is there. Owner-maintained.
 | `car_watch.py` | cron, hourly (`0 * * * *`), user `ubuntu` | `/home/ubuntu/car_watch` | — | retired | Remove the cron line and the directory; the `.env` there holds SendGrid and MarketCheck API keys — revoke them. |
 | *everything else* | ? | ? | ? | ? | **Owner to fill in.** |
 
-To fill this in, run on the box and paste the output to a session, which
+To fill this in, **SSH into the instance first** (the user there is
+`ubuntu`; the owner's Chromebook prompt reads `calexander@penguin`, which is
+a different machine), then run this and paste the output to a session, which
 will write it up here:
 
 ```
-crontab -l; sudo ls /etc/cron.d; systemctl list-units --type=service --state=running --no-pager; docker ps 2>/dev/null; pm2 list 2>/dev/null; sudo ss -ltnp
+crontab -l; sudo ls /etc/cron.d; systemctl list-units --type=service --state=running --no-pager; systemctl list-timers --all --no-pager; docker ps 2>/dev/null; pm2 list 2>/dev/null; sudo ss -ltnp; ls -la ~
 ```
+
+### Chromebook Linux container (`penguin`, user `calexander`)
+
+The owner's own machine, not a server — but things have been installed on
+it. Inventoried 2026-09-15 from the owner's paste; identification pending.
+
+| What | How it runs | Path | Ports | Owned by | Notes |
+|---|---|---|---|---|---|
+| A Node process | started at boot (pid 188) — probably a user-level systemd service | **unknown** | `*:8085` | **unknown** | Identify with `ps -o pid,user,etimes,args -p $(pgrep -o node)` and `systemctl --user list-units --type=service --no-pager`. |
+| `vms-reply-monitor` | a file in `/etc/cron.d` | **unknown** | — | **unknown** | `cron` is not installed on the machine (`crontab: command not found`, no cron daemon among running services), so this job is most likely **not running**. Read it with `cat /etc/cron.d/vms-reply-monitor`. |
+
+Nothing else listens on the machine; the only other running services are the
+container's own (avahi, dbus, polkit, getty, journald, logind, udevd,
+wpa_supplicant).
 
 ### Vercel
 
@@ -92,3 +108,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Golf Bets app, ongoing features | Vercel | live |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
+| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from a paste; EC2 inventory still pending | — | partial — see Shared infrastructure |
