@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorker } from "@/components/ServiceWorker";
+import { currentBuild } from "@/lib/build";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,7 +24,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen antialiased">
         <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-4">{children}</div>
-        <ServiceWorker />
+        {/* The page learns which build served it, to notice when a newer one is live. */}
+        <ServiceWorker build={currentBuild()} />
       </body>
     </html>
   );

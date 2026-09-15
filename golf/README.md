@@ -397,6 +397,22 @@ part that needs connectivity, and only up front.
 
 ---
 
+### Updates
+
+The worker on its own cannot keep the app current: `sw.js` does not change
+between deploys, so checking it for updates finds nothing, and an app installed
+on the home screen can stay open for days without asking for the page again —
+it has no reload gesture at all. So the server tells each page which build
+served it (the deployment's commit on Vercel, Next's own build id otherwise —
+read at runtime rather than inlined, so the page and the server can never
+carry different values), `/api/version` answers with the live one, and
+the page compares the two on load and whenever it comes back to the
+foreground. Behind, it reloads itself — not while something is being typed —
+with a `?u=<id>` marker that tells the worker to wait for the network on that
+one request rather than settle for the cached copy it is trying to replace. If
+the reload still comes back old, a bar at the top offers **Update** instead of
+the page chasing its tail.
+
 ## Where things are
 
 ```
