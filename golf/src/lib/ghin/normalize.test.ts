@@ -263,7 +263,7 @@ describe("real GHIN payload shapes", () => {
       golfer_course_preference: [
         {
           id: 1,
-          course_id: 33402,
+          course_id: 50001,
           course_name: "Test Links",
           tee_id: "77001",
           tee_name: "Blue",
@@ -275,7 +275,7 @@ describe("real GHIN payload shapes", () => {
     });
     expect(courses).toHaveLength(1);
     expect(courses[0]).toMatchObject({
-      id: "33402",
+      id: "50001",
       name: "Test Links",
       facility: "Test Links Facility",
     });
@@ -285,7 +285,7 @@ describe("real GHIN payload shapes", () => {
     const courses = normalizeCourseSummaries({
       courses: [
         {
-          CourseId: "33402",
+          CourseId: "50001",
           CourseName: "Test Links",
           CourseCity: "Monterey",
           CourseState: "CA",
@@ -300,7 +300,7 @@ describe("real GHIN payload shapes", () => {
       ],
     });
     expect(courses[0]).toMatchObject({
-      id: "33402",
+      id: "50001",
       name: "Test Links",
       city: "Monterey",
       state: "CA",
@@ -311,7 +311,7 @@ describe("real GHIN payload shapes", () => {
     const course = normalizeCourseDetail({
       Facility: { FacilityName: "Test Links Facility" },
       Season: { SeasonName: "Year Round" },
-      CourseId: 33402,
+      CourseId: 50001,
       CourseName: "Test Links",
       CourseStatus: "Active",
       CourseNumber: 1,
@@ -342,7 +342,7 @@ describe("real GHIN payload shapes", () => {
     });
 
     expect(course).toMatchObject({
-      id: "33402",
+      id: "50001",
       name: "Test Links",
       city: "Monterey",
       state: "CA",
