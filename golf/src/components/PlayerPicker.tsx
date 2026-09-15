@@ -330,7 +330,24 @@ export function PlayerPicker({
                     void run(
                       "following",
                       () => apiFollowing(golferId ?? "", token),
-                      setFollowing,
+                      (result) => {
+                        setFollowing(result);
+                        /*
+                         * Following yourself is a reasonable way to get your
+                         * own record in, so if the account holder turns up in
+                         * their own list, recognise them rather than leaving
+                         * them as one name among many.
+                         */
+                        const self = golferId
+                          ? result.players.find(
+                              (player) => player.ghinNumber === golferId,
+                            )
+                          : undefined;
+                        if (self && !me) {
+                          setFoundMe(self);
+                          saveMe(self);
+                        }
+                      },
                       "Could not read who you follow on GHIN.",
                     )
                   }
@@ -345,14 +362,22 @@ export function PlayerPicker({
 
               {following && following.players.length > 0 ? (
                 <ul className="mt-3 space-y-1.5">
-                  {following.players.map((player) => (
-                    <PlayerRow
-                      key={player.id}
-                      player={player}
-                      added={inRound.has(player.id)}
-                      onAdd={() => addPlayer(player)}
-                    />
-                  ))}
+                  {[...following.players]
+                    // You first, then everyone else in the order GHIN gave.
+                    .sort((a, b) => {
+                      const aSelf = a.ghinNumber === golferId ? 0 : 1;
+                      const bSelf = b.ghinNumber === golferId ? 0 : 1;
+                      return aSelf - bSelf;
+                    })
+                    .map((player) => (
+                      <PlayerRow
+                        key={player.id}
+                        player={player}
+                        added={inRound.has(player.id)}
+                        isSelf={!!golferId && player.ghinNumber === golferId}
+                        onAdd={() => addPlayer(player)}
+                      />
+                    ))}
                 </ul>
               ) : null}
 
@@ -425,10 +450,13 @@ function PlayerRow({
   player,
   added,
   onAdd,
+  isSelf = false,
 }: {
   player: Player;
   added: boolean;
   onAdd: () => void;
+  /** The account holder, when they turn up in their own following list. */
+  isSelf?: boolean;
 }) {
   return (
     <li>
@@ -437,12 +465,21 @@ function PlayerRow({
         onClick={onAdd}
         disabled={added}
         className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left ${
-          added ? "bg-turf-50" : "bg-neutral-50 active:bg-neutral-100"
+          added
+            ? "bg-turf-50"
+            : isSelf
+              ? "bg-turf-50 ring-1 ring-inset ring-turf-200 active:bg-turf-100"
+              : "bg-neutral-50 active:bg-neutral-100"
         }`}
       >
         <span className="min-w-0">
           <span className="block truncate font-semibold text-neutral-900">
             {player.name}
+            {isSelf ? (
+              <span className="ml-1.5 rounded bg-turf-200 px-1 text-[0.65rem] font-bold text-turf-900">
+                YOU
+              </span>
+            ) : null}
           </span>
           <span className="block text-xs text-neutral-500">
             {player.handicapIndex === null
@@ -452,7 +489,7 @@ function PlayerRow({
           </span>
         </span>
         <span className="shrink-0 text-sm font-semibold text-turf-700">
-          {added ? "Added" : "Add"}
+          {added ? "Added" : isSelf ? "Add me" : "Add"}
         </span>
       </button>
     </li>
