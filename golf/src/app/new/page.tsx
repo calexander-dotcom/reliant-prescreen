@@ -8,7 +8,7 @@ import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
 import { defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
-import { createRound, newId, saveRound } from "@/lib/storage";
+import { createRound, newId, saveRound, saveToken } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
 const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
@@ -31,6 +31,15 @@ export default function NewRoundPage() {
   useEffect(() => {
     setRound(createRound());
   }, []);
+
+  /**
+   * Drop a GHIN session the lookups have shown to be dead, so the panel offers
+   * signing in again rather than repeating a call that cannot work.
+   */
+  const sessionExpired = () => {
+    saveToken(null);
+    setGhin((current) => ({ ...current, token: null }));
+  };
 
   if (!round) return <main className="py-8 text-neutral-500">Loading…</main>;
 
@@ -62,6 +71,7 @@ export default function NewRoundPage() {
         update={setRound}
         golferId={ghin.golferId}
         token={ghin.token}
+        onSessionExpired={sessionExpired}
       />
 
       <PlayerPicker
@@ -70,6 +80,7 @@ export default function NewRoundPage() {
         golferId={ghin.golferId}
         token={ghin.token}
         me={ghin.me}
+        onSessionExpired={sessionExpired}
       />
 
       <Card>

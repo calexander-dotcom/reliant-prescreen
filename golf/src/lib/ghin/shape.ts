@@ -56,6 +56,33 @@ export interface GhinProbe {
   error?: string;
 }
 
+/**
+ * What a set of failed probes means, since the fixes differ completely.
+ *
+ * All 404 is a wrong path. A 401 is a session that has run out and needs
+ * signing in again — not something the user can fix by retrying. A 403 is
+ * something between the app and GHIN refusing the connection.
+ */
+export type ProbeVerdict =
+  | "some-answered"
+  | "expired"
+  | "forbidden"
+  | "not-found"
+  | "unreachable"
+  | "mixed";
+
+export function probeVerdict(probes: GhinProbe[]): ProbeVerdict {
+  if (probes.length === 0) return "mixed";
+  if (probes.some((probe) => probe.ok)) return "some-answered";
+
+  const statuses = probes.map((probe) => probe.status);
+  if (statuses.some((status) => status === 401)) return "expired";
+  if (statuses.some((status) => status === 403)) return "forbidden";
+  if (statuses.every((status) => status === 404)) return "not-found";
+  if (statuses.every((status) => status === 0 || status === 504)) return "unreachable";
+  return "mixed";
+}
+
 export function formatProbes(probes: GhinProbe[]): string {
   if (probes.length === 0) return "No endpoints were tried.";
   return probes

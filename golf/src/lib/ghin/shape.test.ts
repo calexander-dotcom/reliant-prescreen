@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeShape, formatProbes } from "./shape";
+import { describeShape, formatProbes, probeVerdict } from "./shape";
 
 describe("describeShape", () => {
   it("names keys without leaking values", () => {
@@ -64,5 +64,29 @@ describe("formatProbes", () => {
 
   it("says so when nothing was tried", () => {
     expect(formatProbes([])).toBe("No endpoints were tried.");
+  });
+});
+
+describe("probeVerdict", () => {
+  const probe = (status: number, ok = false) => ({ path: "p", status, ok });
+
+  it("separates the problems that need different fixes", () => {
+    // A path that was never right.
+    expect(probeVerdict([probe(404), probe(404)])).toBe("not-found");
+    // A session that has run out — retrying will not help, signing in will.
+    expect(probeVerdict([probe(404), probe(401)])).toBe("expired");
+    // Something in between refusing the connection.
+    expect(probeVerdict([probe(403), probe(404)])).toBe("forbidden");
+    // Never got there at all.
+    expect(probeVerdict([probe(0), probe(504)])).toBe("unreachable");
+  });
+
+  it("knows when the problem is the mapping, not the call", () => {
+    expect(probeVerdict([probe(404), probe(200, true)])).toBe("some-answered");
+  });
+
+  it("falls back rather than guessing", () => {
+    expect(probeVerdict([])).toBe("mixed");
+    expect(probeVerdict([probe(500), probe(404)])).toBe("mixed");
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatProbes, type GhinProbe } from "@/lib/ghin/shape";
+import { formatProbes, probeVerdict, type GhinProbe } from "@/lib/ghin/shape";
 import { Banner, Button } from "./ui";
 
 /**
@@ -17,17 +17,29 @@ import { Banner, Button } from "./ui";
 export function GhinDiagnostics({
   probes,
   subject,
+  onSignInAgain,
 }: {
   probes: GhinProbe[];
   subject: string;
+  /** Offered when the probes say the GHIN session has run out. */
+  onSignInAgain?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (probes.length === 0) return null;
 
-  const answered = probes.filter((probe) => probe.ok);
+  const verdict = probeVerdict(probes);
   const text = formatProbes(probes);
+
+  const message = {
+    "some-answered": `GHIN answered, but no ${subject} could be read out of the response. Either there are none, or the field names have changed.`,
+    expired: "Your GHIN session has run out. Signing in again should fix it.",
+    forbidden: `GHIN refused the request for ${subject}. Something between this app and GHIN is blocking it.`,
+    "not-found": `GHIN has no endpoint where this app looked for ${subject}. The path has moved, or was never right — this one was a guess rather than something captured.`,
+    unreachable: "GHIN could not be reached at all. That is usually the network.",
+    mixed: `GHIN would not return ${subject}, for more than one reason. The detail below says which.`,
+  }[verdict];
 
   const copy = async () => {
     try {
@@ -40,19 +52,13 @@ export function GhinDiagnostics({
 
   return (
     <div className="mt-2 space-y-2">
-      <Banner tone={answered.length === 0 ? "error" : "warn"}>
-        {answered.length === 0 ? (
-          <>
-            Every endpoint GHIN was asked for {subject} refused the request. This
-            is a connection or permissions problem, not an empty list.
-          </>
-        ) : (
-          <>
-            GHIN answered, but no {subject} could be read out of the response.
-            Either the account has none saved, or the field names have changed.
-          </>
-        )}
+      <Banner tone={verdict === "some-answered" ? "warn" : "error"}>
+        {message}
       </Banner>
+
+      {verdict === "expired" && onSignInAgain ? (
+        <Button onClick={onSignInAgain}>Sign in to GHIN again</Button>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button
