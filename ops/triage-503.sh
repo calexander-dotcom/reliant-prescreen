@@ -39,8 +39,8 @@ echo "--- swap ---"
 swapon --show 2>/dev/null || echo "NO SWAP CONFIGURED (an OOM here kills the app outright)"
 
 hr "7. What actually answers /health"
-curl -s -o /dev/null -w "  127.0.0.1/health -> HTTP %%{http_code}\n" http://127.0.0.1/health 2>/dev/null
-curl -s -o /dev/null -w "  127.0.0.1/       -> HTTP %%{http_code}\n" http://127.0.0.1/ 2>/dev/null
+curl -s -o /dev/null -w "  127.0.0.1/health -> HTTP %{http_code}\n" http://127.0.0.1/health 2>/dev/null
+curl -s -o /dev/null -w "  127.0.0.1/       -> HTTP %{http_code}\n" http://127.0.0.1/ 2>/dev/null
 grep -rn "health" /etc/nginx/ /etc/caddy/ 2>/dev/null | head -20 || echo "no health route in proxy config"
 
 hr "8. Recent 503s in the access log"
