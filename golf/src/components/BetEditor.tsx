@@ -20,6 +20,23 @@ import type {
 import { MoneyInput } from "./MoneyInput";
 import { Button, Card, Field, inputClass } from "./ui";
 
+/** The games, in the order they are offered. */
+const GAMES = [
+  { kind: "onedown", label: "One downs" },
+  { kind: "banker", label: "Banker" },
+  { kind: "nassau", label: "Nassau" },
+  { kind: "skins", label: "Skins" },
+] as const;
+
+type GameKind = (typeof GAMES)[number]["kind"];
+
+const BUILDERS = {
+  onedown: defaultOneDown,
+  banker: defaultBanker,
+  nassau: defaultNassau,
+  skins: defaultSkins,
+} as const;
+
 export function BetEditor({
   round,
   update,
@@ -32,10 +49,58 @@ export function BetEditor({
   const replace = (bet: BetConfig) =>
     setBets(round.bets.map((existing) => (existing.id === bet.id ? bet : existing)));
 
+  /**
+   * One game at a time.
+   *
+   * A group plays banker, or one downs, or a nassau — not several at once —
+   * and the settings for games nobody is playing are just noise on a phone.
+   * So choosing a game replaces whatever was set rather than adding to it.
+   */
+  const chosen: GameKind | null = (round.bets[0]?.kind as GameKind) ?? null;
+
+  const choose = (kind: GameKind | null) => {
+    if (kind === null) {
+      setBets([]);
+      return;
+    }
+    // Already the only game running: leave its settings alone.
+    if (kind === chosen && round.bets.length === 1) return;
+    setBets([BUILDERS[kind](round.players, newId())]);
+  };
+
   return (
     <div className="space-y-4">
+      <div>
+        <div className="mb-2 text-sm font-semibold text-neutral-700">
+          Game for this round
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {GAMES.map((game) => (
+            <Button
+              key={game.kind}
+              variant={chosen === game.kind ? "primary" : "secondary"}
+              onClick={() => choose(game.kind)}
+            >
+              {game.label}
+            </Button>
+          ))}
+        </div>
+        <div className="mt-2">
+          <Button
+            variant={chosen === null ? "primary" : "ghost"}
+            onClick={() => choose(null)}
+            full
+          >
+            No automatic game
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-neutral-500">
+          One game at a time. Whichever you pick, money can still be entered by
+          hand on any hole.
+        </p>
+      </div>
+
       {round.bets.map((bet) => {
-        const remove = () => setBets(round.bets.filter((b) => b.id !== bet.id));
         if (bet.kind === "nassau") {
           return (
             <NassauFields
@@ -43,7 +108,6 @@ export function BetEditor({
               bet={bet}
               players={round.players}
               onChange={replace}
-              onRemove={remove}
             />
           );
         }
@@ -54,7 +118,6 @@ export function BetEditor({
               bet={bet}
               players={round.players}
               onChange={replace}
-              onRemove={remove}
             />
           );
         }
@@ -65,7 +128,6 @@ export function BetEditor({
               bet={bet}
               players={round.players}
               onChange={replace}
-              onRemove={remove}
             />
           );
         }
@@ -75,37 +137,10 @@ export function BetEditor({
             bet={bet}
             players={round.players}
             onChange={replace}
-            onRemove={remove}
           />
         );
       })}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          onClick={() => setBets([...round.bets, defaultOneDown(round.players, newId())])}
-        >
-          + One downs
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => setBets([...round.bets, defaultBanker(round.players, newId())])}
-        >
-          + Banker
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => setBets([...round.bets, defaultNassau(round.players, newId())])}
-        >
-          + Nassau
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => setBets([...round.bets, defaultSkins(round.players, newId())])}
-        >
-          + Skins
-        </Button>
-      </div>
     </div>
   );
 }
@@ -215,25 +250,20 @@ function OneDownFields({
   bet,
   players,
   onChange,
-  onRemove,
 }: {
   bet: OneDownConfig;
   players: Player[];
   onChange: (bet: OneDownConfig) => void;
-  onRemove: () => void;
 }) {
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <input
           aria-label="Bet name"
           value={bet.label}
           onChange={(event) => onChange({ ...bet, label: event.target.value })}
           className="min-w-0 flex-1 rounded-lg bg-transparent text-base font-bold text-turf-900 focus:bg-neutral-50"
         />
-        <Button variant="ghost" onClick={onRemove}>
-          Remove
-        </Button>
       </div>
 
       <p className="mb-3 text-xs text-neutral-600">
@@ -335,25 +365,20 @@ function NassauFields({
   bet,
   players,
   onChange,
-  onRemove,
 }: {
   bet: NassauConfig;
   players: Player[];
   onChange: (bet: NassauConfig) => void;
-  onRemove: () => void;
 }) {
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <input
           aria-label="Bet name"
           value={bet.label}
           onChange={(event) => onChange({ ...bet, label: event.target.value })}
           className="min-w-0 flex-1 rounded-lg bg-transparent text-base font-bold text-turf-900 focus:bg-neutral-50"
         />
-        <Button variant="ghost" onClick={onRemove}>
-          Remove
-        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -448,27 +473,22 @@ function BankerFields({
   bet,
   players,
   onChange,
-  onRemove,
 }: {
   bet: BankerConfig;
   players: Player[];
   onChange: (bet: BankerConfig) => void;
-  onRemove: () => void;
 }) {
   const playing = players.filter((player) => bet.playerIds.includes(player.id));
 
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <input
           aria-label="Bet name"
           value={bet.label}
           onChange={(event) => onChange({ ...bet, label: event.target.value })}
           className="min-w-0 flex-1 rounded-lg bg-transparent text-base font-bold text-turf-900 focus:bg-neutral-50"
         />
-        <Button variant="ghost" onClick={onRemove}>
-          Remove
-        </Button>
       </div>
 
       <p className="mb-3 text-xs text-neutral-600">
@@ -587,12 +607,10 @@ function SkinsFields({
   bet,
   players,
   onChange,
-  onRemove,
 }: {
   bet: SkinsConfig;
   players: Player[];
   onChange: (bet: SkinsConfig) => void;
-  onRemove: () => void;
 }) {
   const toggle = (playerId: string) =>
     onChange({
@@ -604,16 +622,13 @@ function SkinsFields({
 
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3">
         <input
           aria-label="Bet name"
           value={bet.label}
           onChange={(event) => onChange({ ...bet, label: event.target.value })}
           className="min-w-0 flex-1 rounded-lg bg-transparent text-base font-bold text-turf-900 focus:bg-neutral-50"
         />
-        <Button variant="ghost" onClick={onRemove}>
-          Remove
-        </Button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

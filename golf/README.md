@@ -54,6 +54,14 @@ text summary to paste into the group chat.
 
 ## Automatic bets
 
+**One game per round.** A group plays banker, or one downs, or a nassau — not
+several at once — so the round has a single game picker rather than a list of
+bets to add. Choosing a game replaces whatever was set, and the settings and
+standings for games nobody is playing never appear.
+
+Hand-entered money is always available regardless, on any hole, including with
+no automatic game at all.
+
 ### One downs (the house game)
 
 A new bet opens whenever somebody falls behind in the newest bet, so live bets

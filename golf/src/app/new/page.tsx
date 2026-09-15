@@ -7,7 +7,7 @@ import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
-import { defaultOneDown, defaultSkins } from "@/lib/bets/defaults";
+import { defaultOneDown } from "@/lib/bets/defaults";
 import { createRound, newId, saveRound, saveToken } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
@@ -49,7 +49,8 @@ export default function NewRoundPage() {
     const bets =
       round.bets.length > 0
         ? round.bets
-        : [defaultOneDown(round.players, newId()), defaultSkins(round.players, newId())];
+        // One game, since that is how a round is actually played.
+        : [defaultOneDown(round.players, newId())];
     const next = { ...round, bets, courseName: round.courseName || "Untitled round" };
     saveRound(next);
     router.push(`/round/${next.id}`);
@@ -121,7 +122,7 @@ export default function NewRoundPage() {
       </Card>
 
       <Card>
-        <SectionTitle hint="Skip this and you get $10 one downs plus $5 skins. Change it any time.">
+        <SectionTitle hint="One game per round. Skip this and you get $10 one downs. Change it any time.">
           Bets
         </SectionTitle>
         {round.players.length < 2 ? (
