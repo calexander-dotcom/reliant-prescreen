@@ -7,5 +7,5 @@
 ## Retired
 
 `car_watch.py`, a CLI that watched used-car listings and emailed new matches,
-lived here until September 2026. Its last version is tagged
-[`car-watch-final`](../../tree/car-watch-final) if it is ever wanted again.
+lived here until September 2026. Its last version is at commit
+[`3d895ee`](../../tree/3d895ee) if it is ever wanted again.
