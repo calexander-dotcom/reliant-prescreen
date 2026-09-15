@@ -11,6 +11,23 @@ set -u
 
 hr() { echo; echo "===== $* ====="; }
 
+hr "0. Sanity check: am I actually on the web server?"
+EXPECTED_IP="3.86.133.116"
+MY_IP="$(curl -fsS --max-time 6 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]')"
+echo "  hostname         : $(hostname)"
+echo "  my public IP     : ${MY_IP:-could not determine}"
+echo "  expected (server): ${EXPECTED_IP}"
+if [ -n "$MY_IP" ] && [ "$MY_IP" != "$EXPECTED_IP" ]; then
+  echo
+  echo "  ***********************************************************************"
+  echo "  *** STOP. This is NOT the server hosting new.synergymedicalstaffing.com."
+  echo "  *** You are on '$(hostname)' (${MY_IP}), a different machine."
+  echo "  *** Connect to the EC2 box at ${EXPECTED_IP} first, then re-run this."
+  echo "  *** Everything below will be about the wrong computer."
+  echo "  ***********************************************************************"
+  echo
+fi
+
 hr "1. Listening sockets (who owns 80/443 and the app port)"
 ss -tlnp 2>/dev/null | grep -E ':(80|443|3000|8000|8080)\b' || echo "none found"
 
