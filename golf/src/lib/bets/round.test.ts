@@ -251,3 +251,164 @@ describe("banker in money-only mode", () => {
     ]);
   });
 });
+
+describe("money by nine", () => {
+  const expectAddsUp = (result: ReturnType<typeof computeRound>) => {
+    for (const player of players) {
+      const { front, back, overall } = result.nineTotals;
+      expect(front[player.id] + back[player.id] + overall[player.id]).toBe(
+        result.grandTotals[player.id],
+      );
+    }
+  };
+
+  it("splits hand-entered money at the turn", () => {
+    const result = computeRound(
+      round({
+        manual: {
+          1: { amounts: { p1: 2000, p2: 3000, p3: -4000, p4: -1000 } },
+          9: { amounts: { p1: 1000, p2: -1000, p3: 0, p4: 0 } },
+          10: { amounts: { p1: -500, p2: -500, p3: 1000, p4: 0 } },
+        },
+      }),
+    );
+    expect(result.nineTotals.front).toEqual({ p1: 3000, p2: 2000, p3: -4000, p4: -1000 });
+    expect(result.nineTotals.back).toEqual({ p1: -500, p2: -500, p3: 1000, p4: 0 });
+    expect(result.nineTotals.overall).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    expect(result.nineTotals.hasOverall).toBe(false);
+    expectAddsUp(result);
+  });
+
+  it("gives one downs a front, a back and the 18 on its own", () => {
+    const scores: Record<string, Record<number, number>> = { p1: {}, p2: {}, p3: {}, p4: {} };
+    for (let hole = 1; hole <= 18; hole += 1) {
+      // Team A (p1/p3) takes the front; Team B (p2/p4) takes the back except
+      // a halved 18th, so A is one up over the eighteen.
+      const aWins = hole <= 9;
+      const halved = hole === 18;
+      scores.p1[hole] = halved ? 4 : aWins ? 4 : 5;
+      scores.p3[hole] = halved ? 4 : aWins ? 4 : 5;
+      scores.p2[hole] = halved ? 4 : aWins ? 5 : 4;
+      scores.p4[hole] = halved ? 4 : aWins ? 5 : 4;
+    }
+    const result = computeRound(
+      round({
+        scores,
+        bets: [
+          {
+            kind: "onedown",
+            id: "od1",
+            label: "One downs",
+            amount: 1000,
+            sides: [
+              { id: "a", name: "A", playerIds: ["p1", "p3"] },
+              { id: "b", name: "B", playerIds: ["p2", "p4"] },
+            ],
+            basis: "gross",
+            autoPressAt: 0,
+            manualPresses: {},
+            reset: "nines",
+            overallMultiplier: 2,
+            stakeMode: "per-side",
+          },
+        ],
+      }),
+    );
+    expect(result.nineTotals.front).toEqual({ p1: 500, p2: -500, p3: 500, p4: -500 });
+    expect(result.nineTotals.back).toEqual({ p1: -500, p2: 500, p3: -500, p4: 500 });
+    expect(result.nineTotals.overall).toEqual({ p1: 1000, p2: -1000, p3: 1000, p4: -1000 });
+    expect(result.nineTotals.hasOverall).toBe(true);
+    expectAddsUp(result);
+  });
+
+  it("treats a one-down stack over the whole round as the round's, not a nine's", () => {
+    const scores: Record<string, Record<number, number>> = { p1: {}, p2: {}, p3: {}, p4: {} };
+    for (let hole = 1; hole <= 18; hole += 1) {
+      scores.p1[hole] = 4;
+      scores.p3[hole] = 4;
+      scores.p2[hole] = 5;
+      scores.p4[hole] = 5;
+    }
+    const result = computeRound(
+      round({
+        scores,
+        bets: [
+          {
+            kind: "onedown",
+            id: "od1",
+            label: "One downs",
+            amount: 1000,
+            sides: [
+              { id: "a", name: "A", playerIds: ["p1", "p3"] },
+              { id: "b", name: "B", playerIds: ["p2", "p4"] },
+            ],
+            basis: "gross",
+            autoPressAt: 0,
+            manualPresses: {},
+            reset: "round",
+            overallMultiplier: 0,
+            stakeMode: "per-side",
+          },
+        ],
+      }),
+    );
+    expect(result.nineTotals.front).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    expect(result.nineTotals.back).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    expect(result.nineTotals.overall.p1).toBe(500);
+    expect(result.nineTotals.hasOverall).toBe(true);
+    expectAddsUp(result);
+  });
+
+  it("keeps a nassau's Total 18 out of both nines", () => {
+    const scores: Record<string, Record<number, number>> = { p1: {}, p2: {}, p3: {}, p4: {} };
+    for (let hole = 1; hole <= 18; hole += 1) {
+      scores.p1[hole] = 4;
+      scores.p3[hole] = 4;
+      scores.p2[hole] = 5;
+      scores.p4[hole] = 5;
+    }
+    const result = computeRound(
+      round({
+        scores,
+        bets: [
+          {
+            kind: "nassau",
+            id: "n1",
+            label: "Team nassau",
+            amount: 2000,
+            sides: [
+              { id: "a", name: "A", playerIds: ["p1", "p3"] },
+              { id: "b", name: "B", playerIds: ["p2", "p4"] },
+            ],
+            basis: "gross",
+            autoPressAt: 0,
+            maxPresses: 4,
+            includeTotal: true,
+            stakeMode: "per-side",
+          },
+        ],
+      }),
+    );
+    expect(result.nineTotals.front.p1).toBe(1000);
+    expect(result.nineTotals.back.p1).toBe(1000);
+    expect(result.nineTotals.overall.p1).toBe(1000);
+    expect(result.nineTotals.hasOverall).toBe(true);
+    expectAddsUp(result);
+  });
+
+  it("puts a nine-hole round entirely on the front", () => {
+    const result = computeRound(
+      round({
+        holeCount: 9,
+        manual: {
+          2: { amounts: { p1: 1000, p2: -1000, p3: 0, p4: 0 } },
+          8: { amounts: { p1: 0, p2: 0, p3: 500, p4: -500 } },
+        },
+      }),
+    );
+    expect(result.nineTotals.front).toEqual({ p1: 1000, p2: -1000, p3: 500, p4: -500 });
+    expect(result.nineTotals.back).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    expect(result.nineTotals.hasOverall).toBe(false);
+    expectAddsUp(result);
+  });
+});

@@ -374,3 +374,44 @@ describe("the nines and the 18-hole bet", () => {
     expect(outcome.overall).toBeNull();
   });
 });
+
+describe("money by stack", () => {
+  // Nines, $10 a bet with the 18 at 2x, no auto press so each stack is one
+  // bet. A takes the whole front; B takes the back bar a halved 18th, which
+  // leaves A one up over the eighteen.
+  const cfg = config({ reset: "nines", overallMultiplier: 2, autoPressAt: 0 });
+  const outcome = evaluateOneDown(
+    cfg,
+    18,
+    through(1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, 0),
+    ids,
+  );
+  const [front, back] = outcome.stacks;
+
+  it("reports each stack per player, agreeing with its side totals", () => {
+    expect(front.playerTotals).toEqual({ a1: 500, a2: 500, b1: -500, b2: -500 });
+    expect(front.sideTotals).toEqual([1000, -1000]);
+    expect(back.playerTotals).toEqual({ a1: -500, a2: -500, b1: 500, b2: 500 });
+    expect(back.sideTotals).toEqual([-1000, 1000]);
+  });
+
+  it("keeps the 18-hole bet out of both nines", () => {
+    expect(outcome.overallTotals).toEqual({ a1: 1000, a2: 1000, b1: -1000, b2: -1000 });
+    expect(outcome.overallSideTotals).toEqual([2000, -2000]);
+  });
+
+  it("adds the stacks and the 18 up to the bet's money", () => {
+    for (const id of ids) {
+      expect(
+        front.playerTotals[id] + back.playerTotals[id] + outcome.overallTotals[id],
+      ).toBe(outcome.totals[id]);
+    }
+    expect(sumCents(Object.values(outcome.totals))).toBe(0);
+  });
+
+  it("is all zeros without an 18-hole bet", () => {
+    const none = evaluateOneDown(config({ reset: "nines" }), 18, through(1, 1), ids);
+    expect(none.overall).toBeNull();
+    expect(none.overallTotals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+  });
+});

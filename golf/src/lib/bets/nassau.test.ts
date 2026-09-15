@@ -267,3 +267,49 @@ describe("matchStanding", () => {
     ).toBe("Halved");
   });
 });
+
+describe("money by segment", () => {
+  const card = results(
+    Object.fromEntries(
+      Array.from({ length: 18 }, (_, index) => [index + 1, index < 9 ? 1 : -1]),
+    ),
+  );
+
+  it("lands each match's money in its own segment", () => {
+    // A takes the front, B the back, the 18 is halved.
+    const outcome = evaluateNassau(config(), 18, card, ids);
+    expect(outcome.segmentTotals.front).toEqual({ p1: 2000, p2: -2000 });
+    expect(outcome.segmentTotals.back).toEqual({ p1: -2000, p2: 2000 });
+    expect(outcome.segmentTotals.total).toEqual({ p1: 0, p2: 0 });
+    expect(outcome.totals).toEqual({ p1: 0, p2: 0 });
+  });
+
+  it("keeps a press with the nine it was pressed on", () => {
+    const outcome = evaluateNassau(config({ autoPressAt: 2 }), 18, card, ids);
+    // Presses only add to what A already won on the front and B on the back.
+    expect(outcome.segmentTotals.front.p1).toBeGreaterThan(2000);
+    expect(outcome.segmentTotals.back.p2).toBeGreaterThan(2000);
+    // The 18 itself is halved, so whatever sits in its segment is its own
+    // presses — which belong to the round, not to either nine.
+    const eighteen = outcome.matches.find(
+      (match) => match.segmentId === "total" && match.depth === 0,
+    );
+    expect(eighteen?.status).toBe("halved");
+    expect(outcome.segmentTotals.total.p2).toBeGreaterThan(0);
+    for (const segment of Object.values(outcome.segmentTotals)) {
+      expect(sumCents(Object.values(segment))).toBe(0);
+    }
+    for (const id of ids) {
+      const added = Object.values(outcome.segmentTotals).reduce(
+        (sum, segment) => sum + segment[id],
+        0,
+      );
+      expect(added).toBe(outcome.totals[id]);
+    }
+  });
+
+  it("has just the one segment on a nine-hole card", () => {
+    const outcome = evaluateNassau(config(), 9, card, ids);
+    expect(Object.keys(outcome.segmentTotals)).toEqual(["front"]);
+  });
+});

@@ -235,6 +235,23 @@ Worth having because the two halves of the hole screen serve different games.
 A group playing banker on money alone never touches the steppers; a group only
 keeping score never touches the money grid.
 
+The **Money this hole** card folds the same way, and which way it starts
+depends on the game. Banker is typed in hole by hole, so it opens; one downs, a
+nassau and skins are worked out from the scores, so under those it starts
+folded and the hole screen is scores and standings. Each game remembers its own
+choice. Folded, it shows the hole's money on one line — or how far off zero it
+still is.
+
+## Money by nine
+
+**Running money** on the hole screen and the **Out** and **In** rows on the
+card both carry each nine's money, with an **Overall** line for whatever belongs to
+the round as a whole — the 18-hole one-down bet, a nassau's Total 18 and its
+presses — and then the total. Hand-entered holes and the game are added
+together, so under banker it is the ledger and under one downs it is the
+stacks. Out, In and Overall always add up to the total, and the viewer page shows
+the same split.
+
 ## Small things it remembers
 
 - **Tees.** A course opens on the tee you played it from last. A course you have

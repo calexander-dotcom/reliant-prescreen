@@ -87,3 +87,44 @@ describe("ledger roll-up", () => {
     expect(running[1].p3).toBe(-3000);
   });
 });
+
+describe("ledgerTotals over a range", () => {
+  const manual = {
+    2: { amounts: { p1: 1000, p2: -1000, p3: 0, p4: 0 } },
+    9: { amounts: { p1: 500, p2: 0, p3: -500, p4: 0 } },
+    10: { amounts: { p1: -2000, p2: 2000, p3: 0, p4: 0 } },
+    // Out of balance: left out of every total, whichever nine it is on.
+    12: { amounts: { p1: 700, p2: 0, p3: 0, p4: 0 } },
+  };
+
+  it("adds each nine on its own", () => {
+    expect(ledgerTotals(manual, ids, 18, { to: 9 })).toEqual({
+      p1: 1500,
+      p2: -1000,
+      p3: -500,
+      p4: 0,
+    });
+    expect(ledgerTotals(manual, ids, 18, { from: 10 })).toEqual({
+      p1: -2000,
+      p2: 2000,
+      p3: 0,
+      p4: 0,
+    });
+  });
+
+  it("front plus back is the whole card", () => {
+    const front = ledgerTotals(manual, ids, 18, { to: 9 });
+    const back = ledgerTotals(manual, ids, 18, { from: 10 });
+    const whole = ledgerTotals(manual, ids, 18);
+    for (const id of ids) expect(front[id] + back[id]).toBe(whole[id]);
+  });
+
+  it("gives a nine-hole card no back nine", () => {
+    expect(ledgerTotals(manual, ids, 9, { from: 10 })).toEqual({
+      p1: 0,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+    });
+  });
+});

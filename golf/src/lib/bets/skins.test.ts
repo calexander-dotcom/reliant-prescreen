@@ -135,3 +135,40 @@ describe("skins", () => {
     expect(outcome.totals).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
   });
 });
+
+describe("money by hole", () => {
+  it("puts a carried skin on the hole it was finally won", () => {
+    const outcome = evaluateSkins(
+      config(),
+      18,
+      lookup({
+        1: { p1: 4, p2: 4, p3: 5, p4: 5 },
+        2: { p1: 3, p2: 4, p3: 4, p4: 4 },
+      }),
+      par4,
+    );
+    expect(outcome.holes[0].amounts).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+    // Two holes' worth, from each of three players.
+    expect(outcome.holes[1].amounts).toEqual({ p1: 3000, p2: -1000, p3: -1000, p4: -1000 });
+    expect(outcome.holes[2].amounts).toEqual({ p1: 0, p2: 0, p3: 0, p4: 0 });
+  });
+
+  it("adds the holes up to the totals", () => {
+    const outcome = evaluateSkins(
+      config(),
+      18,
+      lookup({
+        1: { p1: 3, p2: 4, p3: 4, p4: 4 },
+        5: { p1: 5, p2: 5, p3: 3, p4: 4 },
+        11: { p1: 4, p2: 4, p3: 4, p4: 4 },
+        12: { p1: 4, p2: 3, p3: 4, p4: 4 },
+      }),
+      par4,
+    );
+    for (const id of ids) {
+      const byHole = outcome.holes.reduce((sum, hole) => sum + hole.amounts[id], 0);
+      expect(byHole).toBe(outcome.totals[id]);
+    }
+    expect(sumCents(Object.values(outcome.totals))).toBe(0);
+  });
+});

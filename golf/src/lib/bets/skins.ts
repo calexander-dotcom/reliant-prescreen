@@ -8,6 +8,8 @@ export interface SkinHole {
   holesAtStake: number;
   /** What each losing player owes if the skin is won here, in cents. */
   valuePerLoser: number;
+  /** Money for every player on this hole. Zero unless the skin was won here. */
+  amounts: Record<PlayerId, number>;
   winnerId: PlayerId | null;
   /** Low score was shared, so nobody claimed it. */
   tied: boolean;
@@ -55,6 +57,7 @@ export function evaluateSkins(
         settled: false,
         holesAtStake,
         valuePerLoser: holesAtStake * config.amount,
+        amounts: Object.fromEntries(playerIds.map((id) => [id, 0])),
         winnerId: null,
         tied: false,
         notValidated: false,
@@ -75,12 +78,16 @@ export function evaluateSkins(
     let winnerId: PlayerId | null = null;
     const stakeHoles = holesAtStake;
     const valuePerLoser = stakeHoles * config.amount;
+    const amounts: Record<PlayerId, number> = Object.fromEntries(
+      playerIds.map((id) => [id, 0]),
+    );
 
     if (!tied && validated) {
       winnerId = leaders[0].id;
       const losers = playerIds.filter((id) => id !== winnerId);
-      totals[winnerId] += valuePerLoser * losers.length;
-      for (const id of losers) totals[id] -= valuePerLoser;
+      amounts[winnerId] += valuePerLoser * losers.length;
+      for (const id of losers) amounts[id] -= valuePerLoser;
+      for (const id of playerIds) totals[id] += amounts[id];
       holesAtStake = 1;
     } else if (config.carryOver) {
       holesAtStake += 1;
@@ -93,6 +100,7 @@ export function evaluateSkins(
       settled: true,
       holesAtStake: stakeHoles,
       valuePerLoser,
+      amounts,
       winnerId,
       tied,
       notValidated,

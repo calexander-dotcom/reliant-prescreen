@@ -110,15 +110,21 @@ export function ledgerStatus(
   return out;
 }
 
-/** Running manual-ledger total per player, counting balanced holes only. */
+/**
+ * Manual-ledger total per player, counting balanced holes only. Over the whole
+ * card unless `from`/`to` narrow it — that is how each nine gets its own line.
+ */
 export function ledgerTotals(
   manual: Record<number, ManualHoleEntry>,
   playerIds: PlayerId[],
   holeCount: number,
-  options: { includeUnbalanced?: boolean } = {},
+  options: { includeUnbalanced?: boolean; from?: number; to?: number } = {},
 ): Record<PlayerId, number> {
+  const from = options.from ?? 1;
+  const to = options.to ?? holeCount;
   const totals = zeroAmounts(playerIds);
   for (const status of ledgerStatus(manual, playerIds, holeCount)) {
+    if (status.hole < from || status.hole > to) continue;
     if (!status.balanced && !options.includeUnbalanced) continue;
     for (const id of playerIds) totals[id] += status.amounts[id] ?? 0;
   }
