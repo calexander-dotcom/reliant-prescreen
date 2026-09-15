@@ -17,7 +17,13 @@ import {
 import type { Round } from "@/lib/types";
 import { MoneyInput } from "./MoneyInput";
 import { ScoreStepper } from "./ScoreStepper";
-import { Banner, Button, Card, SectionTitle } from "./ui";
+import {
+  Banner,
+  Button,
+  Card,
+  CollapsibleCard,
+  SectionTitle,
+} from "./ui";
 
 export function HoleView({
   round,
@@ -92,10 +98,25 @@ export function HoleView({
         </Button>
       </div>
 
-      <Card>
-        <SectionTitle hint="Tap the number to clear it. First tap starts at par.">
-          Scores
-        </SectionTitle>
+      <CollapsibleCard
+        title="Scores"
+        storageKey="hole.scores"
+        hint="Tap the number to clear it. First tap starts at par."
+        summary={
+          round.players.some(
+            (player) => (round.scores[player.id]?.[hole] ?? null) !== null,
+          )
+            ? round.players
+                .map(
+                  (player) =>
+                    `${player.name.split(" ")[0]} ${
+                      round.scores[player.id]?.[hole] ?? "–"
+                    }`,
+                )
+                .join(" · ")
+            : "Nothing entered on this hole"
+        }
+      >
         <ul className="divide-y divide-neutral-100">
           {round.players.map((player) => {
             const cell = comp.cells[player.id]?.[hole];
@@ -127,7 +148,7 @@ export function HoleView({
             );
           })}
         </ul>
-      </Card>
+      </CollapsibleCard>
 
       <Card>
         <SectionTitle hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero.">

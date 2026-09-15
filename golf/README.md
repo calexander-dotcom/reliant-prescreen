@@ -182,6 +182,17 @@ REST protocol directly, so there is no client library to install.
 player names, handicap indexes, scores and money. Everything else stays in the
 browser. Treat the link as the password — anyone holding it can watch.
 
+## Folding sections away
+
+The **Scores** card on the hole screen folds away, and stays folded — across
+holes and across sessions, because collapsing the same section eighteen times
+is not a feature. Folded, it still shows the hole's scores on one line, so it
+is out of the way rather than out of sight.
+
+Worth having because the two halves of the hole screen serve different games.
+A group playing banker on money alone never touches the steppers; a group only
+keeping score never touches the money grid.
+
 ## Small things it remembers
 
 - **Tees.** A course opens on the tee you played it from last. A course you have
@@ -310,7 +321,7 @@ npm run dev          # http://localhost:3000
 ```
 
 ```bash
-npm test             # 204 unit tests over the betting math, GHIN parsing and sharing
+npm test             # 207 unit tests over the betting math, GHIN parsing and sharing
 npm run typecheck
 npm run build && npm start
 ```
