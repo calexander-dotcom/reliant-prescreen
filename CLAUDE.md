@@ -34,6 +34,15 @@ The owner is Charles.
    your branch will lack the other projects and Vercel's preview build for
    the golf app will fail on it (harmless, but noisy).
 5. Do not delete, force-push or rebase another session's branch.
+6. **Sessions run in two places** and cannot see each other: Claude Code on
+   the web (a fresh container per session; reads this file from the repo)
+   and Claude Code installed on the owner's Chromebook (reads
+   `~/.claude/CLAUDE.md` on that machine). This file is the canonical
+   record. The Chromebook's `~/.claude/CLAUDE.md` should import it —
+   `@/home/calexander/reliant-prescreen/CLAUDE.md` with the repo cloned
+   there — or carry a copy, so a local session reads the same rules and
+   inventory. A local session that changes what runs on the Chromebook
+   must record it here, in the repo, not only locally.
 
 ## Projects in this repository
 
@@ -49,8 +58,10 @@ The owner is Charles.
 
 ### EC2 instance (Ubuntu)
 
-**The owner has said a lot runs here.** This inventory is what the sessions
-have been told; it is not what is there. Owner-maintained.
+Separate from the Chromebook below, which turned out to be where most of
+the automation lives. What runs here is still unknown to the sessions; the
+Chromebook holds `sync-memory-to-ec2.sh` and an SSH key for this box.
+Owner-maintained.
 
 | What | How it runs | Path | Ports / domains | Owned by | Notes |
 |---|---|---|---|---|---|
@@ -66,19 +77,76 @@ will write it up here:
 crontab -l; sudo ls /etc/cron.d; systemctl list-units --type=service --state=running --no-pager; systemctl list-timers --all --no-pager; docker ps 2>/dev/null; pm2 list 2>/dev/null; sudo ss -ltnp; ls -la ~
 ```
 
-### Chromebook Linux container (`penguin`, user `calexander`)
+### Chromebook Linux container (`penguin`, user `calexander`) — where most of the owner's automation lives
 
-The owner's own machine, not a server — but things have been installed on
-it. Inventoried 2026-09-15 from the owner's paste; identification pending.
+**This is the machine the owner means by "a lot running on it."** It holds
+the recruiting-operations tooling for the owner's staffing business:
+LaborEdge (ATS/VMS) integrations, Twilio SMS and voice, Vivian Health lead
+handling, SignNow contracts, payroll, compliance and licence checks. Claude
+Code is also installed and used **locally** here (`~/.claude`), so sessions
+on this machine are among the agents this file is for — and they read
+`~/.claude/CLAUDE.md` on that machine, not this file, unless it is imported
+(rule 6). Inventoried 2026-09-15 from the owner's paste.
 
-| What | How it runs | Path | Ports | Owned by | Notes |
-|---|---|---|---|---|---|
-| A Node process | started at boot (pid 188) — probably a user-level systemd service | **unknown** | `*:8085` | **unknown** | Identify with `ps -o pid,user,etimes,args -p $(pgrep -o node)` and `systemctl --user list-units --type=service --no-pager`. |
-| `vms-reply-monitor` | a file in `/etc/cron.d` | **unknown** | — | **unknown** | `cron` is not installed on the machine (`crontab: command not found`, no cron daemon among running services), so this job is most likely **not running**. Read it with `cat /etc/cron.d/vms-reply-monitor`. |
+**Running now, confirmed:**
 
-Nothing else listens on the machine; the only other running services are the
-container's own (avahi, dbus, polkit, getty, journald, logind, udevd,
-wpa_supplicant).
+| What | How it runs | Path | Ports | Notes |
+|---|---|---|---|---|
+| LE SMS Dashboard (recruiter comms) | user systemd service `le-sms-dashboard.service`, up since about 2026-09-09 | `~/le-sms-dashboard.js` | `*:8085` | Log `~/le-sms-dashboard.log`. The only thing listening on the machine. |
+
+**Ran today — scheduler not yet identified** (there is no cron daemon on
+the box; most likely user systemd timers or a supervising process — see the
+commands below):
+
+| What | Evidence | Path |
+|---|---|---|
+| Twilio email watch | log and state written 2026-09-15 11:37 | `~/twilio-email-watch.js` |
+| Twilio campaign watch | log and state written 2026-09-15 08:17 | `~/twilio-campaign-watch.js` |
+| LaborEdge job data check | log written 2026-09-15 08:01 | `~/le-job-data-check.js` |
+
+**Installed but not running:**
+
+| What | Why it is inert |
+|---|---|
+| `/etc/cron.d/vms-reply-monitor` → `python3 ~/vms-reply-monitor.py` every 30 minutes | `cron` is not installed on the machine; no log file exists; its state file was last written 2026-05-04. Whatever it was meant to catch, it has not been catching since May. |
+| `~/car_watch/` | A copy of the retired car watcher. No cron here either. |
+
+**On disk, running state unknown** — servers that are not listening now
+(they may be deployed elsewhere, such as the EC2 box, or run by hand), bots,
+watchers and one-off scripts. Do not assume any of these is dead or alive:
+
+- Servers: `laboredge-server.js`, `le-jobboard-server.js`, `rtr-server.js`,
+  `payroll-server.js`, `srv.js`, `le-sms-dash.js`, `le-sms-dashboard-demo.js`,
+  `sms-inbound-webhook.js`, `click-to-call.js` (+ `ivr-config.json`).
+- Bots and watchers: `le-outreach-bot.js`, `le-outreach-sms-reply.js`,
+  `vivian-lead-intake.js`, `vivian-lead-dashboard.js`, `vivian-propose-bot.js`,
+  `vivian-pay-compare.js`, `compliance-watchdog.js`,
+  `telegram-gateway-watchdog.sh`, `ai-comms-monitor.js`,
+  `call-summary-engine.js`, `le-gm.js` (log last 2026-08-12), `le-journal.js`.
+- Tools and one-offs: `contract-autofill.js` / `contract-fill-engine.js`,
+  `twilio-tfv-submit.js`, `sms-optout.js`, backfill, probe, sweep and
+  per-person fix scripts, `create-vms-drafts.py`, `create-huvi-draft.py`,
+  `gmail-auth.py`.
+- Directories: `synergy-web/` (the company site — the "new site" of the
+  website-down work?), `workflow-portal/`, `oe-console/`,
+  `new-hire-benefits/`, `signnow-work/`, `nursys/`, `mr-promote/`,
+  `sms_work/`, `workflows/`, `le-text-extension/` and
+  `synergy-comms-extension/` (Chrome extensions), `Open Claw/` (touched
+  2026-09-15 — **unidentified**).
+- `sync-memory-to-ec2.sh` — this machine pushes something to the EC2 box
+  and holds a key for it in `~/.ssh/`.
+
+**Secrets and sensitive data on this machine** — never copy them anywhere,
+never print them into a session: `~/credentials/`, `~/gmail-token.json`,
+`~/.ssh/`, and caches holding candidate data
+(`.laboredge-candidate-index.json` 3 MB, `.le-gm-cache.json` 9 MB,
+`le-jobs-raw.json` 15 MB, `le-outreach-journal-cache.json`).
+
+To finish identifying what runs and how, on the Chromebook:
+
+```
+systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep; cat ~/sync-memory-to-ec2.sh; ls ~/'Open Claw' | head -30
+```
 
 ### Vercel
 
@@ -108,4 +176,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Golf Bets app, ongoing features | Vercel | live |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
-| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from a paste; EC2 inventory still pending | — | partial — see Shared infrastructure |
+| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
