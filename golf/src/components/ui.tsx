@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { loadPanelOpen, savePanelOpen } from "@/lib/storage";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -150,5 +151,74 @@ export function Spinner({ label }: { label?: string }) {
       <span className="h-4 w-4 animate-spin rounded-full border-2 border-turf-300 border-t-turf-700" />
       {label}
     </span>
+  );
+}
+
+/**
+ * A card that can be folded away, remembering the choice.
+ *
+ * Built for the hole screen, where a group playing banker on money alone has
+ * no use for the score steppers and a group only keeping score has no use for
+ * the money grid. Collapsed it still shows a one-line summary, so folding a
+ * section away does not mean losing sight of it.
+ */
+export function CollapsibleCard({
+  title,
+  hint,
+  summary,
+  storageKey,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  hint?: ReactNode;
+  /** Shown in place of the contents when folded away. */
+  summary?: ReactNode;
+  /** Where the open/closed choice is remembered. */
+  storageKey: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  // Starts at the default and picks up the stored choice after mount, so the
+  // server and the first client render agree.
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setOpen(loadPanelOpen(storageKey, defaultOpen));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    savePanelOpen(storageKey, next);
+  };
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-start justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-base font-bold text-turf-900">{title}</span>
+          {open && hint ? (
+            <span className="mt-0.5 block text-sm text-neutral-600">{hint}</span>
+          ) : null}
+          {!open && summary ? (
+            <span className="mt-0.5 block text-sm text-neutral-600">{summary}</span>
+          ) : null}
+        </span>
+        <span className="shrink-0 pt-0.5 text-sm font-semibold text-turf-700">
+          {open ? "Hide" : "Show"}
+        </span>
+      </button>
+
+      <div hidden={!open} className="mt-3">
+        {children}
+      </div>
+    </section>
   );
 }

@@ -17,6 +17,7 @@ const ROSTER_KEY = "golfbets.roster.v1";
 const GOLFER_ID_KEY = "golfbets.ghinNumber";
 const TEE_PREFS_KEY = "golfbets.teePrefs.v1";
 const ME_KEY = "golfbets.me.v1";
+const PANELS_KEY = "golfbets.panels.v1";
 
 function canStore(): boolean {
   return typeof window !== "undefined" && !!window.localStorage;
@@ -153,6 +154,34 @@ export function saveMe(me: Player | null): void {
   if (!canStore()) return;
   if (me) window.localStorage.setItem(ME_KEY, JSON.stringify(me));
   else window.localStorage.removeItem(ME_KEY);
+}
+
+/**
+ * Which collapsible panels are open.
+ *
+ * Remembered because the alternative is collapsing the same section on every
+ * one of eighteen holes.
+ */
+export function loadPanelOpen(key: string, fallback: boolean): boolean {
+  if (!canStore()) return fallback;
+  const panels = safeParse<Record<string, boolean>>(
+    window.localStorage.getItem(PANELS_KEY),
+    {},
+  );
+  const value = panels?.[key];
+  return typeof value === "boolean" ? value : fallback;
+}
+
+export function savePanelOpen(key: string, open: boolean): void {
+  if (!canStore()) return;
+  const panels = safeParse<Record<string, boolean>>(
+    window.localStorage.getItem(PANELS_KEY),
+    {},
+  );
+  window.localStorage.setItem(
+    PANELS_KEY,
+    JSON.stringify({ ...(panels ?? {}), [key]: open }),
+  );
 }
 
 // --- Tee preferences ------------------------------------------------------
