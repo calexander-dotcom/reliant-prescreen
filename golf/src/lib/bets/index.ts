@@ -13,7 +13,7 @@ import { imbalance, ledgerTotals, normalizeAmounts, zeroAmounts } from "./ledger
 import { labelledSides } from "./sides";
 import { evaluateNassau, type HoleResult, type NassauOutcome } from "./nassau";
 import { evaluateBanker, type BankerOutcome } from "./banker";
-import { evaluateOneDown, type OneDownOutcome } from "./onedown";
+import { evaluateOneDown, marginsByHole, type OneDownOutcome } from "./onedown";
 import { settle, settlementResidual, type Transfer } from "./settle";
 import { evaluateSkins, type SkinsOutcome } from "./skins";
 
@@ -64,6 +64,8 @@ export type BetResult =
       kind: "onedown";
       config: Extract<BetConfig, { kind: "onedown" }>;
       outcome: OneDownOutcome;
+      /** The stack's margins after each finished hole, for the card. */
+      byHole: Record<number, number[] | null>;
     }
   | {
       kind: "banker";
@@ -201,8 +203,14 @@ export function computeRound(round: Round): RoundComputation {
       betResults.push({ kind: "banker", config: bet, outcome });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else if (bet.kind === "onedown") {
-      const outcome = evaluateOneDown(bet, round.holeCount, sideResults(bet), playerIds);
-      betResults.push({ kind: "onedown", config: bet, outcome });
+      const results = sideResults(bet);
+      const outcome = evaluateOneDown(bet, round.holeCount, results, playerIds);
+      betResults.push({
+        kind: "onedown",
+        config: bet,
+        outcome,
+        byHole: marginsByHole(bet, round.holeCount, results, playerIds),
+      });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else {
       const outcome = evaluateSkins(bet, round.holeCount, scoreFor(bet.basis), parFor);

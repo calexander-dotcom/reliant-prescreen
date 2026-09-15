@@ -152,6 +152,38 @@ export function formatStanding(margins: number[]): string {
     .join("/");
 }
 
+/**
+ * The stack's margins after each hole, for the card: the results through
+ * that hole only, so the numbers beside the 9th are the front nine's last
+ * word and the 10th starts again. null where the hole, or one before it in
+ * the same stack, has no result yet — a standing needs its holes in order.
+ * A press called after a hole shows beside that hole as a fresh 0, which is
+ * how it is said: "after 3, 2-1-0-0".
+ */
+export function marginsByHole(
+  config: OneDownConfig,
+  holeCount: number,
+  results: Record<number, HoleResult>,
+  playerIds: PlayerId[],
+): Record<number, number[] | null> {
+  const out: Record<number, number[] | null> = {};
+  for (let hole = 1; hole <= holeCount; hole += 1) {
+    const through: Record<number, HoleResult> = {};
+    for (let h = 1; h <= holeCount; h += 1) {
+      through[h] = h <= hole ? (results[h] ?? null) : null;
+    }
+    const stack = evaluateOneDown(config, holeCount, through, playerIds).stacks.find(
+      (entry) => hole >= entry.startHole && hole <= entry.endHole,
+    );
+    let complete = stack !== undefined;
+    for (let h = stack?.startHole ?? 1; complete && h <= hole; h += 1) {
+      if (through[h] === null) complete = false;
+    }
+    out[hole] = stack && complete ? stack.bets.map((bet) => bet.margin) : null;
+  }
+  return out;
+}
+
 /** The stack's standing as read from one side; see perspectiveSign. */
 export function standingFor(stack: OneDownStack, sign: 1 | -1): string {
   return formatStanding(stack.bets.map((bet) => bet.margin * sign));

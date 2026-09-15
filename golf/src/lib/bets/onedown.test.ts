@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { OneDownConfig, Side } from "../types";
 import { sideUp, type HoleResult } from "./nassau";
-import { betStanding, evaluateOneDown, formatStanding, standingFor } from "./onedown";
+import {
+  betStanding,
+  evaluateOneDown,
+  formatStanding,
+  marginsByHole,
+  standingFor,
+} from "./onedown";
 
 const sideA: Side = { id: "a", name: "Team A", playerIds: ["a1", "a2"] };
 const sideB: Side = { id: "b", name: "Team B", playerIds: ["b1", "b2"] };
@@ -456,5 +462,47 @@ describe("standingFor", () => {
     const aLeads = evaluateOneDown(config(), 18, through(1, 1), ids).stacks[0];
     expect(standingFor(aLeads, 1)).toBe("+2/+1/0");
     expect(standingFor(aLeads, -1)).toBe("-2/-1/0");
+  });
+});
+
+describe("marginsByHole", () => {
+  // The house example, hole by hole: A wins 1 and 2, ties 3 with a press
+  // called after it, wins 4.
+  const byHole = marginsByHole(
+    config({ manualPresses: { 3: 1 } }),
+    18,
+    through(1, 1, 0, -1),
+    ids,
+  );
+
+  it("reads the standing beside each finished hole", () => {
+    expect(formatStanding(byHole[1] ?? [])).toBe("+1/0");
+    expect(formatStanding(byHole[2] ?? [])).toBe("+2/+1/0");
+    expect(formatStanding(byHole[3] ?? [])).toBe("+2/+1/0/0");
+    expect(formatStanding(byHole[4] ?? [])).toBe("+1/0/-1/-1/0");
+  });
+
+  it("shows nothing beside a hole not played yet", () => {
+    expect(byHole[5]).toBeNull();
+    expect(byHole[18]).toBeNull();
+  });
+
+  it("waits for the holes before it in the same nine", () => {
+    const gappy = marginsByHole(config(), 18, { ...through(), 1: 1, 3: 1 }, ids);
+    // One up after the 1st opens the automatic press: two bets, the new one square.
+    expect(gappy[1]).toEqual([1, 0]);
+    expect(gappy[2]).toBeNull();
+    expect(gappy[3]).toBeNull();
+  });
+
+  it("starts the back nine over on the 10th when the stack resets", () => {
+    const nines = marginsByHole(
+      config({ reset: "nines" }),
+      18,
+      through(1, 1, 1, 1, 1, 1, 1, 1, 1, -1),
+      ids,
+    );
+    expect((nines[9] ?? []).length).toBeGreaterThan(1);
+    expect(nines[10]).toEqual([-1, 0]);
   });
 });
