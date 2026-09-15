@@ -140,6 +140,17 @@ export interface OneDownConfig {
   overallMultiplier: number;
   /** As for a nassau. */
   stakeMode: "per-side" | "per-player";
+  /**
+   * Greenies on the par 3s: closest to the hole wins one for their side,
+   * worth the stake, netted between the sides at the end. One side taking
+   * every par 3 of the round doubles them. Undefined means on.
+   */
+  greenies?: boolean;
+  /**
+   * Who won the greenie on each par 3: a player id, or null for nobody.
+   * A hole with no entry has not been answered yet.
+   */
+  greenieWinners?: Record<number, PlayerId | null>;
 }
 
 /**

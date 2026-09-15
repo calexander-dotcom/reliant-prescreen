@@ -204,7 +204,7 @@ export function computeRound(round: Round): RoundComputation {
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else if (bet.kind === "onedown") {
       const results = sideResults(bet);
-      const outcome = evaluateOneDown(bet, round.holeCount, results, playerIds);
+      const outcome = evaluateOneDown(bet, round.holeCount, results, playerIds, parFor);
       betResults.push({
         kind: "onedown",
         config: bet,
@@ -290,6 +290,12 @@ function splitByNine(
       }
       add(overall, result.outcome.overallTotals);
       if (result.outcome.overall) hasOverall = true;
+      // A greenie belongs to its hole's nine; the sweep bonus to the round.
+      for (const greenie of result.outcome.greenies.holes) {
+        add(bucketFor(greenie.hole, greenie.hole), greenie.amounts);
+      }
+      add(overall, result.outcome.greenies.sweepBonus);
+      if (result.outcome.greenies.sweptBy !== null) hasOverall = true;
     } else if (result.kind === "skins") {
       for (const hole of result.outcome.holes) {
         add(bucketFor(hole.hole, hole.hole), hole.amounts);

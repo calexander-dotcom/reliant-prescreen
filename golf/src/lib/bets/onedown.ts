@@ -55,7 +55,43 @@ export interface OneDownStack {
   playerTotals: Record<PlayerId, number>;
 }
 
+/** One par 3's greenie. */
+export interface GreenieHole {
+  hole: number;
+  /** The player who was closest; null for nobody; undefined when not asked yet. */
+  winnerId: PlayerId | null | undefined;
+  /** Which side the greenie went to, once answered and the winner is in the game. */
+  side: 0 | 1 | null;
+  /** Money for this greenie alone. Sums to zero. */
+  amounts: Record<PlayerId, number>;
+}
+
+/**
+ * Greenies: closest to the hole on each par 3 wins one for their side, worth
+ * the stake. They net between the sides — three to one is two greenies'
+ * worth — and one side taking every par 3 of the round doubles the lot: at
+ * $10 a man, four for four is $80 each, not $40. A greenie nobody won is a
+ * hole nobody swept.
+ */
+export interface GreenieOutcome {
+  enabled: boolean;
+  /** Every par 3 in the round, in order. */
+  holes: GreenieHole[];
+  /** Greenies to side A, greenies to side B. */
+  counts: [number, number];
+  /** Par 3s still waiting for an answer. */
+  unanswered: number[];
+  /** The side that took every par 3, once all are answered; null otherwise. */
+  sweptBy: 0 | 1 | null;
+  /** The doubling, per player. Zeros unless swept. */
+  sweepBonus: Record<PlayerId, number>;
+  /** Greenies and the bonus together. Sums to zero. */
+  totals: Record<PlayerId, number>;
+  sideTotals: [number, number];
+}
+
 export interface OneDownOutcome {
+  greenies: GreenieOutcome;
   stacks: OneDownStack[];
   /** The 18-hole bet at a multiple of the stake. Never presses. */
   overall: OneDownBet | null;
@@ -140,6 +176,81 @@ export function pressCounts(
   return counts;
 }
 
+function evaluateGreenies(
+  config: OneDownConfig,
+  holeCount: number,
+  parFor: (hole: number) => number | null,
+  playerIds: PlayerId[],
+): GreenieOutcome {
+  const zero = (): Record<PlayerId, number> =>
+    Object.fromEntries(playerIds.map((id) => [id, 0]));
+  const enabled = config.greenies !== false;
+  const sideOf = (playerId: PlayerId): 0 | 1 | null =>
+    config.sides[0].playerIds.includes(playerId)
+      ? 0
+      : config.sides[1].playerIds.includes(playerId)
+        ? 1
+        : null;
+
+  const holes: GreenieHole[] = [];
+  const counts: [number, number] = [0, 0];
+  const unanswered: number[] = [];
+  const totals = zero();
+
+  if (enabled) {
+    for (let hole = 1; hole <= holeCount; hole += 1) {
+      if (parFor(hole) !== 3) continue;
+      const winners = config.greenieWinners ?? {};
+      const winnerId = hole in winners ? winners[hole] : undefined;
+      const side = winnerId ? sideOf(winnerId) : null;
+      let amounts = zero();
+      if (winnerId === undefined) unanswered.push(hole);
+      if (side !== null) {
+        counts[side] += 1;
+        // One greenie is one bet's worth to the side that took it.
+        amounts = matchPayout(
+          { status: side === 0 ? "won-a" : "won-b", amount: config.amount },
+          config.sides,
+          config.stakeMode,
+          playerIds,
+        );
+        for (const id of playerIds) totals[id] += amounts[id] ?? 0;
+      }
+      holes.push({ hole, winnerId, side, amounts });
+    }
+  }
+
+  // A sweep is every par 3 of the round to one side — nothing unanswered,
+  // nothing to nobody — and it doubles: pay the lot again.
+  const sweptBy: 0 | 1 | null =
+    holes.length > 0 && unanswered.length === 0 && holes.every((h) => h.side === 0)
+      ? 0
+      : holes.length > 0 && unanswered.length === 0 && holes.every((h) => h.side === 1)
+        ? 1
+        : null;
+  const sweepBonus = zero();
+  if (sweptBy !== null) {
+    for (const id of playerIds) {
+      sweepBonus[id] = totals[id];
+      totals[id] += sweepBonus[id];
+    }
+  }
+
+  const sideSum = (side: Side) =>
+    side.playerIds.reduce((sum, id) => sum + (totals[id] ?? 0), 0);
+
+  return {
+    enabled,
+    holes,
+    counts,
+    unanswered,
+    sweptBy,
+    sweepBonus,
+    totals,
+    sideTotals: [sideSum(config.sides[0]), sideSum(config.sides[1])],
+  };
+}
+
 /**
  * The standing as it is written: one signed number per open bet, oldest
  * first, slashes between — `+2/+1/0/-1/0`. Plus is our side up in that bet,
@@ -194,6 +305,8 @@ export function evaluateOneDown(
   holeCount: number,
   results: Record<number, HoleResult>,
   playerIds: PlayerId[],
+  /** Par by hole, for the greenies. Without it there are no par 3s to play them on. */
+  parFor: (hole: number) => number | null = () => null,
 ): OneDownOutcome {
   const manual = pressCounts(config.manualPresses);
 
@@ -352,6 +465,10 @@ export function evaluateOneDown(
   }
 
   const overallTotals = payoutsFor(overall ? [overall] : []);
+
+  const greenies = evaluateGreenies(config, holeCount, parFor, playerIds);
+  for (const id of playerIds) totals[id] += greenies.totals[id] ?? 0;
+
   const allStackBets = stacks.flatMap((stack) => stack.bets);
   // The stack being played now is the last one anybody has posted a score in.
   const current =
@@ -360,6 +477,7 @@ export function evaluateOneDown(
     null;
 
   return {
+    greenies,
     stacks,
     overall,
     overallSideTotals: sideTotalsOf(overallTotals),
