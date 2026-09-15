@@ -122,9 +122,10 @@ export default function WatchPage() {
     return (
       <main className="space-y-4 pt-4">
         <Banner tone="warn">
-          This round is no longer being shared. Shared rounds are removed a week
-          after the last update, and whoever is keeping the card can also stop
-          sharing at any point.
+          This round is not on the server right now. Shared rounds are removed a
+          week after the last update, and whoever is keeping the card can stop
+          sharing at any point. Leave this page open either way: if the card is
+          still being kept, it will come back on its own within a minute.
         </Banner>
         <Link href="/" className="text-sm font-semibold text-turf-700">
           Go to Golf Bets

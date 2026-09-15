@@ -9,11 +9,6 @@ export interface SharedRound {
   updatedAt: string;
 }
 
-/** What is actually kept in the store. */
-export interface StoredShare extends SharedRound {
-  writeTokenHash: string;
-}
-
 /**
  * Strip everything a viewer has no business receiving before publishing.
  *

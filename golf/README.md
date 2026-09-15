@@ -162,8 +162,16 @@ That is enforced by how it is built, not by hiding buttons:
   device. `publishableRound` strips it from the payload before anything is sent,
   which is asserted in a test — publishing the round as-is would hand that
   token to everybody who opened the link.
-- Only a SHA-256 of the token is stored, compared in constant time, so reading
-  the store does not let anyone publish either.
+- The token is an HMAC of the share id under a server-side secret, checked in
+  constant time. Nothing about it is stored, so reading the store does not let
+  anyone publish, and — the reason it is derived rather than random — an
+  evicted round can still be republished onto a link already handed out. A
+  store on the free tier keeps nothing on disk, so rounds *can* evaporate
+  mid-play; a publish writes unconditionally and puts it back, and the viewer
+  page keeps polling through a 404 and picks the round back up by itself.
+- The secret is `SHARE_TOKEN_SECRET` if set, otherwise the store credential,
+  which exists exactly when sharing does. Rotating either invalidates
+  outstanding write tokens: shares last a week and a fresh link is one tap.
 - The viewer page issues nothing but `GET`.
 
 Updates are debounced a few seconds rather than sent per keystroke, since
