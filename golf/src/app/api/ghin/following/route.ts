@@ -12,9 +12,9 @@ export const dynamic = "force-dynamic";
 /**
  * GET ?golferId=1234567 -> { players, probes }
  *
- * The golfers this GHIN number follows. No sign-in required: GHIN serves this
- * from the golfer id alone. A token is forwarded if the caller has one, but it
- * is not needed.
+ * The golfers this GHIN number follows. Needs the session token: without one,
+ * or once it has run out, GHIN answers 401 "Invalid token" — the client then
+ * drops the session and asks for the password again.
  */
 export async function GET(request: Request) {
   const golferId = (new URL(request.url).searchParams.get("golferId") ?? "").trim();

@@ -15,6 +15,7 @@ const ROUNDS_KEY = "golfbets.rounds.v1";
 const TOKEN_KEY = "golfbets.ghinToken";
 const ROSTER_KEY = "golfbets.roster.v1";
 const GOLFER_ID_KEY = "golfbets.ghinNumber";
+const GHIN_LOGIN_KEY = "golfbets.ghinLogin";
 const TEE_PREFS_KEY = "golfbets.teePrefs.v1";
 const ME_KEY = "golfbets.me.v1";
 const PANELS_KEY = "golfbets.panels.v1";
@@ -138,6 +139,22 @@ export function saveGolferId(golferId: string | null): void {
   if (!canStore()) return;
   if (golferId) window.localStorage.setItem(GOLFER_ID_KEY, golferId);
   else window.localStorage.removeItem(GOLFER_ID_KEY);
+}
+
+/**
+ * What was typed in the sign-in name box — an email or GHIN number, not a
+ * secret — so that when the session runs out, signing in again is the
+ * password and nothing else.
+ */
+export function loadGhinLogin(): string | null {
+  if (!canStore()) return null;
+  return window.localStorage.getItem(GHIN_LOGIN_KEY);
+}
+
+export function saveGhinLogin(login: string | null): void {
+  if (!canStore()) return;
+  if (login) window.localStorage.setItem(GHIN_LOGIN_KEY, login);
+  else window.localStorage.removeItem(GHIN_LOGIN_KEY);
 }
 
 /**
