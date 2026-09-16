@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ApiError,
   apiFollowing,
@@ -11,6 +11,7 @@ import {
 import { removePlayer } from "@/lib/mutations";
 import { loadRoster, newId, saveMe, saveRoster } from "@/lib/storage";
 import type { GhinProbe } from "@/lib/ghin/shape";
+import { probeVerdict } from "@/lib/ghin/shape";
 import type { Player, Round } from "@/lib/types";
 import { GhinDiagnostics } from "./GhinDiagnostics";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
@@ -51,6 +52,15 @@ export function PlayerPicker({
     update({ ...round, players: [...round.players, player] });
   };
 
+  /** The session is gone: clear what it produced, then let the page know. */
+  const expire = () => {
+    setFollowing(null);
+    setSearch(null);
+    setMeProbes(null);
+    setError(null);
+    onSessionExpired?.();
+  };
+
   const run = async (
     kind: "following" | "search" | "me",
     call: () => Promise<GolferLookup>,
@@ -63,13 +73,47 @@ export function PlayerPicker({
       const result = await call();
       apply(result);
       if (result.players.length > 0) saveRoster(result.players);
+      // A session that has run out is not a lookup that failed: drop it, so
+      // the panel asks for the password again instead of showing a dump of
+      // endpoints that cannot answer.
+      if (token && probeVerdict(result.probes) === "expired") expire();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : fallbackMessage);
       apply({ players: [], probes: [] });
+      if (caught instanceof ApiError && caught.status === 401) expire();
     } finally {
       setBusy(null);
     }
   };
+
+  const loadFollowing = () =>
+    run(
+      "following",
+      () => apiFollowing(golferId ?? "", token),
+      (result) => {
+        setFollowing(result);
+        /*
+         * Following yourself is a reasonable way to get your own record in,
+         * so if the account holder turns up in their own list, recognise
+         * them rather than leaving them as one name among many.
+         */
+        const self = golferId
+          ? result.players.find((player) => player.ghinNumber === golferId)
+          : undefined;
+        if (self && !me) {
+          setFoundMe(self);
+          saveMe(self);
+        }
+      },
+      "Could not read who you follow on GHIN.",
+    );
+
+  // A fresh session loads the list by itself: it is what signing in is for,
+  // and after a session ran out mid-lookup it is exactly what was wanted.
+  useEffect(() => {
+    if (token && golferId && following === null && busy === null) void loadFollowing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, golferId]);
 
   const addManual = () => {
     const trimmed = name.trim();
@@ -326,31 +370,7 @@ export function PlayerPicker({
               <div className="flex items-center gap-3">
                 <Button
                   variant="secondary"
-                  onClick={() =>
-                    void run(
-                      "following",
-                      () => apiFollowing(golferId ?? "", token),
-                      (result) => {
-                        setFollowing(result);
-                        /*
-                         * Following yourself is a reasonable way to get your
-                         * own record in, so if the account holder turns up in
-                         * their own list, recognise them rather than leaving
-                         * them as one name among many.
-                         */
-                        const self = golferId
-                          ? result.players.find(
-                              (player) => player.ghinNumber === golferId,
-                            )
-                          : undefined;
-                        if (self && !me) {
-                          setFoundMe(self);
-                          saveMe(self);
-                        }
-                      },
-                      "Could not read who you follow on GHIN.",
-                    )
-                  }
+                  onClick={() => void loadFollowing()}
                   disabled={busy === "following" || !golferId}
                 >
                   {following === null

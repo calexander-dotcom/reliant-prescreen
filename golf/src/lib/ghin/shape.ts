@@ -73,9 +73,18 @@ export type ProbeVerdict =
 
 export function probeVerdict(probes: GhinProbe[]): ProbeVerdict {
   if (probes.length === 0) return "mixed";
+  const statuses = probes.map((probe) => probe.status);
+  // A 401 from the endpoint that matters is not outweighed by a fallback
+  // that answered 200 with nothing in it: the session has run out, and only
+  // signing in again fixes that. Records actually parsed are another matter.
+  if (
+    statuses.some((status) => status === 401) &&
+    !probes.some((probe) => probe.ok && (probe.parsed ?? 0) > 0)
+  ) {
+    return "expired";
+  }
   if (probes.some((probe) => probe.ok)) return "some-answered";
 
-  const statuses = probes.map((probe) => probe.status);
   if (statuses.some((status) => status === 401)) return "expired";
   if (statuses.some((status) => status === 403)) return "forbidden";
   if (statuses.every((status) => status === 404)) return "not-found";

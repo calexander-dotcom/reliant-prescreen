@@ -6,10 +6,12 @@ import { normalizeGolferId } from "@/lib/ghin/client";
 import {
   loadGolferId,
   loadMe,
+  loadGhinLogin,
   loadToken,
   saveGolferId,
   saveMe,
   saveRoster,
+  saveGhinLogin,
   saveToken,
 } from "@/lib/storage";
 import type { Player } from "@/lib/types";
@@ -20,6 +22,8 @@ export interface GhinConnection {
   golferId: string | null;
   /** The account holder, so they can be added with one tap. */
   me: Player | null;
+  /** True when a lookup showed the session had run out, so the panel can say so. */
+  expired?: boolean;
 }
 
 /**
@@ -41,7 +45,7 @@ export function GhinPanel({
   connection: GhinConnection;
   onChange: (connection: GhinConnection) => void;
 }) {
-  const [emailOrGhin, setEmailOrGhin] = useState("");
+  const [emailOrGhin, setEmailOrGhin] = useState(() => loadGhinLogin() ?? "");
   const [password, setPassword] = useState("");
   const [numberDraft, setNumberDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,6 +71,7 @@ export function GhinPanel({
     try {
       const session = await apiLogin(emailOrGhin, password);
       saveToken(session.token);
+      saveGhinLogin(emailOrGhin.trim());
 
       // Prefer the number GHIN itself reports over anything typed before.
       const golferId = session.golferId ?? loadGolferId();
@@ -179,6 +184,12 @@ export function GhinPanel({
       </SectionTitle>
 
       <div className="space-y-3">
+        {connection.expired ? (
+          <Banner tone="warn">
+            Your GHIN sign-in has run out — GHIN sessions last about a day. Sign
+            in again to load who you follow.
+          </Banner>
+        ) : null}
         <Field label="GHIN email or number">
           <input
             value={emailOrGhin}

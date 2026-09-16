@@ -38,7 +38,7 @@ export default function NewRoundPage() {
    */
   const sessionExpired = () => {
     saveToken(null);
-    setGhin((current) => ({ ...current, token: null }));
+    setGhin((current) => ({ ...current, token: null, expired: true }));
   };
 
   if (!round) return <main className="py-8 text-neutral-500">Loading…</main>;

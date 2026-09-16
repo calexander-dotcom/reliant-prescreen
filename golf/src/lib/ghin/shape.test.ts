@@ -85,6 +85,18 @@ describe("probeVerdict", () => {
     expect(probeVerdict([probe(404), probe(200, true)])).toBe("some-answered");
   });
 
+  it("does not let an empty 200 from a fallback hide an expired session", () => {
+    // What the phone showed: the real endpoint said 401, a guess said 404,
+    // and another guess answered 200 with null. That is an expired session.
+    const empty = { path: "followed_golfers.json", status: 200, ok: true, parsed: 0 };
+    expect(probeVerdict([probe(401), probe(404), empty])).toBe("expired");
+    // But records are records, whichever endpoint produced them.
+    const full = { ...empty, parsed: 3 };
+    expect(probeVerdict([probe(401), full])).toBe("some-answered");
+    // And an empty list with no 401 anywhere is just an empty list.
+    expect(probeVerdict([probe(404), empty])).toBe("some-answered");
+  });
+
   it("falls back rather than guessing", () => {
     expect(probeVerdict([])).toBe("mixed");
     expect(probeVerdict([probe(500), probe(404)])).toBe("mixed");

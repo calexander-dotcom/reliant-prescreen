@@ -332,6 +332,12 @@ The password is posted to this app's own route handler, exchanged once for a
 token, and never stored or logged. The token lives in `sessionStorage` and is
 gone when the tab closes.
 
+GHIN sessions last about a day. When a lookup comes back 401, the app treats
+that as the session having run out rather than a failed call — even if a
+fallback endpoint answered 200 with nothing in it — drops the token, and puts
+the sign-in form back with the email prefilled (the email is kept; the password
+never is).
+
 The endpoints and response shapes below were confirmed against a capture of
 ghin.com's own network traffic:
 
