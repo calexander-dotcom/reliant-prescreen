@@ -115,7 +115,9 @@ commands below):
 (they may be deployed elsewhere, such as the EC2 box, or run by hand), bots,
 watchers and one-off scripts. Do not assume any of these is dead or alive:
 
-- Servers: `laboredge-server.js`, `le-jobboard-server.js`, `rtr-server.js`,
+- Servers: `laboredge-server.js`, `le-jobboard-server.js`, `rtr-server.js`
+  (the RTR service it presumably backs **is live** — see "RTR system" below;
+  that this file is the thing serving it is a guess, not confirmed),
   `payroll-server.js`, `srv.js`, `le-sms-dash.js`, `le-sms-dashboard-demo.js`,
   `sms-inbound-webhook.js`, `click-to-call.js` (+ `ivr-config.json`).
 - Bots and watchers: `le-outreach-bot.js`, `le-outreach-sms-reply.js`,
@@ -148,6 +150,47 @@ To finish identifying what runs and how, on the Chromebook:
 systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep; cat ~/sync-memory-to-ec2.sh; ls ~/'Open Claw' | head -30
 ```
 
+### RTR system (Permission to Represent & Submit) — live, host unconfirmed
+
+Inventoried 2026-09-17 from the owner's mailbox only. No RTR code is in this
+repository, on any branch — do not look for it here. **Nobody has yet
+confirmed which machine runs this.** `rtr-server.js` on the Chromebook is the
+obvious candidate and is a guess; `sign.synergymedicalstaffing.com` resolving
+elsewhere (EC2, a host not yet inventoried) is equally possible. Confirm
+before touching anything.
+
+What is **verified** from the email trail:
+
+| Piece | Evidence |
+|---|---|
+| Candidate signing links `https://sign.synergymedicalstaffing.com/r/<token>` | link in the generation notices |
+| Deal-sheet gate before a link is issued — checks pay against a GSA lodging/meals band, still issues the link when out of band but flags it | "RTR link generated … after the deal sheet passed its check" vs. "RTR sent with warnings open" (Bobby Anderson, deal sheet 5308846: lodging $826/wk vs. GSA max $854.31) |
+| Open and signature tracking, notifying the owning recruiter (`tracey@`, `marcia@`) | "👀 … opened their RTR", "✅ … signed the RTR" |
+| Signed RTR + Pay Agreement pushed back to the candidate's LaborEdge profile | stated in every signed notice; deal sheets at `nexus.laboredge.com/ats/candidates/<id>` |
+| Daily 15:00 UTC "RTR Daily Report" and 15:05 UTC "Submittal Audit", both from `rex@synergymedicalstaffing.com` | unbroken daily 2026-08-27 → 2026-09-17 |
+
+Notification mail is sent **as `calexander@`**, reports **as `rex@`**; both
+identities are automated. The pipeline was working end to end on 2026-09-17.
+
+**Open defects, found 2026-09-17, none fixed — the code is not in this repo:**
+
+1. **The Submittal Audit is a vacuous all-clear.** Its recruiter roster holds
+   only Ann Marie Ruggiero (`aruggiero@`). `tracey@` and `marcia@`, who
+   generate every RTR in the log, are absent. So it has reported
+   "0 sent · all complete" for 21 of 21 days (08/27–09/16) and **cannot catch
+   a missing RTR or coversheet** — the one thing it exists to catch. Same
+   failure shape as `vms-reply-monitor` above: green because it is looking at
+   nothing.
+2. **Duplicate notifications**, the same event emitted twice seconds apart:
+   candidate 33050439 at 14:04:02 and 14:04:06 on 09/17; Bobby Anderson at
+   18:01:41 and 18:01:43 on 09/16.
+3. **Malformed greeting** — "RTR link generated" and "RTR sent with warnings
+   open" open with `there,` instead of `Hi there,`. The opened/signed
+   templates are correct and do interpolate a name ("Hi marcia,"), so it is
+   those two templates only.
+4. **Job-title lookup falls back silently** — "Brigit Corej opened their RTR —
+   **the position**" (job 37359335) instead of the facility name.
+
 ### Vercel
 
 - Project **golf_bets** → this repo, root directory `golf`, production branch
@@ -177,3 +220,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
+| 2026-09-17 | `claude/rtr-issue-ea52rn` | Owner reported "the RTR is not working". Diagnosed from the mailbox alone; wrote up the RTR system and four open defects (see "RTR system" above). Headline: the Submittal Audit audits only `aruggiero@` and has reported a vacuous "0 sent · all complete" for 21 straight days. No code changed — the RTR code is not in this repo | **host unconfirmed** — `rtr-server.js` on the Chromebook is a guess | diagnosis only; nothing fixed, owner to confirm the host and the symptom |
