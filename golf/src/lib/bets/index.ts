@@ -66,6 +66,8 @@ export type BetResult =
       outcome: OneDownOutcome;
       /** The stack's margins after each finished hole, for the card. */
       byHole: Record<number, number[] | null>;
+      /** What each side counted on each hole, for the card. */
+      sideScores: Record<number, SideScores>;
     }
   | {
       kind: "banker";
@@ -181,12 +183,14 @@ export function computeRound(round: Round): RoundComputation {
         ? new Set(aggregateHoles(round.holeCount))
         : null;
     const results: Record<number, HoleResult> = {};
+    const sideScores: Record<number, SideScores> = {};
     for (const hole of holes) {
-      results[hole.number] = aggregate?.has(hole.number)
-        ? holeResultAggregate(bet.sides, hole.number, score)
-        : holeResultFor(bet.sides, hole.number, score);
+      const onAggregate = aggregate?.has(hole.number) ?? false;
+      const [a, b] = sideScoresFor(bet.sides, hole.number, score, onAggregate);
+      sideScores[hole.number] = { a, b, aggregate: onAggregate };
+      results[hole.number] = compareSides(a, b);
     }
-    return results;
+    return { results, sideScores };
   };
 
   for (const stored of round.bets) {
@@ -197,7 +201,7 @@ export function computeRound(round: Round): RoundComputation {
         ? { ...stored, sides: labelledSides(stored.sides, round.players) }
         : stored;
     if (bet.kind === "nassau") {
-      const outcome = evaluateNassau(bet, round.holeCount, sideResults(bet), playerIds);
+      const outcome = evaluateNassau(bet, round.holeCount, sideResults(bet).results, playerIds);
       betResults.push({ kind: "nassau", config: bet, outcome });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else if (bet.kind === "banker") {
@@ -210,13 +214,14 @@ export function computeRound(round: Round): RoundComputation {
       betResults.push({ kind: "banker", config: bet, outcome });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else if (bet.kind === "onedown") {
-      const results = sideResults(bet);
+      const { results, sideScores } = sideResults(bet);
       const outcome = evaluateOneDown(bet, round.holeCount, results, playerIds, parFor);
       betResults.push({
         kind: "onedown",
         config: bet,
         outcome,
         byHole: marginsByHole(bet, round.holeCount, results, playerIds),
+        sideScores,
       });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;
     } else {
@@ -317,25 +322,63 @@ function splitByNine(
   return { front, back, overall, hasOverall };
 }
 
-/** Best ball for the side, then compare. null when either side has no score. */
-export function holeResultFor(
+/** Each side's counting score on a hole, and whether it was the aggregate. */
+export interface SideScores {
+  a: number | null;
+  b: number | null;
+  aggregate: boolean;
+}
+
+/**
+ * Each side's counting score on a hole: the best ball, or on an aggregate
+ * hole both partners added together. null when the side has nothing to count
+ * yet — for the aggregate that means any partner still to post, since one
+ * card is not a total. Sides of different sizes are best ball either way;
+ * two scores against one is not a contest.
+ */
+export function sideScoresFor(
   sides: [Side, Side],
   hole: number,
   score: (playerId: PlayerId, hole: number) => number | null,
-): HoleResult {
+  aggregate: boolean,
+): [number | null, number | null] {
   const best = (side: Side): number | null => {
     const values = side.playerIds
       .map((id) => score(id, hole))
       .filter((value): value is number => value !== null);
     return values.length > 0 ? Math.min(...values) : null;
   };
+  const total = (side: Side): number | null => {
+    if (side.playerIds.length === 0) return null;
+    let sum = 0;
+    for (const id of side.playerIds) {
+      const value = score(id, hole);
+      if (value === null) return null;
+      sum += value;
+    }
+    return sum;
+  };
+  const use =
+    aggregate && sides[0].playerIds.length === sides[1].playerIds.length ? total : best;
+  return [use(sides[0]), use(sides[1])];
+}
 
-  const a = best(sides[0]);
-  const b = best(sides[1]);
+/** Lower score wins the hole. null until both sides have one. */
+export function compareSides(a: number | null, b: number | null): HoleResult {
   if (a === null || b === null) return null;
   if (a < b) return 1;
   if (b < a) return -1;
   return 0;
+}
+
+/** Best ball for the side, then compare. null when either side has no score. */
+export function holeResultFor(
+  sides: [Side, Side],
+  hole: number,
+  score: (playerId: PlayerId, hole: number) => number | null,
+): HoleResult {
+  const [a, b] = sideScoresFor(sides, hole, score, false);
+  return compareSides(a, b);
 }
 
 /**
@@ -361,26 +404,8 @@ export function holeResultAggregate(
   hole: number,
   score: (playerId: PlayerId, hole: number) => number | null,
 ): HoleResult {
-  if (sides[0].playerIds.length !== sides[1].playerIds.length) {
-    return holeResultFor(sides, hole, score);
-  }
-  const total = (side: Side): number | null => {
-    if (side.playerIds.length === 0) return null;
-    let sum = 0;
-    for (const id of side.playerIds) {
-      const value = score(id, hole);
-      if (value === null) return null;
-      sum += value;
-    }
-    return sum;
-  };
-
-  const a = total(sides[0]);
-  const b = total(sides[1]);
-  if (a === null || b === null) return null;
-  if (a < b) return 1;
-  if (b < a) return -1;
-  return 0;
+  const [a, b] = sideScoresFor(sides, hole, score, true);
+  return compareSides(a, b);
 }
 
 /** Sanity check used by the UI: every engine must move money zero-sum. */
