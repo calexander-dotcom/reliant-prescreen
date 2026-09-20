@@ -363,6 +363,20 @@ function OneDownFields({
             ]}
           />
         </Field>
+        <Field
+          label="First and last of each nine"
+          hint="Holes 1, 9, 10 and 18 on both partners' scores added together; every other hole is best ball."
+        >
+          <Toggle
+            name="First and last of each nine"
+            value={bet.aggregateBookends ? "aggregate" : "best-ball"}
+            onChange={(value) => onChange({ ...bet, aggregateBookends: value === "aggregate" })}
+            options={[
+              { value: "best-ball", label: "Best ball" },
+              { value: "aggregate", label: "Aggregate" },
+            ]}
+          />
+        </Field>
         <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
             value={bet.stakeMode}
@@ -751,6 +765,7 @@ export function BetSummaryLine({ bet, players }: { bet: BetConfig; players: Play
           ? ` · overall ${bet.overallMultiplier}x`
           : ""}
         {bet.greenies === false ? "" : " · greenies"}
+        {bet.aggregateBookends ? " · aggregate on the first and last of each nine" : ""}
       </span>
     );
   }

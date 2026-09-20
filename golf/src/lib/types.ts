@@ -151,6 +151,12 @@ export interface OneDownConfig {
    * A hole with no entry has not been answered yet.
    */
   greenieWinners?: Record<number, PlayerId | null>;
+  /**
+   * Decide the first and last hole of each nine — 1, 9, 10 and 18 on a full
+   * card — on the sides' aggregate, both partners' scores added together,
+   * rather than best ball. Every other hole stays best ball. Off unless set.
+   */
+  aggregateBookends?: boolean;
 }
 
 /**
