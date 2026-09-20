@@ -96,8 +96,10 @@ The rules, precisely:
   which never presses.
 - An option plays **alternate holes on aggregate — 1, 3, 5, 7, 9 and 10, 12,
   14, 16, 18**: both partners' scores added together, lower total wins the
-  hole. The even holes of each nine are best ball. Off unless turned on in the
-  bet setup; the hole screen says when a hole is being played that way.
+  hole. The even holes of each nine are best ball. On by default — the house
+  plays it, and so a round made before the option existed picks it up — with a
+  switch in the bet setup to turn it off; the hole screen says when a hole is
+  being played that way.
 - **Greenies** on the par 3s: closest to the hole wins one for their side,
   worth a bet, netted between the sides at the end — three to one is two
   greenies' worth, two to none is two. One side taking **every par 3 of the

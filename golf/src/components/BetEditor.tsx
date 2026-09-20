@@ -369,7 +369,7 @@ function OneDownFields({
         >
           <Toggle
             name="Alternate holes"
-            value={bet.alternateAggregate ? "aggregate" : "best-ball"}
+            value={bet.alternateAggregate === false ? "best-ball" : "aggregate"}
             onChange={(value) => onChange({ ...bet, alternateAggregate: value === "aggregate" })}
             options={[
               { value: "best-ball", label: "Best ball" },
@@ -765,7 +765,7 @@ export function BetSummaryLine({ bet, players }: { bet: BetConfig; players: Play
           ? ` · overall ${bet.overallMultiplier}x`
           : ""}
         {bet.greenies === false ? "" : " · greenies"}
-        {bet.alternateAggregate ? " · aggregate on 1, 3, 5, 7, 9 and 10, 12, 14, 16, 18" : ""}
+        {bet.alternateAggregate === false ? "" : " · aggregate on 1, 3, 5, 7, 9 and 10, 12, 14, 16, 18"}
       </span>
     );
   }

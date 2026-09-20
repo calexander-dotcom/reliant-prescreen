@@ -520,10 +520,11 @@ describe("aggregate on alternate holes", () => {
       stakeMode: "per-player" as const,
       greenies: false,
     };
-    const bestBall = computeRound(round({ scores, handicapMode: "none", bets: [bet] }));
-    const aggregate = computeRound(
-      round({ scores, handicapMode: "none", bets: [{ ...bet, alternateAggregate: true }] }),
+    // Unset means on, so a round from before the option existed plays it too.
+    const bestBall = computeRound(
+      round({ scores, handicapMode: "none", bets: [{ ...bet, alternateAggregate: false }] }),
     );
+    const aggregate = computeRound(round({ scores, handicapMode: "none", bets: [bet] }));
     const margin = (result: ReturnType<typeof computeRound>) => {
       const one = result.betResults[0];
       return one.kind === "onedown" ? one.outcome.stacks[0].bets[0].margin : NaN;
