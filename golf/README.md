@@ -343,6 +343,21 @@ ghin.com's own network traffic:
 
 All of these need `Authorization: Bearer <token>`.
 
+**Golfer search** — `GET /golfers/search.json`. Asked wrongly, GHIN's own
+validation says what it takes, and that message is the only documentation
+there is:
+
+```
+golfer_id, last_name and state, last_name and country, last_name and
+association_id or club_id and local_number are not present
+```
+
+So the app sends `golfer_id` for a number, and for a name `last_name` (and
+`first_name` when two words were typed) with `state` when one is given —
+tried as `FL` and then as `US-FL`, since which form this endpoint wants has
+not been captured — and `country=USA` otherwise. The state box beside the
+search remembers its last value.
+
 | What | Endpoint | Response |
 |---|---|---|
 | Golfers you follow | `GET /followed_golfers/{golferId}.json` | `{golfers: [{id, first_name, last_name, handicap_index_display, low_hi_display, club_name, …}]}` |

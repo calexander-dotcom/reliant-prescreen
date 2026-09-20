@@ -9,7 +9,14 @@ import {
   type GolferLookup,
 } from "@/lib/api";
 import { removePlayer } from "@/lib/mutations";
-import { loadRoster, newId, saveMe, saveRoster } from "@/lib/storage";
+import {
+  loadRoster,
+  loadSearchState,
+  newId,
+  saveMe,
+  saveRoster,
+  saveSearchState,
+} from "@/lib/storage";
 import type { GhinProbe } from "@/lib/ghin/shape";
 import { probeVerdict } from "@/lib/ghin/shape";
 import type { Player, Round } from "@/lib/types";
@@ -36,6 +43,7 @@ export function PlayerPicker({
   const [following, setFollowing] = useState<GolferLookup | null>(null);
   const [search, setSearch] = useState<GolferLookup | null>(null);
   const [query, setQuery] = useState("");
+  const [searchState, setSearchState] = useState(() => loadSearchState());
   const [busy, setBusy] = useState<"following" | "search" | "me" | null>(null);
   const [foundMe, setFoundMe] = useState<Player | null>(null);
   const [meProbes, setMeProbes] = useState<GhinProbe[] | null>(null);
@@ -303,30 +311,43 @@ export function PlayerPicker({
             <div>
               <Field
                 label="Find a golfer on GHIN"
-                hint="Last name, or a full GHIN number. Pulls their current handicap index."
+                hint="A last name (first name too, if you like) or a full GHIN number. GHIN searches a name by state; leave the state blank to search the whole US."
               >
                 <div className="flex gap-2">
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     className={inputClass}
-                    placeholder="Alexander  or  1234567"
+                    placeholder="Chris Alexander  or  1234567"
+                    aria-label="Golfer name or GHIN number"
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && query.trim().length >= 3) {
                         void run(
                           "search",
-                          () => apiSearchGolfers(token, query.trim()),
+                          () => apiSearchGolfers(token, query.trim(), searchState),
                           setSearch,
                           "Could not search GHIN.",
                         );
                       }
                     }}
                   />
+                  <input
+                    value={searchState}
+                    onChange={(event) => {
+                      const code = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+                      setSearchState(code);
+                      saveSearchState(code);
+                    }}
+                    className={`${inputClass} w-16 shrink-0 text-center uppercase`}
+                    placeholder="FL"
+                    aria-label="State to search in"
+                    maxLength={2}
+                  />
                   <Button
                     onClick={() =>
                       void run(
                         "search",
-                        () => apiSearchGolfers(token, query.trim()),
+                        () => apiSearchGolfers(token, query.trim(), searchState),
                         setSearch,
                         "Could not search GHIN.",
                       )

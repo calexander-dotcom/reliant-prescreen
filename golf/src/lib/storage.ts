@@ -16,6 +16,7 @@ const TOKEN_KEY = "golfbets.ghinToken";
 const ROSTER_KEY = "golfbets.roster.v1";
 const GOLFER_ID_KEY = "golfbets.ghinNumber";
 const GHIN_LOGIN_KEY = "golfbets.ghinLogin";
+const SEARCH_STATE_KEY = "golfbets.searchState";
 const TEE_PREFS_KEY = "golfbets.teePrefs.v1";
 const ME_KEY = "golfbets.me.v1";
 const PANELS_KEY = "golfbets.panels.v1";
@@ -155,6 +156,18 @@ export function saveGhinLogin(login: string | null): void {
   if (!canStore()) return;
   if (login) window.localStorage.setItem(GHIN_LOGIN_KEY, login);
   else window.localStorage.removeItem(GHIN_LOGIN_KEY);
+}
+
+/** The state a golfer search was last narrowed to, e.g. "FL". */
+export function loadSearchState(): string {
+  if (!canStore()) return "";
+  return window.localStorage.getItem(SEARCH_STATE_KEY) ?? "";
+}
+
+export function saveSearchState(state: string): void {
+  if (!canStore()) return;
+  if (state) window.localStorage.setItem(SEARCH_STATE_KEY, state);
+  else window.localStorage.removeItem(SEARCH_STATE_KEY);
 }
 
 /**
