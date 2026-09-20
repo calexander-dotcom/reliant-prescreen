@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { RoundComputation } from "@/lib/bets";
+import { bookendHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
 import { standingFor } from "@/lib/bets/onedown";
@@ -575,6 +575,12 @@ export function HoleView({
                         {stack?.label}
                       </span>
                     </div>
+                    {result.config.aggregateBookends &&
+                    bookendHoles(round.holeCount).includes(hole) ? (
+                      <p className="mt-0.5 text-xs font-semibold text-amber-700">
+                        Aggregate hole — both partners&apos; scores count.
+                      </p>
+                    ) : null}
 
                     <div className="tabular mt-0.5 break-all font-mono text-lg font-bold text-turf-900">
                       {stack ? standingFor(stack, sign) || "—" : "—"}

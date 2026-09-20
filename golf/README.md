@@ -94,6 +94,10 @@ The rules, precisely:
 - The stack **ends at the turn** and a new one starts on the 10th.
 - Alongside the two nines runs a single bet over **all 18 at 2×** the stake,
   which never presses.
+- An option plays the **first and last hole of each nine — 1, 9, 10 and 18 —
+  on aggregate**: both partners' scores added together, lower total wins the
+  hole. Every other hole is best ball. Off unless turned on in the bet setup;
+  the hole screen says when a hole is being played that way.
 - **Greenies** on the par 3s: closest to the hole wins one for their side,
   worth a bet, netted between the sides at the end — three to one is two
   greenies' worth, two to none is two. One side taking **every par 3 of the

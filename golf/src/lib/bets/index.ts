@@ -175,9 +175,16 @@ export function computeRound(round: Round): RoundComputation {
   /** Hole-by-hole side-vs-side outcomes, shared by the match-play games. */
   const sideResults = (bet: Extract<BetConfig, { kind: "nassau" | "onedown" }>) => {
     const score = scoreFor(bet.basis);
+    // One downs can play the first and last hole of each nine on aggregate.
+    const aggregate =
+      bet.kind === "onedown" && bet.aggregateBookends
+        ? new Set(bookendHoles(round.holeCount))
+        : null;
     const results: Record<number, HoleResult> = {};
     for (const hole of holes) {
-      results[hole.number] = holeResultFor(bet.sides, hole.number, score);
+      results[hole.number] = aggregate?.has(hole.number)
+        ? holeResultAggregate(bet.sides, hole.number, score)
+        : holeResultFor(bet.sides, hole.number, score);
     }
     return results;
   };
@@ -325,6 +332,45 @@ export function holeResultFor(
 
   const a = best(sides[0]);
   const b = best(sides[1]);
+  if (a === null || b === null) return null;
+  if (a < b) return 1;
+  if (b < a) return -1;
+  return 0;
+}
+
+/** The first and last hole of each nine: 1, 9, 10 and 18 on a full card. */
+export function bookendHoles(holeCount: number): number[] {
+  if (holeCount <= 9) return [1, holeCount];
+  return [1, 9, 10, holeCount];
+}
+
+/**
+ * Aggregate: each side's scores added together, lower total wins. Needs every
+ * score on both sides, since one missing partner is not a total. Sides of
+ * different sizes fall back to best ball — two scores against one is not a
+ * contest.
+ */
+export function holeResultAggregate(
+  sides: [Side, Side],
+  hole: number,
+  score: (playerId: PlayerId, hole: number) => number | null,
+): HoleResult {
+  if (sides[0].playerIds.length !== sides[1].playerIds.length) {
+    return holeResultFor(sides, hole, score);
+  }
+  const total = (side: Side): number | null => {
+    if (side.playerIds.length === 0) return null;
+    let sum = 0;
+    for (const id of side.playerIds) {
+      const value = score(id, hole);
+      if (value === null) return null;
+      sum += value;
+    }
+    return sum;
+  };
+
+  const a = total(sides[0]);
+  const b = total(sides[1]);
   if (a === null || b === null) return null;
   if (a < b) return 1;
   if (b < a) return -1;

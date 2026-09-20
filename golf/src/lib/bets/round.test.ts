@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { Course, Player, Round, Side } from "../types";
-import { computeRound, holeResultFor } from "./index";
+import { bookendHoles, computeRound, holeResultAggregate, holeResultFor } from "./index";
 
 const course: Course = {
   id: "c1",
@@ -460,5 +460,76 @@ describe("greenies in the round", () => {
     const oneDownResult = result.betResults[0];
     expect(oneDownResult.kind === "onedown" && oneDownResult.outcome.greenies.holes).toEqual([]);
     expect(result.grandTotals.p1).toBe(0);
+  });
+});
+
+describe("aggregate on the first and last of each nine", () => {
+  const sides: [Side, Side] = [
+    { id: "a", name: "A", playerIds: ["p1", "p2"] },
+    { id: "b", name: "B", playerIds: ["p3", "p4"] },
+  ];
+  // Best ball says A (a 3 beats a 4); the totals say B (8 beats 9).
+  const split: Record<string, number> = { p1: 3, p2: 6, p3: 4, p4: 4 };
+  const score = (id: string) => split[id] ?? null;
+
+  it("names the bookend holes", () => {
+    expect(bookendHoles(18)).toEqual([1, 9, 10, 18]);
+    expect(bookendHoles(9)).toEqual([1, 9]);
+  });
+
+  it("adds both partners' scores and can disagree with best ball", () => {
+    expect(holeResultFor(sides, 1, score)).toBe(1);
+    expect(holeResultAggregate(sides, 1, score)).toBe(-1);
+    expect(holeResultAggregate(sides, 1, (id) => ({ p1: 4, p2: 4, p3: 3, p4: 5 })[id] ?? null)).toBe(0);
+  });
+
+  it("waits for every score on both sides", () => {
+    expect(holeResultAggregate(sides, 1, (id) => (id === "p2" ? null : score(id)))).toBeNull();
+  });
+
+  it("falls back to best ball when the sides are uneven", () => {
+    const uneven: [Side, Side] = [
+      { id: "a", name: "A", playerIds: ["p1", "p2"] },
+      { id: "b", name: "B", playerIds: ["p3"] },
+    ];
+    expect(holeResultAggregate(uneven, 1, score)).toBe(holeResultFor(uneven, 1, score));
+  });
+
+  it("applies to 1, 9, 10 and 18 only, when turned on", () => {
+    const scores: Record<string, Record<number, number>> = { p1: {}, p2: {}, p3: {}, p4: {} };
+    for (const hole of [1, 2]) {
+      scores.p1[hole] = 3;
+      scores.p2[hole] = 6;
+      scores.p3[hole] = 4;
+      scores.p4[hole] = 4;
+    }
+    const bet = {
+      kind: "onedown" as const,
+      id: "od1",
+      label: "One downs",
+      amount: 1000,
+      sides: [
+        { id: "a", name: "A", playerIds: ["p1", "p2"] },
+        { id: "b", name: "B", playerIds: ["p3", "p4"] },
+      ] as [Side, Side],
+      basis: "gross" as const,
+      autoPressAt: 0,
+      manualPresses: {},
+      reset: "nines" as const,
+      overallMultiplier: 0,
+      stakeMode: "per-player" as const,
+      greenies: false,
+    };
+    const bestBall = computeRound(round({ scores, handicapMode: "none", bets: [bet] }));
+    const aggregate = computeRound(
+      round({ scores, handicapMode: "none", bets: [{ ...bet, aggregateBookends: true }] }),
+    );
+    const margin = (result: ReturnType<typeof computeRound>) => {
+      const one = result.betResults[0];
+      return one.kind === "onedown" ? one.outcome.stacks[0].bets[0].margin : NaN;
+    };
+    // Best ball: A takes both holes. Aggregate: B takes the 1st, A the 2nd.
+    expect(margin(bestBall)).toBe(2);
+    expect(margin(aggregate)).toBe(0);
   });
 });
