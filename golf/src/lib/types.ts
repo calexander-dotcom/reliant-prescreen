@@ -152,11 +152,12 @@ export interface OneDownConfig {
    */
   greenieWinners?: Record<number, PlayerId | null>;
   /**
-   * Decide the first and last hole of each nine — 1, 9, 10 and 18 on a full
-   * card — on the sides' aggregate, both partners' scores added together,
-   * rather than best ball. Every other hole stays best ball. Off unless set.
+   * Decide alternate holes, starting with the first of each nine — 1, 3, 5,
+   * 7, 9 and 10, 12, 14, 16, 18 — on the sides' aggregate, both partners'
+   * scores added together, rather than best ball. The even holes of each
+   * nine stay best ball. Off unless set.
    */
-  aggregateBookends?: boolean;
+  alternateAggregate?: boolean;
 }
 
 /**

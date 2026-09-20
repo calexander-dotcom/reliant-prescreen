@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { Course, Player, Round, Side } from "../types";
-import { bookendHoles, computeRound, holeResultAggregate, holeResultFor } from "./index";
+import { aggregateHoles, computeRound, holeResultAggregate, holeResultFor } from "./index";
 
 const course: Course = {
   id: "c1",
@@ -463,7 +463,7 @@ describe("greenies in the round", () => {
   });
 });
 
-describe("aggregate on the first and last of each nine", () => {
+describe("aggregate on alternate holes", () => {
   const sides: [Side, Side] = [
     { id: "a", name: "A", playerIds: ["p1", "p2"] },
     { id: "b", name: "B", playerIds: ["p3", "p4"] },
@@ -472,9 +472,9 @@ describe("aggregate on the first and last of each nine", () => {
   const split: Record<string, number> = { p1: 3, p2: 6, p3: 4, p4: 4 };
   const score = (id: string) => split[id] ?? null;
 
-  it("names the bookend holes", () => {
-    expect(bookendHoles(18)).toEqual([1, 9, 10, 18]);
-    expect(bookendHoles(9)).toEqual([1, 9]);
+  it("names the aggregate holes: the first of each nine and every other one after", () => {
+    expect(aggregateHoles(18)).toEqual([1, 3, 5, 7, 9, 10, 12, 14, 16, 18]);
+    expect(aggregateHoles(9)).toEqual([1, 3, 5, 7, 9]);
   });
 
   it("adds both partners' scores and can disagree with best ball", () => {
@@ -495,7 +495,7 @@ describe("aggregate on the first and last of each nine", () => {
     expect(holeResultAggregate(uneven, 1, score)).toBe(holeResultFor(uneven, 1, score));
   });
 
-  it("applies to 1, 9, 10 and 18 only, when turned on", () => {
+  it("applies to the alternate holes only, when turned on", () => {
     const scores: Record<string, Record<number, number>> = { p1: {}, p2: {}, p3: {}, p4: {} };
     for (const hole of [1, 2]) {
       scores.p1[hole] = 3;
@@ -522,7 +522,7 @@ describe("aggregate on the first and last of each nine", () => {
     };
     const bestBall = computeRound(round({ scores, handicapMode: "none", bets: [bet] }));
     const aggregate = computeRound(
-      round({ scores, handicapMode: "none", bets: [{ ...bet, aggregateBookends: true }] }),
+      round({ scores, handicapMode: "none", bets: [{ ...bet, alternateAggregate: true }] }),
     );
     const margin = (result: ReturnType<typeof computeRound>) => {
       const one = result.betResults[0];
