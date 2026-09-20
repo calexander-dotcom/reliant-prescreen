@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { sumCents } from "../money";
 import type { Course, Player, Round, Side } from "../types";
-import { aggregateHoles, computeRound, holeResultAggregate, holeResultFor } from "./index";
+import {
+  aggregateHoles,
+  compareSides,
+  computeRound,
+  holeResultAggregate,
+  holeResultFor,
+  sideScoresFor,
+} from "./index";
 
 const course: Course = {
   id: "c1",
@@ -532,5 +539,67 @@ describe("aggregate on alternate holes", () => {
     // Best ball: A takes both holes. Aggregate: B takes the 1st, A the 2nd.
     expect(margin(bestBall)).toBe(2);
     expect(margin(aggregate)).toBe(0);
+  });
+});
+
+describe("side scores on the card", () => {
+  const sides: [Side, Side] = [
+    { id: "a", name: "A", playerIds: ["p1", "p2"] },
+    { id: "b", name: "B", playerIds: ["p3", "p4"] },
+  ];
+  const split: Record<string, number> = { p1: 3, p2: 6, p3: 4, p4: 4 };
+  const score = (id: string) => split[id] ?? null;
+
+  it("counts the best ball, or both partners added", () => {
+    expect(sideScoresFor(sides, 1, score, false)).toEqual([3, 4]);
+    expect(sideScoresFor(sides, 1, score, true)).toEqual([9, 8]);
+  });
+
+  it("has nothing to count for a side with no scores, or an incomplete total", () => {
+    const partial = (id: string) => (id === "p2" ? null : score(id));
+    expect(sideScoresFor(sides, 1, partial, false)).toEqual([3, 4]);
+    expect(sideScoresFor(sides, 1, partial, true)).toEqual([null, 8]);
+    expect(compareSides(null, 8)).toBeNull();
+    expect(compareSides(9, 8)).toBe(-1);
+    expect(compareSides(4, 4)).toBe(0);
+  });
+
+  it("is carried on the round for every hole, marking the aggregate ones", () => {
+    const scores: Record<string, Record<number, number>> = {
+      p1: { 1: 3, 2: 3 },
+      p2: { 1: 6, 2: 6 },
+      p3: { 1: 4, 2: 4 },
+      p4: { 1: 4, 2: 4 },
+    };
+    const result = computeRound(
+      round({
+        scores,
+        handicapMode: "none",
+        bets: [
+          {
+            kind: "onedown",
+            id: "od1",
+            label: "One downs",
+            amount: 1000,
+            sides: [
+              { id: "a", name: "A", playerIds: ["p1", "p2"] },
+              { id: "b", name: "B", playerIds: ["p3", "p4"] },
+            ],
+            basis: "gross",
+            autoPressAt: 0,
+            manualPresses: {},
+            reset: "nines",
+            overallMultiplier: 0,
+            stakeMode: "per-player",
+            greenies: false,
+          },
+        ],
+      }),
+    );
+    const one = result.betResults[0];
+    if (one.kind !== "onedown") throw new Error("expected one downs");
+    expect(one.sideScores[1]).toEqual({ a: 9, b: 8, aggregate: true });
+    expect(one.sideScores[2]).toEqual({ a: 3, b: 4, aggregate: false });
+    expect(one.sideScores[3]).toEqual({ a: null, b: null, aggregate: true });
   });
 });

@@ -275,9 +275,12 @@ the round as a whole — the 18-hole one-down bet, a nassau's Total 18 and its
 presses — and then the total. Hand-entered holes and the game are added
 together, so under banker it is the ledger and under one downs it is the
 stacks. Out, In and Overall always add up to the total, and the viewer page shows
-the same split. When one downs is the game, the card also carries the standing
-beside each finished hole, read from the scorer's side, so the number beside
-the 9th is the front nine's final word and the 18th the back's.
+the same split. When one downs is the game, the card also carries, beside each
+hole, what the two sides counted — the best ball, or on an aggregate hole
+(marked *agg*) both partners added, scorer's side first with the winner in
+colour — and the standing after each finished hole, read from the scorer's
+side, so the number beside the 9th is the front nine's final word and the 18th
+the back's.
 
 ## Small things it remembers
 

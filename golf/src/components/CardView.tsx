@@ -43,6 +43,22 @@ export function CardView({
     const margins = oneDown?.byHole[hole];
     return margins ? formatStanding(margins.map((margin) => margin * oneDownSign)) : null;
   };
+  // What each side counted on the hole — best ball, or both partners added on
+  // an aggregate hole — the scorer's side first, so the standing can be
+  // checked hole by hole.
+  const sidesAt = (hole: number): SideScoresView | null => {
+    const scores = oneDown?.sideScores[hole];
+    if (!scores) return null;
+    const us = oneDownSign > 0 ? scores.a : scores.b;
+    const them = oneDownSign > 0 ? scores.b : scores.a;
+    if (us === null && them === null) return null;
+    return { us, them, aggregate: scores.aggregate };
+  };
+  const [usSide, themSide] = oneDown
+    ? oneDownSign > 0
+      ? oneDown.config.sides
+      : [oneDown.config.sides[1], oneDown.config.sides[0]]
+    : [null, null];
 
   return (
     <div className="space-y-4">
@@ -76,7 +92,10 @@ export function CardView({
                 </th>
               ))}
               {oneDown ? (
-                <th className="px-1 py-2 text-left font-semibold">1 down</th>
+                <>
+                  <th className="px-1 py-2 text-center font-semibold">Sides</th>
+                  <th className="px-1 py-2 text-left font-semibold">1 down</th>
+                </>
               ) : null}
             </tr>
           </thead>
@@ -95,6 +114,7 @@ export function CardView({
                   onPickHole={onPickHole}
                   readOnly={readOnly}
                   standingAt={oneDown ? standingAt : null}
+                  sidesAt={oneDown ? sidesAt : null}
                 />
               ),
             )}
@@ -108,7 +128,12 @@ export function CardView({
                   {comp.totalsByPlayer[player.id]?.gross || "–"}
                 </td>
               ))}
-              {oneDown ? <td /> : null}
+              {oneDown ? (
+                <>
+                  <td />
+                  <td />
+                </>
+              ) : null}
             </tr>
             <tr className="text-neutral-600">
               <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase">
@@ -122,7 +147,12 @@ export function CardView({
                     : "–"}
                 </td>
               ))}
-              {oneDown ? <td /> : null}
+              {oneDown ? (
+                <>
+                  <td />
+                  <td />
+                </>
+              ) : null}
             </tr>
             {comp.nineTotals.hasOverall ? (
               <tr className="border-t border-neutral-200">
@@ -141,7 +171,12 @@ export function CardView({
                     </td>
                   );
                 })}
-                {oneDown ? <td /> : null}
+                {oneDown ? (
+                <>
+                  <td />
+                  <td />
+                </>
+              ) : null}
               </tr>
             ) : null}
             <tr className="border-t border-neutral-200">
@@ -166,7 +201,12 @@ export function CardView({
                   </td>
                 );
               })}
-              {oneDown ? <td /> : null}
+              {oneDown ? (
+                <>
+                  <td />
+                  <td />
+                </>
+              ) : null}
             </tr>
           </tbody>
         </table>
@@ -208,6 +248,11 @@ export function CardView({
           and skin that has settled. The Out and In rows carry each nine&apos;s
           share under the score; Overall is the whole-round bet. A hole that does not
           net to zero is left out until it does.
+          {oneDown && usSide && themSide
+            ? ` Sides is what decided each hole — ${usSide.name} then ${themSide.name}: the best ball, or on an aggregate hole (marked agg) both partners added together${
+                oneDown.config.basis === "net" ? ", net" : ""
+              }.`
+            : ""}
         </p>
       </Card>
     </div>
@@ -225,12 +270,15 @@ function HoleGroup({
   onPickHole,
   readOnly,
   standingAt,
+  sidesAt,
 }: {
   label: string;
   /** This nine's money per player, shown under the score subtotal. */
   nineMoney: Record<string, number>;
   /** The one-down standing after a hole, when that is the game. */
   standingAt: ((hole: number) => string | null) | null;
+  /** What each side counted on the hole, scorer's side first. */
+  sidesAt: ((hole: number) => SideScoresView | null) | null;
   holes: RoundComputation["holes"];
   round: Round;
   comp: RoundComputation;
@@ -286,6 +334,7 @@ function HoleGroup({
                 </td>
               );
             })}
+            {sidesAt ? <SidesCell scores={sidesAt(hole.number)} /> : null}
             {standingAt ? (
               <td className="whitespace-nowrap px-1 py-1.5 text-left font-mono text-[0.65rem] text-neutral-700">
                 {standingAt(hole.number) ?? ""}
@@ -316,8 +365,39 @@ function HoleGroup({
             </td>
           );
         })}
+        {sidesAt ? <td /> : null}
         {standingAt ? <td /> : null}
       </tr>
     </>
+  );
+}
+
+interface SideScoresView {
+  us: number | null;
+  them: number | null;
+  aggregate: boolean;
+}
+
+/** "3–4" with the winning side in colour, and "agg" under an aggregate hole. */
+function SidesCell({ scores }: { scores: SideScoresView | null }) {
+  if (!scores) return <td className="px-1 py-1.5 text-center text-neutral-300">–</td>;
+  const { us, them, aggregate } = scores;
+  const tone =
+    us === null || them === null
+      ? "text-neutral-400"
+      : us < them
+        ? "font-semibold text-turf-700"
+        : us > them
+          ? "font-semibold text-red-700"
+          : "text-neutral-600";
+  return (
+    <td className="tabular whitespace-nowrap px-1 py-1.5 text-center text-xs">
+      <span className={tone}>
+        {us ?? "–"}–{them ?? "–"}
+      </span>
+      {aggregate ? (
+        <span className="block text-[0.55rem] uppercase leading-none text-amber-700">agg</span>
+      ) : null}
+    </td>
   );
 }
