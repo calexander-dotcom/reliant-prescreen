@@ -288,11 +288,35 @@ describe("ghinSearchGolfers", () => {
     expect(calls[0]).toContain("golfer_id=1234567");
   });
 
-  it("treats anything else as a name search", async () => {
+  it("searches a lone name as a last name across the country", async () => {
+    // GHIN's validation: last_name needs a state, a country or an association.
     const calls = stubFetch(() => ({ status: 200, body: '{"golfers":[]}' }));
     await ghinSearchGolfers("tok", "Alexander");
-    expect(calls[0]).toContain("search=Alexander");
-    expect(calls[0]).toContain("global_search=true");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("last_name=Alexander");
+    expect(calls[0]).toContain("country=USA");
+    expect(calls[0]).not.toContain("first_name");
+    expect(calls[0]).not.toContain("global_search");
+  });
+
+  it("splits two words into first and last name", async () => {
+    const calls = stubFetch(() => ({ status: 200, body: '{"golfers":[]}' }));
+    await ghinSearchGolfers("tok", "Chris Alexander");
+    expect(calls[0]).toContain("first_name=Chris");
+    expect(calls[0]).toContain("last_name=Alexander");
+  });
+
+  it("narrows to a state when given, as typed and as GHIN writes it, then the country", async () => {
+    const calls = stubFetch(() => ({
+      status: 400,
+      body: '{"error":"last_name and state, last_name and country or association_id or club_id are not present"}',
+    }));
+    await ghinSearchGolfers("tok", "Alexander", "fl");
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toContain("state=FL");
+    expect(calls[1]).toContain("state=US-FL");
+    expect(calls[2]).toContain("country=USA");
+    expect(calls[2]).not.toContain("state=");
   });
 
   it("returns the golfers it finds", async () => {

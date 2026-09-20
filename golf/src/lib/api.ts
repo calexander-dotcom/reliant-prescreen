@@ -94,9 +94,12 @@ export async function apiFollowing(
 export async function apiSearchGolfers(
   token: string | null,
   query: string,
+  state?: string | null,
 ): Promise<GolferLookup> {
+  const search = new URLSearchParams({ q: query });
+  if (state) search.set("state", state);
   const payload = await request<GolferLookup>(
-    `/api/ghin/golfers/search?q=${encodeURIComponent(query)}`,
+    `/api/ghin/golfers/search?${search.toString()}`,
     { token },
   );
   return { players: payload.players ?? [], probes: payload.probes ?? [] };

@@ -408,40 +408,55 @@ export async function ghinGolferProfile(
   );
 }
 
+/**
+ * Golfer search.
+ *
+ * Asked wrongly, GHIN's validation lists what it will take:
+ *
+ *     golfer_id, last_name and state, last_name and country, last_name and
+ *     association_id or club_id and local_number are not present
+ *
+ * So a number goes as `golfer_id`, and a name goes as `last_name` — with
+ * `first_name` too when two words were typed — plus the state when one was
+ * given, and `country=USA` when not. The state is tried as typed ("FL") and
+ * as GHIN writes it elsewhere ("US-FL"), since which it wants here has not
+ * been captured; the diagnostics say which answered.
+ */
 export async function ghinSearchGolfers(
   token: string | null,
   query: string,
+  state?: string | null,
 ): Promise<ProbeResult<Player>> {
   const trimmed = query.trim();
   const isNumber = /^\d{5,}$/.test(trimmed);
+  const paging = { status: "Active", page: 1, per_page: 25 };
 
-  const candidates: Candidate[] = isNumber
-    ? [
-        { path: "golfers/search.json", query: { golfer_id: trimmed } },
-        { path: "golfers/search.json", query: { ghin: trimmed } },
-        {
-          path: "golfers/search.json",
-          query: { global_search: true, search: trimmed, page: 1, per_page: 25 },
-        },
+  if (isNumber) {
+    return probeCandidates(
+      token,
+      [
+        { path: "golfers/search.json", query: { golfer_id: trimmed, ...paging } },
         { path: `golfers/${encodeURIComponent(trimmed)}.json` },
-      ]
-    : [
-        {
-          path: "golfers/search.json",
-          query: {
-            global_search: true,
-            search: trimmed,
-            page: 1,
-            per_page: 25,
-            status: "Active",
-          },
-        },
-        {
-          path: "golfers/search.json",
-          query: { last_name: trimmed, status: "Active", page: 1, per_page: 25 },
-        },
-        { path: "golfers/search.json", query: { name: trimmed } },
-      ];
+      ],
+      normalizeGolfers,
+    );
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const lastName = words[words.length - 1];
+  const firstName = words.length > 1 ? words.slice(0, -1).join(" ") : null;
+  const name = { last_name: lastName, ...(firstName ? { first_name: firstName } : {}) };
+  const code = (state ?? "").trim().toUpperCase().replace(/^US-/, "");
+
+  const candidates: Candidate[] = [
+    ...(code
+      ? [
+          { path: "golfers/search.json", query: { ...name, state: code, ...paging } },
+          { path: "golfers/search.json", query: { ...name, state: `US-${code}`, ...paging } },
+        ]
+      : []),
+    { path: "golfers/search.json", query: { ...name, country: "USA", ...paging } },
+  ];
 
   return probeCandidates(token, candidates, normalizeGolfers);
 }
