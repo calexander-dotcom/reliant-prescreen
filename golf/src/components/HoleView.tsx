@@ -575,7 +575,7 @@ export function HoleView({
                         {stack?.label}
                       </span>
                     </div>
-                    {result.config.alternateAggregate &&
+                    {result.config.alternateAggregate !== false &&
                     aggregateHoles(round.holeCount).includes(hole) ? (
                       <p className="mt-0.5 text-xs font-semibold text-amber-700">
                         Aggregate hole — both partners&apos; scores count.

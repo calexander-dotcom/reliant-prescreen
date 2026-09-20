@@ -177,7 +177,7 @@ export function computeRound(round: Round): RoundComputation {
     const score = scoreFor(bet.basis);
     // One downs can play alternate holes — 1, 3, 5, 7, 9; 10, 12, 14, 16, 18 — on aggregate.
     const aggregate =
-      bet.kind === "onedown" && bet.alternateAggregate
+      bet.kind === "onedown" && bet.alternateAggregate !== false
         ? new Set(aggregateHoles(round.holeCount))
         : null;
     const results: Record<number, HoleResult> = {};

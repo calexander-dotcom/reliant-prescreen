@@ -155,7 +155,8 @@ export interface OneDownConfig {
    * Decide alternate holes, starting with the first of each nine — 1, 3, 5,
    * 7, 9 and 10, 12, 14, 16, 18 — on the sides' aggregate, both partners'
    * scores added together, rather than best ball. The even holes of each
-   * nine stay best ball. Off unless set.
+   * nine stay best ball. Undefined means on — the house plays it, and a
+   * round made before the option existed should too.
    */
   alternateAggregate?: boolean;
 }

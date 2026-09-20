@@ -62,6 +62,8 @@ export function defaultOneDown(players: Player[], id: string): OneDownConfig {
     // Closest to the hole on the par 3s, for the stake; a sweep doubles.
     greenies: true,
     greenieWinners: {},
+    // 1, 3, 5, 7, 9 and 10, 12, 14, 16, 18 on both partners' scores added.
+    alternateAggregate: true,
   };
 }
 
