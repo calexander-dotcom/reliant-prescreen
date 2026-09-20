@@ -175,10 +175,10 @@ export function computeRound(round: Round): RoundComputation {
   /** Hole-by-hole side-vs-side outcomes, shared by the match-play games. */
   const sideResults = (bet: Extract<BetConfig, { kind: "nassau" | "onedown" }>) => {
     const score = scoreFor(bet.basis);
-    // One downs can play the first and last hole of each nine on aggregate.
+    // One downs can play alternate holes — 1, 3, 5, 7, 9; 10, 12, 14, 16, 18 — on aggregate.
     const aggregate =
-      bet.kind === "onedown" && bet.aggregateBookends
-        ? new Set(bookendHoles(round.holeCount))
+      bet.kind === "onedown" && bet.alternateAggregate
+        ? new Set(aggregateHoles(round.holeCount))
         : null;
     const results: Record<number, HoleResult> = {};
     for (const hole of holes) {
@@ -338,10 +338,16 @@ export function holeResultFor(
   return 0;
 }
 
-/** The first and last hole of each nine: 1, 9, 10 and 18 on a full card. */
-export function bookendHoles(holeCount: number): number[] {
-  if (holeCount <= 9) return [1, holeCount];
-  return [1, 9, 10, holeCount];
+/**
+ * Alternate holes starting with the first of each nine: 1, 3, 5, 7, 9 and
+ * 10, 12, 14, 16, 18 on a full card; 1, 3, 5, 7, 9 on nine.
+ */
+export function aggregateHoles(holeCount: number): number[] {
+  const holes: number[] = [];
+  for (let start = 1; start <= holeCount; start += 9) {
+    for (let hole = start; hole < start + 9 && hole <= holeCount; hole += 2) holes.push(hole);
+  }
+  return holes;
 }
 
 /**
