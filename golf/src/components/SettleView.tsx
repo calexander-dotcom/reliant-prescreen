@@ -120,7 +120,7 @@ export function SettleView({
       </Card>
 
       <Card>
-        <SectionTitle hint="The whole rundown — tee flips, every nine, presses, the overall, greenies, scores and who pays whom — ready to paste into a text.">
+        <SectionTitle hint="Each nine's standing with who pressed, the all-day bet, the greenies, and where everyone finished — ready to paste into a text.">
           Share it
         </SectionTitle>
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-800">
