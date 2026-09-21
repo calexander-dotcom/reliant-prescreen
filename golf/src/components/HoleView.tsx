@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
@@ -45,6 +45,26 @@ export function HoleView({
   onHoleChange: (hole: number) => void;
   update: (next: Round) => void;
 }) {
+  // Tee flips the scorer put off with "Ask me later". Kept for the browser
+  // session, since the Hole tab is rebuilt on every tab change; the card at
+  // the top of the screen still asks quietly.
+  const putOffKey = `onedowns.flipPutOff.${round.id}`;
+  const [flipsPutOff, setFlipsPutOff] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(sessionStorage.getItem(putOffKey) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const putOffFlip = (key: string) => {
+    const next = new Set(flipsPutOff).add(key);
+    setFlipsPutOff(next);
+    try {
+      sessionStorage.setItem(putOffKey, JSON.stringify([...next]));
+    } catch {
+      // Private mode or blocked storage: it just asks again next time.
+    }
+  };
   const info = comp.holes.find((entry) => entry.number === hole) ?? comp.holes[0];
   const ids = round.players.map((player) => player.id);
   const entry = round.manual[hole];
@@ -93,8 +113,53 @@ export function HoleView({
     update(next);
   };
 
+  const flipToAsk = comp.betResults.find(
+    (result): result is Extract<typeof result, { kind: "onedown" }> =>
+      result.kind === "onedown" &&
+      result.outcome.teeFlips.unanswered.includes(hole) &&
+      !flipsPutOff.has(`${result.config.id}:${hole}`),
+  );
+
   return (
     <div className="space-y-4">
+      {flipToAsk ? (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tee-flip-title"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <h2 id="tee-flip-title" className="text-lg font-bold text-turf-900">
+              Who won the tee flip on {teeName(hole)}?
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              The winners start one up in the opening bet, which opens the first press:
+              +1/0 before a ball is hit.
+            </p>
+            <div className="mt-4">
+              <TeeFlipChooser
+                round={round}
+                config={flipToAsk.config}
+                startHole={hole}
+                update={update}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => putOffFlip(`${flipToAsk.config.id}:${hole}`)}
+              >
+                Ask me later
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex items-center gap-2">
         <Button
           variant="secondary"
