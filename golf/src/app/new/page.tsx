@@ -43,7 +43,11 @@ export default function NewRoundPage() {
 
   if (!round) return <main className="py-8 text-neutral-500">Loading…</main>;
 
-  const ready = round.players.length >= 2;
+  // A course first — its pars, stroke index and tees are what the game runs
+  // on — then the players. A typed name counts only because the course
+  // picker hides it behind a deliberate "start without course data".
+  const hasCourse = round.course !== null || round.courseName.trim().length > 0;
+  const ready = hasCourse && round.players.length >= 2;
 
   const start = () => {
     const bets =
@@ -134,7 +138,11 @@ export default function NewRoundPage() {
 
       <div className="sticky bottom-4 z-10">
         <Button onClick={start} disabled={!ready} full>
-          {ready ? "Start round" : "Add at least two players"}
+          {!hasCourse
+            ? "Choose a course to start"
+            : round.players.length < 2
+              ? "Add at least two players"
+              : "Start round"}
         </Button>
       </div>
     </main>
