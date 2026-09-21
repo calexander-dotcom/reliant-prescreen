@@ -88,7 +88,8 @@ export default function RoundPage() {
         </div>
       </header>
 
-      <TotalsStrip round={round} comp={comp} />
+      {/* The Hole tab shows the tiles further down, under the extra presses. */}
+      {tab !== "hole" ? <TotalsStrip round={round} comp={comp} /> : null}
 
       {round.players.length < 2 ? (
         <Card>
