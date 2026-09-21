@@ -29,6 +29,12 @@ export function CoursePicker({
   const [results, setResults] = useState<CourseSummary[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The round needs a course: the pars for the greenies, the stroke index for
+  // the handicaps, the tees. Typing a name instead is a deliberate fallback
+  // for when GHIN is out of reach, behind a tap, not the default path.
+  const [withoutData, setWithoutData] = useState(
+    () => round.course === null && round.courseName.trim().length > 0,
+  );
 
   useEffect(() => {
     if (!golferId || !token) return;
@@ -139,7 +145,7 @@ export function CoursePicker({
           <div className="mt-3">
             <Button
               variant="secondary"
-              onClick={() => update({ ...round, course: null, teeId: null })}
+              onClick={() => update({ ...round, course: null, teeId: null, courseName: "" })}
             >
               Change course
             </Button>
@@ -147,15 +153,6 @@ export function CoursePicker({
         </div>
       ) : (
         <div className="space-y-4">
-          <Field label="Course name" hint="Type it in if you are not importing from GHIN.">
-            <input
-              value={round.courseName}
-              onChange={(event) => update({ ...round, courseName: event.target.value })}
-              className={inputClass}
-              placeholder="Riverside Municipal"
-            />
-          </Field>
-
           {token ? (
             <>
               {saved.length > 0 ? (
@@ -229,13 +226,36 @@ export function CoursePicker({
               </div>
             </>
           ) : (
-            <Banner>
-              Sign in to GHIN above to look up a course, or just type the name
-              and play off a plain par-72 card.
+            <Banner tone="warn">
+              Sign in to GHIN above to choose the course. That brings the pars for
+              the greenies, the stroke index for the handicaps, and the tees.
             </Banner>
           )}
 
           {error ? <Banner tone="error">{error}</Banner> : null}
+
+          {withoutData ? (
+            <Field
+              label="Course name"
+              hint="Without course data every hole is a par 4, so there are no greenies, and handicap strokes go by hole number."
+            >
+              <input
+                value={round.courseName}
+                onChange={(event) => update({ ...round, courseName: event.target.value })}
+                className={inputClass}
+                placeholder="Riverside Municipal"
+                aria-label="Course name"
+              />
+            </Field>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setWithoutData(true)}
+              className="text-sm font-semibold text-turf-700 underline-offset-2 hover:underline"
+            >
+              No GHIN, or no signal? Start without course data
+            </button>
+          )}
         </div>
       )}
 
