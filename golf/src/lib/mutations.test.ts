@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest";
 import { isBalanced } from "./bets/ledger";
 import { computeRound } from "./bets/index";
 import {
+  adjustPressesBefore,
   applyTeamTransfer,
   balanceHoleOnto,
   clearHoleMoney,
   removePlayer,
   setBanker,
   setManualAmount,
+  setManualPresses,
+  setPressesBefore,
   setScore,
 } from "./mutations";
+import { defaultOneDown } from "./bets/defaults";
 import type { Player, Round } from "./types";
 
 const players: Player[] = [
@@ -214,5 +218,48 @@ describe("autofilling the last player", () => {
 
     round = setManualAmount(round, 7, "p1", 500);
     expect(round.manual[7].amounts.p4).toBe(0);
+  });
+});
+
+describe("presses", () => {
+  const withOneDown: Round = { ...base, bets: [defaultOneDown(players, "od1")] };
+  const presses = (round: Round) => {
+    const bet = round.bets[0];
+    return bet.kind === "onedown" ? bet.manualPresses : null;
+  };
+
+  it("stores a press before a hole against the hole before it", () => {
+    expect(presses(setPressesBefore(withOneDown, "od1", 1, 1))).toEqual({ 0: 1 });
+    expect(presses(setPressesBefore(withOneDown, "od1", 4, 2))).toEqual({ 3: 2 });
+    expect(presses(adjustPressesBefore(withOneDown, "od1", 10, 1))).toEqual({ 9: 1 });
+  });
+
+  it("allows at most four before a hole and never fewer than none", () => {
+    let round = withOneDown;
+    for (let i = 0; i < 6; i += 1) round = adjustPressesBefore(round, "od1", 7, 1);
+    expect(presses(round)).toEqual({ 6: 4 });
+    expect(presses(setPressesBefore(round, "od1", 7, 9))).toEqual({ 6: 4 });
+    expect(presses(setPressesBefore(round, "od1", 7, -3))).toEqual({});
+    expect(presses(adjustPressesBefore(withOneDown, "od1", 7, -1))).toEqual({});
+  });
+
+  it("rewrites the old list shape as counts instead of spreading it", () => {
+    const legacy: Round = {
+      ...withOneDown,
+      bets: [
+        {
+          ...defaultOneDown(players, "od1"),
+          manualPresses: [3, 3] as unknown as Record<number, number>,
+        },
+      ],
+    };
+    // Two presses after the 3rd stay two presses after the 3rd; a spread
+    // would have read the list as a press on the 1st tee.
+    expect(presses(setManualPresses(legacy, "od1", 5, 1))).toEqual({ 3: 2, 5: 1 });
+  });
+
+  it("leaves other bets alone", () => {
+    const round = setPressesBefore(withOneDown, "od1", 2, 1);
+    expect(presses(setPressesBefore(round, "nope", 2, 3))).toEqual({ 1: 1 });
   });
 });

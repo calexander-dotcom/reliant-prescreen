@@ -126,9 +126,11 @@ export interface OneDownConfig {
    */
   autoPressAt: number;
   /**
-   * Extra bets opened by hand, keyed by the hole they were called after:
-   * `{ 3: 1, 7: 2 }` is one press after the 3rd and two after the 7th. These
-   * add to any automatic bet on the same hole rather than replacing it.
+   * Extra bets opened by hand, keyed by the hole they were called after —
+   * one less than the hole they open on: `{ 0: 1, 3: 2 }` is one press
+   * before the 1st and two before the 4th. These add to any automatic bet
+   * on the same hole rather than replacing it, and can be called ahead of
+   * time, before the round starts.
    */
   manualPresses: Record<number, number>;
   /** Whether the stack runs all 18 or starts over at the 10th. */

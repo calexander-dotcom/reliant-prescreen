@@ -8,7 +8,9 @@ import { matchPayout, type HoleResult } from "./nassau";
  * checked: if either side is down in it, a fresh bet opens covering the next
  * hole to the end of that nine. So a side that keeps losing keeps handing over
  * new bets. A hole that leaves the newest bet all square opens nothing — which
- * is the moment a side presses by hand instead. At most one new bet opens per
+ * is the moment a side presses by hand instead. A press can be called before
+ * any hole, the 1st included, and ahead of time: it opens on that hole, once
+ * the round gets there. Left to itself the game opens at most one new bet per
  * hole, which is what makes the standing read as one number per hole played:
  *
  *     3-2-1-1-0        four bets to side A, one just opened at level
@@ -147,8 +149,12 @@ function statusFor(margin: number, holesRemaining: number): OneDownBet["status"]
  * oldest first, signed from side A. A bet that side B leads is parenthesised,
  * both because that is the convention and because `0--1` is unreadable.
  */
+/** The most presses that can be called before one hole. */
+export const MAX_PRESSES_PER_HOLE = 4;
+
 /**
- * How many bets were opened by hand after each hole.
+ * How many bets were opened by hand, keyed by the hole they were called after
+ * — one less than the hole they open on, so `0` is a press before the 1st.
  *
  * Tolerates the older shape, a bare list of holes, so rounds saved before
  * presses could be stacked still load.
@@ -174,6 +180,11 @@ export function pressCounts(
     }
   }
   return counts;
+}
+
+/** Presses called before this hole, i.e. bets opened by hand on it. */
+export function pressesBefore(config: OneDownConfig, hole: number): number {
+  return pressCounts(config.manualPresses).get(hole - 1) ?? 0;
 }
 
 function evaluateGreenies(
@@ -377,10 +388,17 @@ export function evaluateOneDown(
     const opened: Array<{ startHole: number; openedBy: OneDownBet["openedBy"] }> = [
       { startHole: range.startHole, openedBy: "start" },
     ];
+    // Presses called before the first hole of the stack — on the 1st tee, or
+    // the 10th — ride alongside the opening bet from the start.
+    for (let i = 0; i < (manual.get(range.startHole - 1) ?? 0); i += 1) {
+      opened.push({ startHole: range.startHole, openedBy: "manual" });
+    }
 
     for (let hole = range.startHole; hole <= range.endHole; hole += 1) {
       const result = results[hole];
       // Stop opening bets once the card runs out; the round is not there yet.
+      // A press called ahead for a later hole waits here too, so the standing
+      // only ever shows bets that are live.
       if (result === null || result === undefined) break;
       // Nothing left for a new bet to cover.
       if (hole >= range.endHole) break;
@@ -393,9 +411,10 @@ export function evaluateOneDown(
       const handPresses = manual.get(hole) ?? 0;
 
       /*
-       * The automatic bet and any presses called by hand all open here, each a
-       * separate bet over the same remaining holes. Two presses on one hole is
-       * two bets riding on the same golf, which is the point of calling them.
+       * The automatic bet and any presses called by hand before the next hole
+       * all open here, each a separate bet over the same remaining holes. Two
+       * presses on one hole is two bets riding on the same golf, which is the
+       * point of calling them.
        */
       const opening = (autoPress ? 1 : 0) + handPresses;
       for (let i = 0; i < opening; i += 1) {

@@ -122,8 +122,16 @@ export function Field({
   );
 }
 
-export const inputClass =
-  "w-full rounded-xl border-0 bg-neutral-100 px-3 py-2.5 text-base text-neutral-900 ring-1 ring-inset ring-neutral-200 placeholder:text-neutral-400 focus:ring-2 focus:ring-turf-500";
+/** The look of a text field, without a width, for a box that has its own. */
+export const inputBaseClass =
+  "rounded-xl border-0 bg-neutral-100 px-3 py-2.5 text-base text-neutral-900 ring-1 ring-inset ring-neutral-200 placeholder:text-neutral-400 focus:ring-2 focus:ring-turf-500";
+
+/**
+ * A full-width text field. A `w-*` added after this does not win — Tailwind
+ * orders its width utilities, not the class list — so a narrow field uses
+ * inputBaseClass instead.
+ */
+export const inputClass = `w-full ${inputBaseClass}`;
 
 export function Banner({
   tone = "info",

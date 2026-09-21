@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
-import { standingFor } from "@/lib/bets/onedown";
+import { MAX_PRESSES_PER_HOLE, pressesBefore, standingFor } from "@/lib/bets/onedown";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
 import {
   balanceHoleOnto,
@@ -12,7 +12,7 @@ import {
   setBanker,
   setManualAmount,
   setScore,
-  adjustManualPresses,
+  adjustPressesBefore,
   cycleBankerDouble,
   setHoleBanker,
   setGreenie,
@@ -533,7 +533,7 @@ export function HoleView({
 
       {comp.betResults.some((result) => result.kind === "onedown") ? (
         <Card>
-          <SectionTitle hint="A new bet opens on its own when someone goes down. Press to add one by hand.">
+          <SectionTitle hint="A new bet opens on its own when someone goes down. A press before a hole opens one by hand on it — up to four a hole, here or ahead of time on the Bets tab.">
             One downs
           </SectionTitle>
           <ul className="space-y-3">
@@ -543,7 +543,7 @@ export function HoleView({
                   result.kind === "onedown",
               )
               .map((result) => {
-                const presses = result.config.manualPresses?.[hole] ?? 0;
+                const presses = pressesBefore(result.config, hole);
                 const [sideA, sideB] = result.config.sides;
                 const stack = result.outcome.stacks.find(
                   (entry) => hole >= entry.startHole && hole <= entry.endHole,
@@ -657,14 +657,14 @@ export function HoleView({
 
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs font-semibold text-neutral-600">
-                        Presses after {hole}
+                        Presses before {hole}
                       </span>
                       <button
                         type="button"
-                        aria-label={`One fewer press after hole ${hole}`}
+                        aria-label={`One fewer press before hole ${hole}`}
                         disabled={presses === 0}
                         onClick={() =>
-                          update(adjustManualPresses(round, result.config.id, hole, -1))
+                          update(adjustPressesBefore(round, result.config.id, hole, -1))
                         }
                         className="h-9 w-9 shrink-0 rounded-lg bg-neutral-100 text-xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
                       >
@@ -679,11 +679,12 @@ export function HoleView({
                       </span>
                       <button
                         type="button"
-                        aria-label={`One more press after hole ${hole}`}
+                        aria-label={`One more press before hole ${hole}`}
+                        disabled={presses >= MAX_PRESSES_PER_HOLE}
                         onClick={() =>
-                          update(adjustManualPresses(round, result.config.id, hole, 1))
+                          update(adjustPressesBefore(round, result.config.id, hole, 1))
                         }
-                        className="h-9 w-9 shrink-0 rounded-lg bg-turf-50 text-xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200"
+                        className="h-9 w-9 shrink-0 rounded-lg bg-turf-50 text-xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
                       >
                         +
                       </button>

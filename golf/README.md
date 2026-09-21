@@ -81,8 +81,14 @@ The rules, precisely:
 - After each hole, look at the **newest** bet. If either side is down in it, a
   fresh bet opens covering the next hole to the end of that nine.
 - A hole that leaves the newest bet all square opens nothing. That is the
-  moment somebody **presses by hand** instead — and several presses can be
-  called on one hole, each opening its own bet over the same holes.
+  moment somebody **presses by hand** instead. A press is called **before a
+  hole** — any hole, the 1st included — and opens its own bet from that hole
+  to the end of the nine; up to four can be called before one hole, each a
+  separate bet over the same golf. Presses can be set ahead of time, before
+  the round starts, on the Bets tab (**Presses**, a count beside every hole)
+  or as you go on the hole screen (**Presses before N**). One called ahead for
+  a later hole waits until the round gets there, so the standing only ever
+  shows bets that are live.
 - Each bet pays its stake to **whoever leads it right now**. Ahead by one pays
   the same as ahead by five; a square bet pays nothing. So
   `+2/+1/0/0/-1/0` at $10 a bet is two bets to us and one to them: **up $10**.

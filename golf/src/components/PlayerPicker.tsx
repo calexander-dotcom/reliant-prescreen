@@ -21,7 +21,7 @@ import type { GhinProbe } from "@/lib/ghin/shape";
 import { probeVerdict } from "@/lib/ghin/shape";
 import type { Player, Round } from "@/lib/types";
 import { GhinDiagnostics } from "./GhinDiagnostics";
-import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
+import { Banner, Button, Card, Field, SectionTitle, Spinner, inputBaseClass, inputClass } from "./ui";
 
 export function PlayerPicker({
   round,
@@ -313,37 +313,43 @@ export function PlayerPicker({
                 label="Find a golfer on GHIN"
                 hint="A last name (first name too, if you like) or a full GHIN number. GHIN searches a name by state; leave the state blank to search the whole US."
               >
-                <div className="flex gap-2">
-                  <input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className={inputClass}
-                    placeholder="Chris Alexander  or  1234567"
-                    aria-label="Golfer name or GHIN number"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && query.trim().length >= 3) {
-                        void run(
-                          "search",
-                          () => apiSearchGolfers(token, query.trim(), searchState),
-                          setSearch,
-                          "Could not search GHIN.",
-                        );
-                      }
-                    }}
-                  />
-                  <input
-                    value={searchState}
-                    onChange={(event) => {
-                      const code = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
-                      setSearchState(code);
-                      saveSearchState(code);
-                    }}
-                    className={`${inputClass} w-16 shrink-0 text-center uppercase`}
-                    placeholder="FL"
-                    aria-label="State to search in"
-                    maxLength={2}
-                  />
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      // min-w-0 lets the field shrink to fit beside the state
+                      // box on a phone instead of forcing the row apart.
+                      className={`${inputClass} min-w-0 flex-1`}
+                      placeholder="Chris Alexander  or  1234567"
+                      aria-label="Golfer name or GHIN number"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && query.trim().length >= 3) {
+                          void run(
+                            "search",
+                            () => apiSearchGolfers(token, query.trim(), searchState),
+                            setSearch,
+                            "Could not search GHIN.",
+                          );
+                        }
+                      }}
+                    />
+                    <input
+                      value={searchState}
+                      onChange={(event) => {
+                        const code = event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+                        setSearchState(code);
+                        saveSearchState(code);
+                      }}
+                      className={`${inputBaseClass} w-16 shrink-0 text-center uppercase`}
+                      placeholder="FL"
+                      aria-label="State to search in"
+                      maxLength={2}
+                    />
+                  </div>
+                  {/* On its own row so the name field keeps the width to type in. */}
                   <Button
+                    full
                     onClick={() =>
                       void run(
                         "search",
