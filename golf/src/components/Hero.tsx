@@ -1,9 +1,10 @@
 import { LinkButton } from "./ui";
 
 /**
- * The welcome: a course at first light, drawn here rather than photographed
- * so it costs nothing to load and belongs to nobody else, with the ball, the
- * name and one thing to do. Bleeds to the edges of the phone.
+ * The welcome: the owner's own photograph of a course at sunrise, with the
+ * ball, the name and one thing to do. Bleeds to the edges of the phone. The
+ * drawn scene underneath shows until the photo arrives, and instead of it if
+ * it never does.
  */
 export function Hero() {
   return (
@@ -23,11 +24,6 @@ export function Hero() {
           <linearGradient id="fairway" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#4c9a54" />
             <stop offset="1" stopColor="#2f6d3a" />
-          </linearGradient>
-          <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#0f2417" stopOpacity="0" />
-            <stop offset="0.45" stopColor="#0f2417" stopOpacity="0.35" />
-            <stop offset="1" stopColor="#0f2417" stopOpacity="0.92" />
           </linearGradient>
           <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
             <stop offset="0" stopColor="#fff4c2" />
@@ -71,9 +67,18 @@ export function Hero() {
         <rect x="305" y="240" width="2.4" height="80" fill="#f7f7f5" />
         <path d="M307.4 242 L 336 251 L 307.4 260 Z" fill="#f2c14e" />
 
-        {/* Dusk over the lower half so the words read. */}
-        <rect width="390" height="600" fill="url(#dusk)" />
       </svg>
+
+      <img
+        src="/hero.jpg"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover object-[62%_40%]"
+      />
+      {/* Dusk over the lower half so the words read. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0f2417]/40 to-[#0f2417]/95"
+      />
 
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center px-6 pb-8 text-center">
         <svg viewBox="0 0 512 512" aria-hidden="true" className="h-24 w-24 drop-shadow-lg">
