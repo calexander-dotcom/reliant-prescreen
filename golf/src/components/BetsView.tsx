@@ -92,7 +92,7 @@ export function BetsView({
 
       {sided && !readOnly && update ? (
         <Card>
-          <SectionTitle hint="Positive numbers and green mean that player's side is up. Anyone following the round sees it the same way.">
+          <SectionTitle hint="Positive numbers and green mean that player's side is up. Anyone following the round starts from this and can pick their own.">
             Read the bets as
           </SectionTitle>
           <div role="group" aria-label="Read the bets as" className="flex flex-wrap gap-2">

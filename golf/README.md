@@ -144,7 +144,9 @@ in **bold**, so it can be told from the bets the game opened itself.
 The standing is written from the **scorer's side**: positive numbers and green
 mean you are up, whichever side of the bet you were put on. The app takes the
 scorer to be the "me" player when they are in the round, and the Bets tab has a
-**Read the bets as** row to change it. A shared link reads the same way.
+**Read the bets as** row to change it. A shared link starts the same way, and
+anyone following it can pick the player they want to read the bets as; that
+choice stays on their phone and changes nothing for the scorer.
 
 ### Banker
 
