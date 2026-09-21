@@ -13,7 +13,12 @@ import { imbalance, ledgerTotals, normalizeAmounts, zeroAmounts } from "./ledger
 import { labelledSides } from "./sides";
 import { evaluateNassau, type HoleResult, type NassauOutcome } from "./nassau";
 import { evaluateBanker, type BankerOutcome } from "./banker";
-import { evaluateOneDown, marginsByHole, type OneDownOutcome } from "./onedown";
+import {
+  evaluateOneDown,
+  standingByHole,
+  type OneDownOutcome,
+  type StandingEntry,
+} from "./onedown";
 import { settle, settlementResidual, type Transfer } from "./settle";
 import { evaluateSkins, type SkinsOutcome } from "./skins";
 
@@ -65,7 +70,7 @@ export type BetResult =
       config: Extract<BetConfig, { kind: "onedown" }>;
       outcome: OneDownOutcome;
       /** The stack's margins after each finished hole, for the card. */
-      byHole: Record<number, number[] | null>;
+      byHole: Record<number, StandingEntry[] | null>;
       /** What each side counted on each hole, for the card. */
       sideScores: Record<number, SideScores>;
     }
@@ -220,7 +225,7 @@ export function computeRound(round: Round): RoundComputation {
         kind: "onedown",
         config: bet,
         outcome,
-        byHole: marginsByHole(bet, round.holeCount, results, playerIds),
+        byHole: standingByHole(bet, round.holeCount, results, playerIds),
         sideScores,
       });
       for (const id of playerIds) betTotals[id] += outcome.totals[id] ?? 0;

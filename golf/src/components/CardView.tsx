@@ -3,7 +3,8 @@
 import type { BetResult, RoundComputation } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
-import { formatStanding, pressesBefore } from "@/lib/bets/onedown";
+import type { StandingEntry } from "@/lib/bets/onedown";
+import { Standing } from "./Standing";
 import { formatCompact } from "@/lib/money";
 import type { Round } from "@/lib/types";
 import { moneyTone } from "./MoneyByNine";
@@ -39,12 +40,15 @@ export function CardView({
     (result): result is Extract<BetResult, { kind: "onedown" }> => result.kind === "onedown",
   );
   const oneDownSign = oneDown ? perspectiveSign(oneDown.config.sides, round.perspectiveId) : 1;
-  const standingAt = (hole: number): string | null => {
-    const margins = oneDown?.byHole[hole];
-    return margins ? formatStanding(margins.map((margin) => margin * oneDownSign)) : null;
+  const standingAt = (hole: number): StandingEntry[] | null => {
+    const entries = oneDown?.byHole[hole];
+    return entries
+      ? entries.map((entry) => ({
+          ...entry,
+          margin: entry.margin === 0 ? 0 : entry.margin * oneDownSign,
+        }))
+      : null;
   };
-  // Extra presses called before a hole, marked on that hole's row.
-  const pressesAt = (hole: number): number => (oneDown ? pressesBefore(oneDown.config, hole) : 0);
   // What each side counted on the hole — best ball, or both partners added on
   // an aggregate hole — the scorer's side first, so the standing can be
   // checked hole by hole.
@@ -97,7 +101,6 @@ export function CardView({
                 <>
                   <th className="px-1 py-2 text-center font-semibold">Sides</th>
                   <th className="px-1 py-2 text-left font-semibold">1 down</th>
-                  <th className="px-1 py-2 text-center font-semibold">Press</th>
                 </>
               ) : null}
             </tr>
@@ -118,7 +121,6 @@ export function CardView({
                   readOnly={readOnly}
                   standingAt={oneDown ? standingAt : null}
                   sidesAt={oneDown ? sidesAt : null}
-                  pressesAt={oneDown ? pressesAt : null}
                 />
               ),
             )}
@@ -134,7 +136,6 @@ export function CardView({
               ))}
               {oneDown ? (
                 <>
-                  <td />
                   <td />
                   <td />
                 </>
@@ -154,7 +155,6 @@ export function CardView({
               ))}
               {oneDown ? (
                 <>
-                  <td />
                   <td />
                   <td />
                 </>
@@ -179,7 +179,6 @@ export function CardView({
                 })}
                 {oneDown ? (
                 <>
-                  <td />
                   <td />
                   <td />
                 </>
@@ -210,7 +209,6 @@ export function CardView({
               })}
               {oneDown ? (
                 <>
-                  <td />
                   <td />
                   <td />
                 </>
@@ -259,7 +257,7 @@ export function CardView({
           {oneDown && usSide && themSide
             ? ` Sides is what decided each hole — ${usSide.name} then ${themSide.name}: the best ball, or on an aggregate hole (marked agg) both partners added together${
                 oneDown.config.basis === "net" ? ", net" : ""
-              }. P marks a hole an extra press was called before.`
+              }. In 1 down, a press called by hand is in bold.`
             : ""}
         </p>
       </Card>
@@ -279,17 +277,14 @@ function HoleGroup({
   readOnly,
   standingAt,
   sidesAt,
-  pressesAt,
 }: {
   label: string;
   /** This nine's money per player, shown under the score subtotal. */
   nineMoney: Record<string, number>;
   /** The one-down standing after a hole, when that is the game. */
-  standingAt: ((hole: number) => string | null) | null;
+  standingAt: ((hole: number) => StandingEntry[] | null) | null;
   /** What each side counted on the hole, scorer's side first. */
   sidesAt: ((hole: number) => SideScoresView | null) | null;
-  /** Extra presses called before the hole. */
-  pressesAt: ((hole: number) => number) | null;
   holes: RoundComputation["holes"];
   round: Round;
   comp: RoundComputation;
@@ -305,6 +300,7 @@ function HoleGroup({
     <>
       {holes.map((hole) => {
         const holeStatus = status[hole.number - 1];
+        const standing = standingAt ? standingAt(hole.number) : null;
         return (
           <tr
             key={hole.number}
@@ -348,10 +344,9 @@ function HoleGroup({
             {sidesAt ? <SidesCell scores={sidesAt(hole.number)} /> : null}
             {standingAt ? (
               <td className="whitespace-nowrap px-1 py-1.5 text-left font-mono text-[0.65rem] text-neutral-700">
-                {standingAt(hole.number) ?? ""}
+                {standing ? <Standing entries={standing} empty="" /> : ""}
               </td>
             ) : null}
-            {pressesAt ? <PressCell count={pressesAt(hole.number)} /> : null}
           </tr>
         );
       })}
@@ -379,27 +374,8 @@ function HoleGroup({
         })}
         {sidesAt ? <td /> : null}
         {standingAt ? <td /> : null}
-        {pressesAt ? <td /> : null}
       </tr>
     </>
-  );
-}
-
-/** A hole an extra press was called before: P, or P×2 and up. */
-function PressCell({ count }: { count: number }) {
-  return (
-    <td className="px-1 py-1.5 text-center text-xs">
-      {count > 0 ? (
-        <span
-          className="rounded bg-amber-100 px-1 font-bold text-amber-900"
-          aria-label={`${count} extra press${count === 1 ? "" : "es"} before this hole`}
-        >
-          {count === 1 ? "P" : `P×${count}`}
-        </span>
-      ) : (
-        ""
-      )}
-    </td>
   );
 }
 

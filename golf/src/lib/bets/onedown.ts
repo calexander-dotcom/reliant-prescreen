@@ -335,6 +335,46 @@ export function marginsByHole(
   playerIds: PlayerId[],
 ): Record<number, number[] | null> {
   const out: Record<number, number[] | null> = {};
+  const entries = standingByHole(config, holeCount, results, playerIds);
+  for (let hole = 1; hole <= holeCount; hole += 1) {
+    const atHole = entries[hole];
+    out[hole] = atHole ? atHole.map((entry) => entry.margin) : null;
+  }
+  return out;
+}
+
+/** The stack's standing as read from one side; see perspectiveSign. */
+export function standingFor(stack: OneDownStack, sign: 1 | -1): string {
+  return formatStanding(stack.bets.map((bet) => bet.margin * sign));
+}
+
+/**
+ * One number of the standing: the bet's margin, and whether the bet was a
+ * press called by hand — written in bold, so it can be told from the bets
+ * the game opened itself.
+ */
+export interface StandingEntry {
+  margin: number;
+  pressed: boolean;
+}
+
+/** The stack's standing as entries read from one side, oldest bet first. */
+export function standingEntries(stack: OneDownStack, sign: 1 | -1): StandingEntry[] {
+  return stack.bets.map((bet) => ({
+    // A square bet stays a plain 0 whichever way it is read, never -0.
+    margin: bet.margin === 0 ? 0 : bet.margin * sign,
+    pressed: bet.openedBy === "manual",
+  }));
+}
+
+/** As marginsByHole, with each number marked as a press or not. */
+export function standingByHole(
+  config: OneDownConfig,
+  holeCount: number,
+  results: Record<number, HoleResult>,
+  playerIds: PlayerId[],
+): Record<number, StandingEntry[] | null> {
+  const out: Record<number, StandingEntry[] | null> = {};
   for (let hole = 1; hole <= holeCount; hole += 1) {
     const through: Record<number, HoleResult> = {};
     for (let h = 1; h <= holeCount; h += 1) {
@@ -347,14 +387,9 @@ export function marginsByHole(
     for (let h = stack?.startHole ?? 1; complete && h <= hole; h += 1) {
       if (through[h] === null) complete = false;
     }
-    out[hole] = stack && complete ? stack.bets.map((bet) => bet.margin) : null;
+    out[hole] = stack && complete ? standingEntries(stack, 1) : null;
   }
   return out;
-}
-
-/** The stack's standing as read from one side; see perspectiveSign. */
-export function standingFor(stack: OneDownStack, sign: 1 | -1): string {
-  return formatStanding(stack.bets.map((bet) => bet.margin * sign));
 }
 
 export function evaluateOneDown(
