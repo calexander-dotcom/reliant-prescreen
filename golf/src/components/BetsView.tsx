@@ -12,6 +12,7 @@ import {
 import { Standing } from "./Standing";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
 import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
+import { saveHouseRules } from "@/lib/storage";
 import { formatMoney, formatSigned } from "@/lib/money";
 import type { OneDownConfig, Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
@@ -24,14 +25,27 @@ export function BetsView({
   comp,
   update,
   readOnly = false,
+  startEditing,
 }: {
   round: Round;
   comp: RoundComputation;
   update?: (next: Round) => void;
   /** Followers see the standings but no way to change the terms. */
   readOnly?: boolean;
+  /** Open on the editor, for the Setup shortcut on the Rounds list. */
+  startEditing?: boolean;
 }) {
-  const [editing, setEditing] = useState(!readOnly && round.bets.length === 0);
+  const [editing, setEditing] = useState(
+    !readOnly && (startEditing === true || round.bets.length === 0),
+  );
+  const toggleEditing = () => {
+    // Leaving the editor: what the group settled on becomes the house rules.
+    if (editing) {
+      const oneDown = round.bets.find((bet) => bet.kind === "onedown");
+      if (oneDown && oneDown.kind === "onedown") saveHouseRules(oneDown);
+    }
+    setEditing((value) => !value);
+  };
 
   const nameOf = (playerId: string) =>
     round.players.find((player) => player.id === playerId)?.name ?? "—";
@@ -101,7 +115,7 @@ export function BetsView({
             Bet setup
           </SectionTitle>
           {readOnly ? null : (
-            <Button variant="secondary" onClick={() => setEditing((value) => !value)}>
+            <Button variant="secondary" onClick={toggleEditing}>
               {editing ? "Done" : "Edit"}
             </Button>
           )}

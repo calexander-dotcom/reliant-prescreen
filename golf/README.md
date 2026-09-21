@@ -46,6 +46,17 @@ The sign lives on the **+ / −** button next to each amount, not in the number
 you type. The iOS decimal keypad has no minus key, and half of every entry here
 is money lost.
 
+### Changing the setup, and the house rules
+
+The bet setup — the stake, where a new bet opens (1 down, 2 down, by hand),
+per nine or all 18, the overall, greenies, tee flips, aggregate holes, sides —
+can be changed at any point in a round from the Bets tab (**Edit**), and every
+round on the Rounds list has a **Setup** shortcut straight to it. Whatever a
+round starts with, or is left with when the editor is closed, becomes the
+**house rules** on that phone: the next new round shows the one-down game on
+those terms as soon as two players are in, ready to change before it starts.
+The sides, presses and answers are never carried over.
+
 ### Settling up
 
 The Settle tab turns everyone's net position into the fewest payments that

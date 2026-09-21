@@ -1,15 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BetEditor } from "@/components/BetEditor";
 import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
 import { signInAgain } from "@/lib/ghin/session";
+import { defaultSides } from "@/lib/bets/defaults";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
-import { defaultOneDown } from "@/lib/bets/defaults";
-import { createRound, newId, saveRound, saveToken } from "@/lib/storage";
+import { createRound, houseOneDown, newId, saveHouseRules, saveRound, saveToken } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
 const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
@@ -32,6 +32,37 @@ export default function NewRoundPage() {
   useEffect(() => {
     setRound(createRound());
   }, []);
+
+  // The house game, on the group's remembered terms, appears as soon as there
+  // are two players, so the stake and the rest are in view before the round
+  // starts. Once, so that choosing "no automatic game" sticks.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!round || seeded.current) return;
+    if (round.players.length >= 2 && round.bets.length === 0) {
+      seeded.current = true;
+      setRound({ ...round, bets: [houseOneDown(round.players, newId())] });
+    }
+  }, [round]);
+
+  // Sides follow the roster while it is still being put together: a player
+  // added after the game was set up goes on a side rather than nowhere.
+  useEffect(() => {
+    if (!round) return;
+    const ids = new Set(round.players.map((player) => player.id));
+    let changed = false;
+    const bets = round.bets.map((bet) => {
+      if (bet.kind !== "onedown" && bet.kind !== "nassau") return bet;
+      const onSides = new Set([...bet.sides[0].playerIds, ...bet.sides[1].playerIds]);
+      const stale =
+        round.players.some((player) => !onSides.has(player.id)) ||
+        [...onSides].some((id) => !ids.has(id));
+      if (!stale) return bet;
+      changed = true;
+      return { ...bet, sides: defaultSides(round.players) };
+    });
+    if (changed) setRound({ ...round, bets });
+  }, [round]);
 
   /**
    * A lookup has shown the GHIN session is dead. With the password kept on
@@ -65,7 +96,10 @@ export default function NewRoundPage() {
       round.bets.length > 0
         ? round.bets
         // One game, since that is how a round is actually played.
-        : [defaultOneDown(round.players, newId())];
+        : [houseOneDown(round.players, newId())];
+    // What this round starts with is what the next one starts from.
+    const oneDown = bets.find((bet) => bet.kind === "onedown");
+    if (oneDown && oneDown.kind === "onedown") saveHouseRules(oneDown);
     const next = { ...round, bets, courseName: round.courseName || "Untitled round" };
     saveRound(next);
     router.push(`/round/${next.id}`);

@@ -92,7 +92,7 @@ function RoundRow({ round, onDelete }: { round: Round; onDelete: () => void }) {
   );
 
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex items-center gap-2 py-3">
       <Link href={`/round/${round.id}`} className="min-w-0 flex-1">
         <div className="truncate font-bold text-neutral-900">
           {round.courseName || "Untitled round"}
@@ -106,6 +106,9 @@ function RoundRow({ round, onDelete }: { round: Round; onDelete: () => void }) {
             : ""}
         </div>
       </Link>
+      <LinkButton href={`/round/${round.id}?tab=bets&edit=1`} variant="secondary">
+        Setup
+      </LinkButton>
       <Button
         variant="ghost"
         onClick={() => {
