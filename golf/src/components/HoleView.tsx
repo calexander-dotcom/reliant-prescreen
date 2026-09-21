@@ -285,6 +285,59 @@ export function HoleView({
           );
         })}
 
+      {comp.betResults
+        .filter(
+          (result): result is Extract<typeof result, { kind: "onedown" }> =>
+            result.kind === "onedown",
+        )
+        .map((result) => {
+          const presses = pressesBefore(result.config, hole);
+          const pressSummary =
+            presses === 0
+              ? `No press before ${hole}.`
+              : `${presses} press${presses === 1 ? "" : "es"} before ${hole}.`;
+          return (
+            <CollapsibleCard
+              key={`press-${result.config.id}`}
+              title="Press"
+              hint={`A press before ${hole} opens another bet by hand from here to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. The game opens its own when someone is down.`}
+              summary={pressSummary}
+              storageKey="hole.press"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-neutral-700">
+                  Presses before {hole}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`One fewer press before hole ${hole}`}
+                  disabled={presses === 0}
+                  onClick={() => update(adjustPressesBefore(round, result.config.id, hole, -1))}
+                  className="h-11 w-11 shrink-0 rounded-xl bg-neutral-100 text-2xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
+                >
+                  &minus;
+                </button>
+                <span
+                  className={`tabular w-10 text-center text-xl font-bold ${
+                    presses > 0 ? "text-turf-800" : "text-neutral-400"
+                  }`}
+                >
+                  {presses}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`One more press before hole ${hole}`}
+                  disabled={presses >= MAX_PRESSES_PER_HOLE}
+                  onClick={() => update(adjustPressesBefore(round, result.config.id, hole, 1))}
+                  className="h-11 w-11 shrink-0 rounded-xl bg-turf-50 text-2xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
+                >
+                  +
+                </button>
+              </div>
+            </CollapsibleCard>
+          );
+        })}
+
       <CollapsibleCard
         title="Money this hole"
         hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero."
@@ -568,7 +621,7 @@ export function HoleView({
 
       {comp.betResults.some((result) => result.kind === "onedown") ? (
         <Card>
-          <SectionTitle hint="A new bet opens on its own when someone goes down. The side that wins the tee flip starts one up, which opens the first: +1/0. A press before a hole opens one by hand on it — up to four a hole, here or ahead of time on the Bets tab.">
+          <SectionTitle hint="A new bet opens on its own when someone goes down. The side that wins the tee flip starts one up, which opens the first: +1/0. Presses by hand go in the Press box above, or ahead of time on the Bets tab.">
             One downs
           </SectionTitle>
           <ul className="space-y-3">
@@ -578,7 +631,6 @@ export function HoleView({
                   result.kind === "onedown",
               )
               .map((result) => {
-                const presses = pressesBefore(result.config, hole);
                 const [sideA, sideB] = result.config.sides;
                 const stack = result.outcome.stacks.find(
                   (entry) => hole >= entry.startHole && hole <= entry.endHole,
@@ -690,40 +742,6 @@ export function HoleView({
                       </div>
                     </dl>
 
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs font-semibold text-neutral-600">
-                        Presses before {hole}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`One fewer press before hole ${hole}`}
-                        disabled={presses === 0}
-                        onClick={() =>
-                          update(adjustPressesBefore(round, result.config.id, hole, -1))
-                        }
-                        className="h-9 w-9 shrink-0 rounded-lg bg-neutral-100 text-xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
-                      >
-                        &minus;
-                      </button>
-                      <span
-                        className={`tabular w-8 text-center text-base font-bold ${
-                          presses > 0 ? "text-turf-800" : "text-neutral-400"
-                        }`}
-                      >
-                        {presses}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`One more press before hole ${hole}`}
-                        disabled={presses >= MAX_PRESSES_PER_HOLE}
-                        onClick={() =>
-                          update(adjustPressesBefore(round, result.config.id, hole, 1))
-                        }
-                        className="h-9 w-9 shrink-0 rounded-lg bg-turf-50 text-xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
-                      >
-                        +
-                      </button>
-                    </div>
                   </li>
                 );
               })}
