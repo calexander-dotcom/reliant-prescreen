@@ -6,6 +6,7 @@ import { computeRound } from "@/lib/bets";
 import { formatSigned } from "@/lib/money";
 import { deleteRound, loadRounds } from "@/lib/storage";
 import type { Round } from "@/lib/types";
+import { Hero } from "@/components/Hero";
 import { Banner, Button, Card, LinkButton, SectionTitle } from "@/components/ui";
 
 export default function HomePage() {
@@ -17,16 +18,7 @@ export default function HomePage() {
 
   return (
     <main className="space-y-5">
-      <header className="pt-2">
-        <h1 className="text-3xl font-black tracking-tight text-turf-900">One Downs</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          Your card and the money, hole by hole. Every hole has to net to zero.
-        </p>
-      </header>
-
-      <LinkButton href="/new" full>
-        Start a round
-      </LinkButton>
+      <Hero />
 
       <Card>
         <SectionTitle hint="Saved on this device. Works with no signal.">
@@ -92,8 +84,9 @@ function RoundRow({ round, onDelete }: { round: Round; onDelete: () => void }) {
   );
 
   return (
-    <li className="flex items-center gap-2 py-3">
-      <Link href={`/round/${round.id}`} className="min-w-0 flex-1">
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1.5 py-3">
+      {/* The name gets the whole width; the buttons sit under it. */}
+      <Link href={`/round/${round.id}`} className="min-w-0 basis-full">
         <div className="truncate font-bold text-neutral-900">
           {round.courseName || "Untitled round"}
         </div>
