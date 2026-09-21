@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
-import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
+import { perspectiveSign } from "@/lib/bets/nassau";
 import { MAX_PRESSES_PER_HOLE, pressesBefore, standingFor } from "@/lib/bets/onedown";
 import { TeeFlipChooser, teeName } from "./TeeFlipChooser";
 import { TotalsStrip } from "./TotalsStrip";
@@ -157,9 +157,7 @@ export function HoleView({
 
       {comp.betResults.some((result) => result.kind === "onedown") ? (
         <Card>
-          <SectionTitle hint="Oldest bet first, from your side. Updates as scores and presses go in.">
-            One downs
-          </SectionTitle>
+          <SectionTitle>One downs</SectionTitle>
           <ul className="space-y-3">
             {comp.betResults
               .filter(
@@ -167,37 +165,23 @@ export function HoleView({
                   result.kind === "onedown",
               )
               .map((result) => {
-                const [sideA, sideB] = result.config.sides;
                 const stack = result.outcome.stacks.find(
                   (entry) => hole >= entry.startHole && hole <= entry.endHole,
                 );
-                // Each line pairs with the figure it actually describes: the
-                // stack standing with the stack money, the 18-hole bet on its
-                // own, then the two added up.
-                // Money per head where that is how it is said: a pair seven
-                // bets up is "up $70 each", not "up $140".
-                const upText = (cents: number) => {
-                  if (cents === 0) return "all square";
-                  const leader = cents > 0 ? sideA : sideB;
-                  const up = sideUp(Math.abs(cents), leader, result.config.stakeMode);
-                  return `${leader.name} up ${formatMoney(up.cents)}${up.each ? " each" : ""}`;
-                };
-                const stackMoney = stack?.sideTotals[0] ?? 0;
-                const overallMoney = result.outcome.overallSideTotals[0];
-                const totalMoney = result.outcome.sideTotals[0];
-                // Read from the scorer's side: positive and green are "us".
+                // Read from the scorer's side: positive is "us".
                 const sign = perspectiveSign(result.config.sides, round.perspectiveId);
+                // The 18-hole bet as one signed number, like the standing.
+                const overallMargin = (result.outcome.overall?.margin ?? 0) * sign;
+                const overallText =
+                  overallMargin === 0
+                    ? "even"
+                    : overallMargin > 0
+                      ? `+${overallMargin}`
+                      : String(overallMargin);
 
                 return (
                   <li key={result.config.id}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-semibold text-neutral-900">
-                        {result.config.label}
-                      </span>
-                      <span className="text-xs font-semibold text-neutral-500">
-                        {stack?.label}
-                      </span>
-                    </div>
+                    <div className="text-xs font-semibold text-neutral-500">{stack?.label}</div>
                     {result.config.alternateAggregate !== false &&
                     aggregateHoles(round.holeCount).includes(hole) ? (
                       <p className="mt-0.5 text-xs font-semibold text-amber-700">
@@ -205,79 +189,26 @@ export function HoleView({
                       </p>
                     ) : null}
 
-                    <div className="tabular mt-0.5 break-all font-mono text-lg font-bold text-turf-900">
+                    <div className="tabular mt-0.5 break-all font-mono text-2xl font-bold text-turf-900">
                       {stack ? standingFor(stack, sign) || "—" : "—"}
                     </div>
 
-                    <dl className="mt-1 space-y-0.5 text-xs">
-                      <div className="flex justify-between gap-2">
-                        <dt className="text-neutral-500">{stack?.label}</dt>
-                        <dd
+                    {result.outcome.overall ? (
+                      <div className="mt-1 text-sm text-neutral-700">
+                        Overall:{" "}
+                        <span
                           className={`tabular font-semibold ${
-                            stackMoney === 0
-                              ? "text-neutral-400"
-                              : stackMoney * sign > 0
+                            overallMargin === 0
+                              ? "text-neutral-500"
+                              : overallMargin > 0
                                 ? "text-turf-700"
                                 : "text-red-700"
                           }`}
                         >
-                          {upText(stackMoney)}
-                        </dd>
+                          {overallText}
+                        </span>
                       </div>
-                      {result.outcome.overall ? (
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-neutral-500">
-                            Overall 18 ({formatMoney(result.outcome.overall.amount)})
-                          </dt>
-                          <dd
-                            className={`tabular font-semibold ${
-                              overallMoney === 0
-                                ? "text-neutral-400"
-                                : overallMoney * sign > 0
-                                  ? "text-turf-700"
-                                  : "text-red-700"
-                            }`}
-                          >
-                            {upText(overallMoney)}
-                          </dd>
-                        </div>
-                      ) : null}
-                      {result.outcome.greenies.enabled ? (
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-neutral-500">
-                            Greenies {result.outcome.greenies.counts[sign > 0 ? 0 : 1]}–
-                            {result.outcome.greenies.counts[sign > 0 ? 1 : 0]}
-                            {result.outcome.greenies.sweptBy !== null ? " · swept, doubled" : ""}
-                          </dt>
-                          <dd
-                            className={`tabular font-semibold ${
-                              result.outcome.greenies.sideTotals[0] === 0
-                                ? "text-neutral-400"
-                                : result.outcome.greenies.sideTotals[0] * sign > 0
-                                  ? "text-turf-700"
-                                  : "text-red-700"
-                            }`}
-                          >
-                            {upText(result.outcome.greenies.sideTotals[0])}
-                          </dd>
-                        </div>
-                      ) : null}
-                      <div className="flex justify-between gap-2 border-t border-neutral-100 pt-0.5">
-                        <dt className="font-semibold text-neutral-700">Total</dt>
-                        <dd
-                          className={`tabular font-bold ${
-                            totalMoney === 0
-                              ? "text-neutral-400"
-                              : totalMoney * sign > 0
-                                ? "text-turf-700"
-                                : "text-red-700"
-                          }`}
-                        >
-                          {upText(totalMoney)}
-                        </dd>
-                      </div>
-                    </dl>
-
+                    ) : null}
                   </li>
                 );
               })}
