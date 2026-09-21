@@ -52,7 +52,7 @@ export function defaultOneDown(players: Player[], id: string): OneDownConfig {
     sides: defaultSides(players),
     basis: "net",
     autoPressAt: 1,
-    manualPresses: [],
+    manualPresses: {},
     // The bet ends at the turn and starts again on the 10th.
     reset: "nines",
     // Plus one bet over all 18 at double, with no presses on it.

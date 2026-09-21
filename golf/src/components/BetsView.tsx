@@ -3,11 +3,16 @@
 import { useState } from "react";
 import type { BetResult, RoundComputation } from "@/lib/bets";
 import { matchStanding } from "@/lib/bets/nassau";
-import { betStanding, standingFor } from "@/lib/bets/onedown";
+import {
+  MAX_PRESSES_PER_HOLE,
+  betStanding,
+  pressesBefore,
+  standingFor,
+} from "@/lib/bets/onedown";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
-import { setPerspective } from "@/lib/mutations";
+import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { formatMoney, formatSigned } from "@/lib/money";
-import type { Round } from "@/lib/types";
+import type { OneDownConfig, Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
 import { Banner, Button, Card, SectionTitle } from "./ui";
 
@@ -51,6 +56,20 @@ export function BetsView({
           perspectiveId={round.perspectiveId}
         />
       ))}
+
+      {!readOnly && update
+        ? round.bets
+            .filter((bet): bet is OneDownConfig => bet.kind === "onedown")
+            .map((bet) => (
+              <PressesCard
+                key={bet.id}
+                round={round}
+                bet={bet}
+                onlyBet={round.bets.filter((entry) => entry.kind === "onedown").length === 1}
+                update={update}
+              />
+            ))
+        : null}
 
       {sided && !readOnly && update ? (
         <Card>
@@ -229,6 +248,100 @@ function BetResultCard({
   );
 }
 
+/**
+ * Presses called before each hole, for the whole card at once, so they can
+ * be set on the 1st tee or the night before. A press before a hole opens
+ * another bet by hand from that hole to the end of its nine.
+ */
+function PressesCard({
+  round,
+  bet,
+  onlyBet,
+  update,
+}: {
+  round: Round;
+  bet: OneDownConfig;
+  onlyBet: boolean;
+  update: (next: Round) => void;
+}) {
+  const holes = Array.from({ length: round.holeCount }, (_, index) => index + 1);
+  const called = holes.reduce((sum, hole) => sum + pressesBefore(bet, hole), 0);
+  // Front nine down the left, back nine down the right, so a phone shows
+  // the whole card without scrolling.
+  const columns =
+    round.holeCount > 9 ? [holes.slice(0, 9), holes.slice(9)] : [holes];
+
+  return (
+    <Card>
+      <SectionTitle
+        hint={`A press before a hole opens another bet by hand from that hole to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. Set them here before the round or on the hole screen as you go.`}
+      >
+        Presses{onlyBet ? "" : ` · ${bet.label}`}
+      </SectionTitle>
+      <div
+        role="group"
+        aria-label={`Presses before each hole${onlyBet ? "" : ` for ${bet.label}`}`}
+        className="grid grid-cols-2 gap-x-4 gap-y-1"
+      >
+        {columns.map((column, columnIndex) => (
+          <ul key={columnIndex} className="space-y-1">
+            {column.map((hole) => {
+              const count = pressesBefore(bet, hole);
+              return (
+                <li key={hole} className="flex items-center gap-1.5">
+                  <span
+                    className={`tabular w-7 shrink-0 text-right text-sm font-semibold ${
+                      count > 0 ? "text-turf-900" : "text-neutral-500"
+                    }`}
+                  >
+                    {hole}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`One fewer press before hole ${hole}`}
+                    disabled={count === 0}
+                    onClick={() => update(adjustPressesBefore(round, bet.id, hole, -1))}
+                    className="h-8 w-8 shrink-0 rounded-lg bg-neutral-100 text-lg font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
+                  >
+                    &minus;
+                  </button>
+                  <span
+                    className={`tabular w-6 text-center text-sm font-bold ${
+                      count > 0 ? "text-turf-800" : "text-neutral-300"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`One more press before hole ${hole}`}
+                    disabled={count >= MAX_PRESSES_PER_HOLE}
+                    onClick={() => update(adjustPressesBefore(round, bet.id, hole, 1))}
+                    className="h-8 w-8 shrink-0 rounded-lg bg-turf-50 text-lg font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
+                  >
+                    +
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-neutral-500">
+        {called === 0
+          ? "No presses called ahead."
+          : `${called} press${called === 1 ? "" : "es"} called: ${holes
+              .filter((hole) => pressesBefore(bet, hole) > 0)
+              .map((hole) => {
+                const count = pressesBefore(bet, hole);
+                return `${count > 1 ? `${count} ` : ""}before ${hole}`;
+              })
+              .join(", ")}.`}
+      </p>
+    </Card>
+  );
+}
+
 /** For the summary line under a game's name. */
 function stakeWord(mode: "per-side" | "per-player"): string {
   return mode === "per-player" ? "per player" : "per side";
@@ -294,7 +407,7 @@ function OneDownBody({
               >
                 <span className="min-w-0 truncate text-neutral-700">
                   <span className="font-semibold text-neutral-900">
-                    {bet.startHole === stack.startHole
+                    {bet.openedBy === "start"
                       ? "Opening bet"
                       : `From hole ${bet.startHole}`}
                   </span>

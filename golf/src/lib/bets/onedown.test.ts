@@ -3,10 +3,13 @@ import { sumCents } from "../money";
 import type { OneDownConfig, Side } from "../types";
 import { sideUp, type HoleResult } from "./nassau";
 import {
+  MAX_PRESSES_PER_HOLE,
   betStanding,
   evaluateOneDown,
   formatStanding,
   marginsByHole,
+  pressCounts,
+  pressesBefore,
   standingFor,
 } from "./onedown";
 
@@ -590,5 +593,84 @@ describe("greenies", () => {
       par,
     );
     expect(outcome.greenies.totals).toEqual({ a1: 500, a2: 500, b1: -500, b2: -500 });
+  });
+});
+
+describe("presses called before a hole, ahead of time", () => {
+  // A press before the 1st is stored against hole 0, the hole "before" it.
+  const pressedOnTheFirstTee = config({ manualPresses: { 0: 1 } });
+
+  it("rides alongside the opening bet from the start", () => {
+    const outcome = evaluateOneDown(pressedOnTheFirstTee, 18, through(), ids);
+    const stack = outcome.stacks[0];
+    expect(stack.standing).toBe("0/0");
+    expect(stack.bets.map((bet) => [bet.startHole, bet.openedBy])).toEqual([
+      [1, "start"],
+      [1, "manual"],
+    ]);
+    expect(betStanding(stack.bets[1], [sideA, sideB])).toBe("Opens on 1");
+    expect(outcome.totals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+  });
+
+  it("wins both bets on the 1st, and the automatic press still opens", () => {
+    const outcome = evaluateOneDown(pressedOnTheFirstTee, 18, through(1), ids);
+    expect(outcome.standing).toBe("+1/+1/0");
+    // Two bets to A at $10 a side: A up $20.
+    expect(outcome.sideTotals).toEqual([2000, -2000]);
+  });
+
+  it("takes up to four on the 1st tee", () => {
+    const outcome = evaluateOneDown(
+      config({ manualPresses: { 0: MAX_PRESSES_PER_HOLE } }),
+      18,
+      through(1),
+      ids,
+    );
+    expect(outcome.standing).toBe("+1/+1/+1/+1/+1/0");
+  });
+
+  it("opens with the back nine when called before the 10th", () => {
+    const outcome = evaluateOneDown(
+      config({ reset: "nines", manualPresses: { 9: 2 } }),
+      18,
+      through(1, 1, 1, 1, 1, 1, 1, 1, 1),
+      ids,
+    );
+    const [front, back] = outcome.stacks;
+    // The front nine never sees them: nothing opens after its last hole.
+    expect(front.bets.every((bet) => bet.openedBy !== "manual")).toBe(true);
+    expect(back.bets.map((bet) => [bet.startHole, bet.openedBy])).toEqual([
+      [10, "start"],
+      [10, "manual"],
+      [10, "manual"],
+    ]);
+    expect(back.standing).toBe("0/0/0");
+  });
+
+  it("waits for the hole before it, so the standing only shows live bets", () => {
+    // Called before the 4th while the group is on the 2nd: not a bet yet.
+    const early = evaluateOneDown(config({ manualPresses: { 3: 1 } }), 18, through(1), ids);
+    expect(early.standing).toBe("+1/0");
+    expect(early.bets.some((bet) => bet.openedBy === "manual")).toBe(false);
+    // Once the 3rd is in, it opens on the 4th like any press.
+    const due = evaluateOneDown(config({ manualPresses: { 3: 1 } }), 18, through(1, 1, 0), ids);
+    expect(due.standing).toBe("+2/+1/0/0");
+    expect(due.bets[3]).toMatchObject({ startHole: 4, openedBy: "manual" });
+  });
+
+  it("shows on the card beside the 1st", () => {
+    const byHole = marginsByHole(pressedOnTheFirstTee, 18, through(1, -1), ids);
+    expect(formatStanding(byHole[1] ?? [])).toBe("+1/+1/0");
+    expect(formatStanding(byHole[2] ?? [])).toBe("0/0/-1/0");
+  });
+
+  it("reads the count for a hole from the stored shape", () => {
+    const cfg = config({ manualPresses: { 0: 2, 3: 1 } });
+    expect(pressesBefore(cfg, 1)).toBe(2);
+    expect(pressesBefore(cfg, 4)).toBe(1);
+    expect(pressesBefore(cfg, 2)).toBe(0);
+    // The old list shape still reads.
+    expect(pressesBefore(config({ manualPresses: [3] as unknown as Record<number, number> }), 4)).toBe(1);
+    expect(pressCounts({ 0: 1 }).get(0)).toBe(1);
   });
 });

@@ -1,4 +1,5 @@
 import { balanceOnto, normalizeAmounts, teamTransfer, zeroAmounts } from "./bets/ledger";
+import { MAX_PRESSES_PER_HOLE, pressCounts } from "./bets/onedown";
 import type { PlayerId, Round } from "./types";
 
 /**
@@ -169,10 +170,11 @@ export function setHoleNote(round: Round, hole: number, note: string): Round {
 /**
  * Set how many presses were called by hand after a hole.
  *
- * A press is recorded against the hole it was called after, which is how it
- * gets said out there — "press it after this one" — and each one opens a bet
- * covering the next hole onwards. Several on the same hole is allowed and
- * means several bets riding on the same golf.
+ * A press is stored against the hole it was called after — one less than
+ * the hole it opens on, so `0` is a press on the 1st tee — and each one
+ * opens a bet covering that next hole onwards. Several on the same hole is
+ * allowed, up to MAX_PRESSES_PER_HOLE, and means several bets riding on the
+ * same golf. The screens talk in "before hole N": see setPressesBefore.
  */
 export function setManualPresses(
   round: Round,
@@ -180,12 +182,14 @@ export function setManualPresses(
   hole: number,
   count: number,
 ): Round {
-  const clamped = Math.max(0, Math.min(9, Math.floor(count)));
+  const clamped = Math.max(0, Math.min(MAX_PRESSES_PER_HOLE, Math.floor(count)));
   return touch({
     ...round,
     bets: round.bets.map((bet) => {
       if (bet.id !== betId || bet.kind !== "onedown") return bet;
-      const presses = { ...(bet.manualPresses ?? {}) };
+      // Through pressCounts so a round saved in the old list shape becomes
+      // counts here rather than being spread into nonsense keys.
+      const presses = Object.fromEntries(pressCounts(bet.manualPresses));
       if (clamped === 0) delete presses[hole];
       else presses[hole] = clamped;
       return { ...bet, manualPresses: presses };
@@ -202,8 +206,28 @@ export function adjustManualPresses(
 ): Round {
   const bet = round.bets.find((entry) => entry.id === betId);
   const current =
-    bet && bet.kind === "onedown" ? (bet.manualPresses?.[hole] ?? 0) : 0;
+    bet && bet.kind === "onedown" ? (pressCounts(bet.manualPresses).get(hole) ?? 0) : 0;
   return setManualPresses(round, betId, hole, current + delta);
+}
+
+/** A press before hole N is a bet opened by hand on N, stored against N − 1. */
+export function setPressesBefore(
+  round: Round,
+  betId: string,
+  hole: number,
+  count: number,
+): Round {
+  return setManualPresses(round, betId, hole - 1, count);
+}
+
+/** Nudge the presses before a hole up or down. */
+export function adjustPressesBefore(
+  round: Round,
+  betId: string,
+  hole: number,
+  delta: number,
+): Round {
+  return adjustManualPresses(round, betId, hole - 1, delta);
 }
 
 /** Hand the deal to a player for one hole, overriding the rotation. */
