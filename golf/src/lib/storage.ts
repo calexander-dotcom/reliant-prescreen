@@ -1,6 +1,7 @@
 "use client";
 
-import type { Player, Round } from "./types";
+import { defaultOneDown } from "./bets/defaults";
+import type { OneDownConfig, Player, Round } from "./types";
 
 /**
  * Everything lives in the browser.
@@ -20,6 +21,7 @@ const SEARCH_STATE_KEY = "golfbets.searchState";
 const TEE_PREFS_KEY = "golfbets.teePrefs.v1";
 const ME_KEY = "golfbets.me.v1";
 const PANELS_KEY = "golfbets.panels.v1";
+const HOUSE_RULES_KEY = "golfbets.houseRules.v1";
 
 function canStore(): boolean {
   return typeof window !== "undefined" && !!window.localStorage;
@@ -109,6 +111,54 @@ export function createRound(partial: Partial<Round> = {}): Round {
     updatedAt: now,
     ...partial,
   };
+}
+
+// --- House rules --------------------------------------------------------------
+//
+// The terms of the one-down game as the group last set them — the stake,
+// where a new bet opens, the overall, greenies and so on — so the next round
+// starts from those rather than the app's defaults. Never the sides, presses
+// or answers, which belong to a round.
+
+export type HouseRules = Pick<
+  OneDownConfig,
+  | "label"
+  | "amount"
+  | "basis"
+  | "autoPressAt"
+  | "reset"
+  | "overallMultiplier"
+  | "stakeMode"
+  | "greenies"
+  | "teeFlip"
+  | "alternateAggregate"
+>;
+
+export function loadHouseRules(): Partial<HouseRules> {
+  if (!canStore()) return {};
+  return safeParse<Partial<HouseRules>>(window.localStorage.getItem(HOUSE_RULES_KEY), {});
+}
+
+export function saveHouseRules(config: OneDownConfig): void {
+  if (!canStore()) return;
+  const rules: HouseRules = {
+    label: config.label,
+    amount: config.amount,
+    basis: config.basis,
+    autoPressAt: config.autoPressAt,
+    reset: config.reset,
+    overallMultiplier: config.overallMultiplier,
+    stakeMode: config.stakeMode,
+    greenies: config.greenies,
+    teeFlip: config.teeFlip,
+    alternateAggregate: config.alternateAggregate,
+  };
+  window.localStorage.setItem(HOUSE_RULES_KEY, JSON.stringify(rules));
+}
+
+/** The one-down game on the house rules, for these players. */
+export function houseOneDown(players: Player[], id: string): OneDownConfig {
+  return { ...defaultOneDown(players, id), ...loadHouseRules() };
 }
 
 // --- GHIN session token ------------------------------------------------------

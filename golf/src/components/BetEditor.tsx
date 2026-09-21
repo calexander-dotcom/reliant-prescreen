@@ -4,10 +4,9 @@ import { labelledSides, sideLabel } from "@/lib/bets/sides";
 import {
   defaultBanker,
   defaultNassau,
-  defaultOneDown,
   defaultSkins,
 } from "@/lib/bets/defaults";
-import { newId } from "@/lib/storage";
+import { houseOneDown, newId } from "@/lib/storage";
 import type {
   BankerConfig,
   BetConfig,
@@ -32,7 +31,7 @@ const GAMES = [
 type GameKind = (typeof GAMES)[number]["kind"];
 
 const BUILDERS = {
-  onedown: defaultOneDown,
+  onedown: houseOneDown,
   banker: defaultBanker,
   nassau: defaultNassau,
   skins: defaultSkins,
@@ -297,6 +296,7 @@ function OneDownFields({
         </Field>
         <Field label="Scored on">
           <Toggle
+            name="Scored on"
             value={bet.basis}
             onChange={(basis) =>
               onChange({ ...bet, basis: basis as OneDownConfig["basis"] })
@@ -312,6 +312,7 @@ function OneDownFields({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="New bet opens at" hint="Presses can always be added by hand too.">
           <Toggle
+            name="New bet opens at"
             value={String(bet.autoPressAt)}
             onChange={(value) => onChange({ ...bet, autoPressAt: Number(value) })}
             options={[
@@ -323,6 +324,7 @@ function OneDownFields({
         </Field>
         <Field label="Stack" hint="Whether it carries through the turn or restarts.">
           <Toggle
+            name="Stack"
             value={bet.reset}
             onChange={(value) =>
               onChange({ ...bet, reset: value as OneDownConfig["reset"] })
@@ -341,6 +343,7 @@ function OneDownFields({
           hint="One bet over all 18 alongside the nines. Never presses."
         >
           <Toggle
+            name="Overall 18 bet"
             value={String(bet.overallMultiplier)}
             onChange={(value) =>
               onChange({ ...bet, overallMultiplier: Number(value) })
@@ -393,6 +396,7 @@ function OneDownFields({
         </Field>
         <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
+            name="Team stake"
             value={bet.stakeMode}
             onChange={(value) =>
               onChange({ ...bet, stakeMode: value as OneDownConfig["stakeMode"] })
@@ -445,6 +449,7 @@ function NassauFields({
         </Field>
         <Field label="Scored on">
           <Toggle
+            name="Scored on"
             value={bet.basis}
             onChange={(basis) => onChange({ ...bet, basis: basis as NassauConfig["basis"] })}
             options={[
@@ -501,6 +506,7 @@ function NassauFields({
         </Field>
         <Field label="Team stake" hint="Per player: everyone on the side that is down is in for it. Per side: one stake, split.">
           <Toggle
+            name="Team stake"
             value={bet.stakeMode}
             onChange={(value) =>
               onChange({ ...bet, stakeMode: value as NassauConfig["stakeMode"] })
@@ -581,6 +587,7 @@ function BankerFields({
           </Field>
           <Field label="Scored on">
             <Toggle
+              name="Scored on"
               value={bet.basis}
               onChange={(basis) =>
                 onChange({ ...bet, basis: basis as BankerConfig["basis"] })
@@ -695,6 +702,7 @@ function SkinsFields({
         </Field>
         <Field label="Scored on">
           <Toggle
+            name="Scored on"
             value={bet.basis}
             onChange={(basis) => onChange({ ...bet, basis: basis as SkinsConfig["basis"] })}
             options={[

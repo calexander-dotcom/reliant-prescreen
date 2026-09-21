@@ -32,6 +32,8 @@ export default function RoundPage() {
   const [missing, setMissing] = useState(false);
   const [tab, setTab] = useState<Tab>("hole");
   const [hole, setHole] = useState(1);
+  // The Setup shortcut on the Rounds list lands on the Bets tab with the editor open.
+  const [editSetup, setEditSetup] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -45,6 +47,10 @@ export default function RoundPage() {
     const ready = found.perspectiveId === undefined ? guessPerspective(found) : found;
     setRound(ready);
     if (ready !== found) saveRound(ready);
+    const query = new URLSearchParams(window.location.search);
+    const wanted = query.get("tab");
+    if (wanted === "bets" || wanted === "card" || wanted === "settle") setTab(wanted);
+    if (query.get("edit") === "1") setEditSetup(true);
   }, [id]);
 
   // Persist on every change: the tab can be closed at any moment out there.
@@ -122,7 +128,9 @@ export default function RoundPage() {
           <ShareCard round={round} update={update} />
         </>
       ) : null}
-      {tab === "bets" ? <BetsView round={round} comp={comp} update={update} /> : null}
+      {tab === "bets" ? (
+        <BetsView round={round} comp={comp} update={update} startEditing={editSetup} />
+      ) : null}
       {tab === "settle" ? <SettleView round={round} comp={comp} /> : null}
 
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-neutral-200 bg-white/95 backdrop-blur">
