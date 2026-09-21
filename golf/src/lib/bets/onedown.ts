@@ -199,6 +199,19 @@ export function pressesBefore(config: OneDownConfig, hole: number): number {
   return pressCounts(config.manualPresses).get(hole - 1) ?? 0;
 }
 
+/** How a tee is named: "the 1st tee", "the 10th tee". */
+export function teeName(startHole: number): string {
+  const suffix =
+    startHole % 10 === 1 && startHole !== 11
+      ? "st"
+      : startHole % 10 === 2 && startHole !== 12
+        ? "nd"
+        : startHole % 10 === 3 && startHole !== 13
+          ? "rd"
+          : "th";
+  return `the ${startHole}${suffix} tee`;
+}
+
 /** The tees a flip happens on — the first hole of each stack — when flips are on. */
 export function teeFlipHoles(config: OneDownConfig, holeCount: number): number[] {
   if (config.teeFlip === false) return [];
