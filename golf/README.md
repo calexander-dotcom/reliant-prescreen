@@ -356,8 +356,16 @@ response; when it does not, the app asks for it and shows the key-only shape of
 that response so the right field can be found.
 
 The password is posted to this app's own route handler, exchanged once for a
-token, and never stored or logged. The token lives in `sessionStorage` and is
-gone when the tab closes.
+token, and never stored or logged there. The token stays in `localStorage`
+between launches, so closing the app does not sign you out; GHIN itself
+expires it after about a day.
+
+**Keep me signed in on this phone**, a tick box on the sign-in form, keeps
+the password on the phone as well — scrambled with a key the browser makes
+for that device and will not export — so when a lookup finds the session has
+run out, or the token is about to, the app signs in again by itself. Signing
+out forgets it. Without the tick, the sign-in form comes back with the name
+filled in, as before.
 
 GHIN sessions last about a day. When a lookup comes back 401, the app treats
 that as the session having run out rather than a failed call — even if a
