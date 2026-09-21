@@ -2,7 +2,7 @@
 
 | Path | What it is |
 |------|------------|
-| [`golf/`](golf/) | Golf Bets: a round and gambling tracker for a foursome (Next.js). One downs, banker, nassau and skins; GHIN import; a view-only link for the group. See [`golf/README.md`](golf/README.md). |
+| [`golf/`](golf/) | One Downs (formerly Golf Bets): a round and gambling tracker for a foursome (Next.js). One downs, banker, nassau and skins; GHIN import; a view-only link for the group. See [`golf/README.md`](golf/README.md). |
 
 ## Retired
 

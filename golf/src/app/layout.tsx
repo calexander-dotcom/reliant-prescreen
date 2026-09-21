@@ -4,11 +4,11 @@ import { currentBuild } from "@/lib/build";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Golf Bets",
+  title: "One Downs",
   description:
     "Track a round and the money: zero-sum hole entry, nassau with presses, and skins.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Golf Bets" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "One Downs" },
 };
 
 export const viewport: Viewport = {

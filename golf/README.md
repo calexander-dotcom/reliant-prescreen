@@ -1,4 +1,6 @@
-# Golf Bets
+# One Downs
+
+Formerly Golf Bets; the link and the stored rounds are unchanged.
 
 A phone-first web app for tracking a round **and the money**: hole-by-hole
 gambling that has to net to zero, nassau with automatic presses, and skins.

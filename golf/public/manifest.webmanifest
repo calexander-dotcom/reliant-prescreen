@@ -1,7 +1,7 @@
 {
-  "name": "Golf Bets",
-  "short_name": "Golf Bets",
-  "description": "Track a round and the money: zero-sum hole entry, nassau with presses, and skins.",
+  "name": "One Downs",
+  "short_name": "One Downs",
+  "description": "The one-down game for a foursome: presses, tee flips, greenies and the money, hole by hole.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

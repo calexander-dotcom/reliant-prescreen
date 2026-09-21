@@ -128,7 +128,7 @@ export default function WatchPage() {
           still being kept, it will come back on its own within a minute.
         </Banner>
         <Link href="/" className="text-sm font-semibold text-turf-700">
-          Go to Golf Bets
+          Go to One Downs
         </Link>
       </main>
     );
