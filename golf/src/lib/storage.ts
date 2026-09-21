@@ -111,17 +111,40 @@ export function createRound(partial: Partial<Round> = {}): Round {
   };
 }
 
-// --- GHIN session token (kept out of localStorage on purpose) --------------
+// --- GHIN session token ------------------------------------------------------
+//
+// The token is the session GHIN handed out, not the password. It used to live
+// in sessionStorage, which threw it away every time the app was closed and
+// made everyone sign in again although GHIN would still have accepted it. It
+// now stays in localStorage until GHIN itself expires it (about a day) or the
+// user signs out. A phone's other apps cannot read it.
 
 export function loadToken(): string | null {
-  if (typeof window === "undefined" || !window.sessionStorage) return null;
-  return window.sessionStorage.getItem(TOKEN_KEY);
+  if (!canStore()) return null;
+  const kept = window.localStorage.getItem(TOKEN_KEY);
+  if (kept) return kept;
+  // A session signed in before the move still has its token in the tab.
+  try {
+    const inTab = window.sessionStorage?.getItem(TOKEN_KEY) ?? null;
+    if (inTab) {
+      window.localStorage.setItem(TOKEN_KEY, inTab);
+      window.sessionStorage.removeItem(TOKEN_KEY);
+    }
+    return inTab;
+  } catch {
+    return null;
+  }
 }
 
 export function saveToken(token: string | null): void {
-  if (typeof window === "undefined" || !window.sessionStorage) return;
-  if (token) window.sessionStorage.setItem(TOKEN_KEY, token);
-  else window.sessionStorage.removeItem(TOKEN_KEY);
+  if (!canStore()) return;
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  else window.localStorage.removeItem(TOKEN_KEY);
+  try {
+    window.sessionStorage?.removeItem(TOKEN_KEY);
+  } catch {
+    // Nothing to tidy.
+  }
 }
 
 /**

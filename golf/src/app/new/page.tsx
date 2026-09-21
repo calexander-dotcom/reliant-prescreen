@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BetEditor } from "@/components/BetEditor";
 import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
+import { signInAgain } from "@/lib/ghin/session";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
 import { defaultOneDown } from "@/lib/bets/defaults";
@@ -33,10 +34,20 @@ export default function NewRoundPage() {
   }, []);
 
   /**
-   * Drop a GHIN session the lookups have shown to be dead, so the panel offers
-   * signing in again rather than repeating a call that cannot work.
+   * A lookup has shown the GHIN session is dead. With the password kept on
+   * this phone the app signs in again by itself and the lookups, which watch
+   * the token, run again; otherwise the panel offers signing in.
    */
-  const sessionExpired = () => {
+  const sessionExpired = async () => {
+    const session = await signInAgain();
+    if (session) {
+      setGhin((current) => ({
+        token: session.token,
+        golferId: session.golferId ?? current.golferId,
+        me: session.me ?? current.me,
+      }));
+      return;
+    }
     saveToken(null);
     setGhin((current) => ({ ...current, token: null, expired: true }));
   };

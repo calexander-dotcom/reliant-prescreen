@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { ApiError, apiLogin } from "@/lib/api";
+import {
+  canKeepSignedIn,
+  forgetCredentials,
+  hasKeptCredentials,
+  keepCredentials,
+  signInAgain,
+  tokenNeedsRenewing,
+} from "@/lib/ghin/session";
 import { normalizeGolferId } from "@/lib/ghin/client";
 import {
   loadGolferId,
@@ -35,8 +43,10 @@ export interface GhinConnection {
  * usually comes out of the login response; when it does not, it is asked for.
  *
  * The password is posted to this app's own route, which calls GHIN server-side,
- * and is never stored. The token lives in sessionStorage and is gone when the
- * tab closes. The GHIN number is not a secret and is kept for next time.
+ * and is not stored — unless "keep me signed in" is ticked, in which case it is
+ * kept on this phone, scrambled, so the app can sign in again when GHIN's
+ * session runs out (see lib/ghin/session). The token stays in localStorage
+ * between launches. The GHIN number is not a secret and is kept for next time.
  */
 export function GhinPanel({
   connection,
@@ -52,6 +62,8 @@ export function GhinPanel({
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [shape, setShape] = useState<string | null>(null);
+  const [keep, setKeep] = useState(() => hasKeptCredentials());
+  const keepable = canKeepSignedIn();
 
   useEffect(() => {
     const token = loadToken();
@@ -61,6 +73,19 @@ export function GhinPanel({
       onChange({ token, golferId, me });
     }
     if (golferId) setNumberDraft(golferId);
+    // A token about to run out is renewed up front when the password is kept,
+    // so the first lookup of the day does not have to fail first.
+    if (token && tokenNeedsRenewing(token) && hasKeptCredentials()) {
+      void signInAgain().then((session) => {
+        if (session) {
+          onChange({
+            token: session.token,
+            golferId: session.golferId ?? golferId,
+            me: session.me ?? me,
+          });
+        }
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -88,6 +113,8 @@ export function GhinPanel({
 
       // Only worth showing when the number could not be found.
       setShape(session.golferId ? null : session.shape);
+      if (keep && keepable) await keepCredentials(emailOrGhin.trim(), password);
+      else forgetCredentials();
       onChange({ token: session.token, golferId, me });
       setPassword("");
     } catch (caught) {
@@ -132,12 +159,19 @@ export function GhinPanel({
             variant="secondary"
             onClick={() => {
               saveToken(null);
+              forgetCredentials();
+              setKeep(false);
               onChange({ ...connection, token: null });
             }}
           >
             Sign out
           </Button>
         </div>
+        {hasKeptCredentials() ? (
+          <p className="mt-2 text-xs text-neutral-500">
+            Kept signed in on this phone. Sign out to forget the password.
+          </p>
+        ) : null}
 
         {connection.golferId ? null : (
           <div className="mt-3 space-y-2">
@@ -186,8 +220,9 @@ export function GhinPanel({
       <div className="space-y-3">
         {connection.expired ? (
           <Banner tone="warn">
-            Your GHIN sign-in has run out — GHIN sessions last about a day. Sign
-            in again to load who you follow.
+            {hasKeptCredentials()
+              ? "Your GHIN sign-in ran out and the kept password did not get a new one. Sign in again to update it."
+              : "Your GHIN sign-in has run out — GHIN sessions last about a day. Sign in again to load who you follow."}
           </Banner>
         ) : null}
         <Field label="GHIN email or number">
@@ -224,6 +259,24 @@ export function GhinPanel({
           </Banner>
         ) : null}
 
+        <label className="flex items-start gap-2.5 text-sm text-neutral-800">
+          <input
+            type="checkbox"
+            checked={keep && keepable}
+            disabled={!keepable}
+            onChange={(event) => setKeep(event.target.checked)}
+            className="mt-0.5 h-5 w-5 rounded border-neutral-300 accent-turf-700"
+          />
+          <span>
+            <span className="font-semibold">Keep me signed in on this phone</span>
+            <span className="block text-xs text-neutral-500">
+              {keepable
+                ? "GHIN sessions last about a day. This keeps your password on this phone only, scrambled, so the app can sign in again by itself."
+                : "This browser cannot keep it safely, so you will be asked when GHIN's session runs out."}
+            </span>
+          </span>
+        </label>
+
         <div className="flex items-center gap-3">
           <Button onClick={() => void signIn()} disabled={busy || !emailOrGhin || !password}>
             {busy ? "Signing in…" : "Sign in"}
@@ -234,8 +287,8 @@ export function GhinPanel({
         <p className="text-xs text-neutral-500">
           GHIN has no public API, so this uses the same endpoints the GHIN site
           uses. Your password goes to this app&apos;s own server, is exchanged
-          once for a session token, and is never stored. Everything here works
-          without it.
+          once for a session token, and is not stored there. Everything here
+          works without it.
         </p>
       </div>
     </Card>
