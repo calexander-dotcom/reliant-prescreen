@@ -8,7 +8,7 @@ import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
 import { signInAgain } from "@/lib/ghin/session";
 import { defaultSides } from "@/lib/bets/defaults";
 import { PlayerPicker } from "@/components/PlayerPicker";
-import { Banner, Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
+import { Button, Card, Field, LinkButton, SectionTitle } from "@/components/ui";
 import { createRound, houseOneDown, newId, saveHouseRules, saveRound, saveToken } from "@/lib/storage";
 import type { HandicapMode, Round } from "@/lib/types";
 
@@ -27,6 +27,8 @@ const HANDICAP_LABELS: Record<HandicapMode, { label: string; hint: string }> = {
 export default function NewRoundPage() {
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
+  // Two screens: who is playing and where, then the game.
+  const [step, setStep] = useState<"who" | "game">("who");
   const [ghin, setGhin] = useState<GhinConnection>({ token: null, golferId: null, me: null });
 
   useEffect(() => {
@@ -105,91 +107,136 @@ export default function NewRoundPage() {
     router.push(`/round/${next.id}`);
   };
 
+  const goToGame = () => {
+    setStep("game");
+    window.scrollTo({ top: 0 });
+  };
+  const goBack = () => {
+    setStep("who");
+    window.scrollTo({ top: 0 });
+  };
+
   return (
     <main className="space-y-4">
       <header className="flex items-center justify-between gap-3 pt-2">
-        <h1 className="text-2xl font-black tracking-tight text-turf-900">New round</h1>
-        <LinkButton href="/" variant="ghost">
-          Cancel
-        </LinkButton>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-turf-900">New round</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            {step === "who" ? "1 of 2 · Course and players" : "2 of 2 · The game"}
+          </p>
+        </div>
+        {step === "who" ? (
+          <LinkButton href="/" variant="ghost">
+            Cancel
+          </LinkButton>
+        ) : (
+          <Button variant="ghost" onClick={goBack}>
+            Back
+          </Button>
+        )}
       </header>
 
-      <GhinPanel connection={ghin} onChange={setGhin} />
+      {step === "who" ? (
+        <>
+          <GhinPanel connection={ghin} onChange={setGhin} />
 
-      <CoursePicker
-        round={round}
-        update={setRound}
-        golferId={ghin.golferId}
-        token={ghin.token}
-        onSessionExpired={sessionExpired}
-      />
+          <CoursePicker
+            round={round}
+            update={setRound}
+            golferId={ghin.golferId}
+            token={ghin.token}
+            onSessionExpired={sessionExpired}
+          />
 
-      <PlayerPicker
-        round={round}
-        update={setRound}
-        golferId={ghin.golferId}
-        token={ghin.token}
-        me={ghin.me}
-        onSessionExpired={sessionExpired}
-      />
+          <PlayerPicker
+            round={round}
+            update={setRound}
+            golferId={ghin.golferId}
+            token={ghin.token}
+            me={ghin.me}
+            onSessionExpired={sessionExpired}
+          />
 
-      <Card>
-        <SectionTitle>Handicaps</SectionTitle>
-        <Field label="How strokes are given">
-          <div className="space-y-2">
-            {(Object.keys(HANDICAP_LABELS) as HandicapMode[]).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setRound({ ...round, handicapMode: mode })}
-                className={`block w-full rounded-xl px-3 py-2.5 text-left ring-1 ring-inset ${
-                  round.handicapMode === mode
-                    ? "bg-turf-50 ring-turf-300"
-                    : "bg-neutral-50 ring-neutral-200"
-                }`}
-              >
-                <span className="block font-semibold text-neutral-900">
-                  {HANDICAP_LABELS[mode].label}
-                </span>
-                <span className="block text-xs text-neutral-600">
-                  {HANDICAP_LABELS[mode].hint}
-                </span>
-              </button>
-            ))}
+          <div className="sticky bottom-4 z-10">
+            <Button onClick={goToGame} disabled={!ready} full>
+              {!hasCourse
+                ? "Choose a course to start"
+                : round.players.length < 2
+                  ? "Add at least two players"
+                  : "Next: set up the game"}
+            </Button>
           </div>
-        </Field>
-        <div className="mt-3">
-          <Field label="Date">
-            <input
-              type="date"
-              value={round.date}
-              onChange={(event) => setRound({ ...round, date: event.target.value })}
-              className="w-full rounded-xl border-0 bg-neutral-100 px-3 py-2.5 text-base ring-1 ring-inset ring-neutral-200"
-            />
-          </Field>
-        </div>
-      </Card>
+        </>
+      ) : (
+        <>
+          <Card>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate font-bold text-turf-900">
+                  {round.courseName || "Untitled round"}
+                </div>
+                <p className="text-sm text-neutral-600">
+                  {round.players.map((player) => player.name.split(" ")[0]).join(", ")} ·{" "}
+                  {round.holeCount} holes
+                </p>
+              </div>
+              <Button variant="secondary" onClick={goBack}>
+                Change
+              </Button>
+            </div>
+          </Card>
 
-      <Card>
-        <SectionTitle hint="One game per round. Skip this and you get $10 one downs. Change it any time.">
-          Bets
-        </SectionTitle>
-        {round.players.length < 2 ? (
-          <Banner>Add at least two players first.</Banner>
-        ) : (
-          <BetEditor round={round} update={setRound} />
-        )}
-      </Card>
+          <Card>
+            <SectionTitle hint="One game per round. Skip this and you get $10 one downs. Change it any time.">
+              The game
+            </SectionTitle>
+            <BetEditor round={round} update={setRound} />
+          </Card>
 
-      <div className="sticky bottom-4 z-10">
-        <Button onClick={start} disabled={!ready} full>
-          {!hasCourse
-            ? "Choose a course to start"
-            : round.players.length < 2
-              ? "Add at least two players"
-              : "Start round"}
-        </Button>
-      </div>
+          <Card>
+            <SectionTitle>Handicaps</SectionTitle>
+            <Field label="How strokes are given">
+              <div className="space-y-2">
+                {(Object.keys(HANDICAP_LABELS) as HandicapMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setRound({ ...round, handicapMode: mode })}
+                    className={`block w-full rounded-xl px-3 py-2.5 text-left ring-1 ring-inset ${
+                      round.handicapMode === mode
+                        ? "bg-turf-50 ring-turf-300"
+                        : "bg-neutral-50 ring-neutral-200"
+                    }`}
+                  >
+                    <span className="block font-semibold text-neutral-900">
+                      {HANDICAP_LABELS[mode].label}
+                    </span>
+                    <span className="block text-xs text-neutral-600">
+                      {HANDICAP_LABELS[mode].hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <div className="mt-3">
+              <Field label="Date">
+                <input
+                  type="date"
+                  value={round.date}
+                  onChange={(event) => setRound({ ...round, date: event.target.value })}
+                  className="w-full rounded-xl border-0 bg-neutral-100 px-3 py-2.5 text-base ring-1 ring-inset ring-neutral-200"
+                />
+              </Field>
+            </div>
+          </Card>
+
+          <div className="sticky bottom-4 z-10">
+            <Button onClick={start} disabled={!ready} full>
+              Start round
+            </Button>
+          </div>
+        </>
+      )}
     </main>
   );
 }
