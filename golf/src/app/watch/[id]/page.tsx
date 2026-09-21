@@ -7,7 +7,7 @@ import { BetsView } from "@/components/BetsView";
 import { CardView } from "@/components/CardView";
 import { SettleView } from "@/components/SettleView";
 import { TotalsStrip } from "@/components/TotalsStrip";
-import { Banner, Card, SectionTitle, Spinner } from "@/components/ui";
+import { Banner, Button, Card, SectionTitle, Spinner } from "@/components/ui";
 import { ApiError, apiFetchShare } from "@/lib/api";
 import { computeRound } from "@/lib/bets";
 import type { SharedRound } from "@/lib/share/payload";
@@ -108,7 +108,35 @@ export default function WatchPage() {
   }, [load]);
 
   const [tab, setTab] = useState<Tab>("card");
-  const comp = useMemo(() => (shared ? computeRound(shared.round) : null), [shared]);
+
+  // Whose side the bets are read from on this phone. The scorer's choice
+  // comes with the round; a follower can pick their own, and it is kept
+  // here for this link, never sent anywhere.
+  const viewAsKey = `golfbets.watchAs.${id ?? ""}`;
+  const [viewAs, setViewAs] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setViewAs(window.localStorage.getItem(viewAsKey));
+    } catch {
+      // Storage blocked: the scorer's side it is.
+    }
+  }, [viewAsKey]);
+  const chooseViewAs = (playerId: string | null) => {
+    setViewAs(playerId);
+    try {
+      if (playerId) window.localStorage.setItem(viewAsKey, playerId);
+      else window.localStorage.removeItem(viewAsKey);
+    } catch {
+      // Not remembered, still applied.
+    }
+  };
+  const round = useMemo(() => {
+    if (!shared) return null;
+    const chosen =
+      viewAs && shared.round.players.some((player) => player.id === viewAs) ? viewAs : null;
+    return chosen ? { ...shared.round, perspectiveId: chosen } : shared.round;
+  }, [shared, viewAs]);
+  const comp = useMemo(() => (round ? computeRound(round) : null), [round]);
 
   if (loading) {
     return (
@@ -134,7 +162,7 @@ export default function WatchPage() {
     );
   }
 
-  if (!shared || !comp) {
+  if (!shared || !comp || !round) {
     return (
       <main className="space-y-4 pt-4">
         <Banner tone="error">{error ?? "Could not load that round."}</Banner>
@@ -142,7 +170,6 @@ export default function WatchPage() {
     );
   }
 
-  const round = shared.round;
 
   return (
     <main className="space-y-4">
@@ -171,6 +198,26 @@ export default function WatchPage() {
       ) : null}
 
       <TotalsStrip round={round} comp={comp} />
+
+      {round.players.length > 1 &&
+      comp.betResults.some((result) => result.kind === "nassau" || result.kind === "onedown") ? (
+        <Card>
+          <SectionTitle hint="Positive numbers and green mean that player's side is up. Your choice stays on this phone.">
+            Read the bets as
+          </SectionTitle>
+          <div role="group" aria-label="Read the bets as" className="flex flex-wrap gap-2">
+            {round.players.map((player) => (
+              <Button
+                key={player.id}
+                variant={round.perspectiveId === player.id ? "primary" : "secondary"}
+                onClick={() => chooseViewAs(player.id)}
+              >
+                {player.name.split(" ")[0]}
+              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {round.players.length === 0 ? (
         <Card>
