@@ -59,6 +59,9 @@ export function defaultOneDown(players: Player[], id: string): OneDownConfig {
     overallMultiplier: 2,
     // $10 a player: a pair that is seven bets up is up $70 each.
     stakeMode: "per-player",
+    // A flip on the 1st and 10th tees: the winners start one up.
+    teeFlip: true,
+    teeFlipWinners: {},
     // Closest to the hole on the par 3s, for the stake; a sweep doubles.
     greenies: true,
     greenieWinners: {},

@@ -14,7 +14,7 @@ import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { formatMoney, formatSigned } from "@/lib/money";
 import type { OneDownConfig, Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
-import { TeeFlipChooser } from "./TeeFlipChooser";
+import { TeeFlipChooser, teeName } from "./TeeFlipChooser";
 import { Banner, Button, Card, SectionTitle } from "./ui";
 
 /** Live status of every automatic bet, and the editor to change the terms. */
@@ -68,8 +68,7 @@ export function BetsView({
               <PressesCard
                 key={result.config.id}
                 round={round}
-                // The computed config carries the sides' live labels.
-                bet={result.config}
+                result={result}
                 onlyBet={round.bets.filter((entry) => entry.kind === "onedown").length === 1}
                 update={update}
               />
@@ -261,15 +260,18 @@ function BetResultCard({
  */
 function PressesCard({
   round,
-  bet,
+  result,
   onlyBet,
   update,
 }: {
   round: Round;
-  bet: OneDownConfig;
+  result: Extract<BetResult, { kind: "onedown" }>;
   onlyBet: boolean;
   update: (next: Round) => void;
 }) {
+  // The computed config carries the sides' live labels.
+  const bet: OneDownConfig = result.config;
+  const flipHoles = result.outcome.teeFlips.holes;
   const holes = Array.from({ length: round.holeCount }, (_, index) => index + 1);
   const called = holes.reduce((sum, hole) => sum + pressesBefore(bet, hole), 0);
   // Front nine down the left, back nine down the right, so a phone shows
@@ -280,12 +282,24 @@ function PressesCard({
   return (
     <Card>
       <SectionTitle
-        hint={`The side that wins the flip on the 1st tee starts one up, which opens the first press: +1/0 before a ball is hit. A press before a hole opens another bet by hand from that hole to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. Set them here before the round or on the hole screen as you go.`}
+        hint={`The side that wins the flip on a tee starts one up in that nine's opening bet, which opens the first press: +1/0 before a ball is hit. A press before a hole opens another bet by hand from that hole to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. Set them here before the round or on the hole screen as you go.`}
       >
-        Tee flip and presses{onlyBet ? "" : ` · ${bet.label}`}
+        Tee flips and presses{onlyBet ? "" : ` · ${bet.label}`}
       </SectionTitle>
-      <div className="mb-3 border-b border-neutral-100 pb-3">
-        <TeeFlipChooser round={round} config={bet} update={update} />
+      <div className="mb-3 space-y-3 border-b border-neutral-100 pb-3">
+        {flipHoles.map((startHole) => (
+          <TeeFlipChooser
+            key={startHole}
+            round={round}
+            config={bet}
+            startHole={startHole}
+            update={update}
+            label={`Flip on ${teeName(startHole)}`}
+          />
+        ))}
+        {flipHoles.length === 0 ? (
+          <p className="text-xs text-neutral-500">Tee flips are off in the bet setup.</p>
+        ) : null}
       </div>
       <div
         role="group"
@@ -383,7 +397,7 @@ function OneDownBody({
 
   return (
     <div className="space-y-3">
-      {outcome.stacks.map((stack, stackIndex) => (
+      {outcome.stacks.map((stack) => (
         <div key={stack.label}>
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-sm font-semibold text-neutral-900">
@@ -420,7 +434,7 @@ function OneDownBody({
                       ? "Opening bet"
                       : `From hole ${bet.startHole}`}
                   </span>
-                  {bet.openedBy === "start" && stackIndex === 0 && outcome.teeFlip !== null ? (
+                  {bet.openedBy === "start" && stack.teeFlip !== null ? (
                     <span className="ml-1.5 rounded bg-sky-100 px-1 text-[0.65rem] font-bold text-sky-900">
                       TEE FLIP
                     </span>

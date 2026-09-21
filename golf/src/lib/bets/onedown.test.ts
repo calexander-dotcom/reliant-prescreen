@@ -676,13 +676,13 @@ describe("presses called before a hole, ahead of time", () => {
   });
 });
 
-describe("the tee flip", () => {
+describe("the tee flips", () => {
   // Team A wins the flip on the 1st tee: stored as a player on their side.
-  const flipToA = config({ teeFlipWinnerId: "a2" });
+  const flipToA = config({ teeFlipWinners: { 1: "a2" } });
 
   it("puts the winners one up before a ball is hit, which opens the first press", () => {
     const outcome = evaluateOneDown(flipToA, 18, through(), ids);
-    expect(outcome.teeFlip).toBe(0);
+    expect(outcome.stacks[0].teeFlip).toBe(0);
     expect(outcome.standing).toBe("+1/0");
     expect(outcome.stacks[0].bets.map((bet) => [bet.startHole, bet.openedBy, bet.margin])).toEqual([
       [1, "start", 1],
@@ -695,8 +695,8 @@ describe("the tee flip", () => {
   });
 
   it("reads -1/0 from the losers' side", () => {
-    const outcome = evaluateOneDown(config({ teeFlipWinnerId: "b1" }), 18, through(), ids);
-    expect(outcome.teeFlip).toBe(1);
+    const outcome = evaluateOneDown(config({ teeFlipWinners: { 1: "b1" } }), 18, through(), ids);
+    expect(outcome.stacks[0].teeFlip).toBe(1);
     expect(outcome.standing).toBe("-1/0");
     expect(standingFor(outcome.stacks[0], -1)).toBe("+1/0");
   });
@@ -709,42 +709,103 @@ describe("the tee flip", () => {
   });
 
   it("opens nothing on its own when the game presses at 2 down", () => {
-    const cfg = config({ teeFlipWinnerId: "a1", autoPressAt: 2 });
+    const cfg = config({ teeFlipWinners: { 1: "a1" }, autoPressAt: 2 });
     expect(evaluateOneDown(cfg, 18, through(), ids).standing).toBe("+1");
     expect(evaluateOneDown(cfg, 18, through(1), ids).standing).toBe("+2/0");
   });
 
-  it("is a hole of the front nine's game only", () => {
+  it("flips again on the 10th tee, for the back nine's game only", () => {
     const outcome = evaluateOneDown(
-      config({ teeFlipWinnerId: "a1", reset: "nines", overallMultiplier: 2 }),
+      config({ reset: "nines", overallMultiplier: 2, teeFlipWinners: { 1: "a1", 10: "b1" } }),
       18,
       through(),
       ids,
     );
+    expect(outcome.teeFlips).toEqual({ enabled: true, holes: [1, 10], unanswered: [] });
     expect(outcome.stacks[0].standing).toBe("+1/0");
-    expect(outcome.stacks[1].standing).toBe("0");
-    // The 18-hole bet starts square; the flip is not one of its holes.
+    expect(outcome.stacks[1].teeFlip).toBe(1);
+    expect(outcome.stacks[1].standing).toBe("-1/0");
+    // Each nine is one bet apiece: square overall between the stacks.
+    expect(outcome.stackSideTotals).toEqual([0, 0]);
+    // The 18-hole bet starts square; the flips are not among its holes.
     expect(outcome.overall?.margin).toBe(0);
     expect(outcome.overallTotals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
   });
 
+  it("has no 10th-tee flip when the stack runs all 18", () => {
+    const outcome = evaluateOneDown(
+      config({ reset: "round", teeFlipWinners: { 1: "a1", 10: "b1" } }),
+      18,
+      through(),
+      ids,
+    );
+    expect(outcome.teeFlips.holes).toEqual([1]);
+    expect(outcome.standing).toBe("+1/0");
+  });
+
+  it("knows which tees have not been asked about", () => {
+    const cfg = (winners: Record<number, string | null>) =>
+      evaluateOneDown(config({ reset: "nines", teeFlipWinners: winners }), 18, through(), ids);
+    expect(cfg({}).teeFlips.unanswered).toEqual([1, 10]);
+    expect(cfg({ 1: "a1" }).teeFlips.unanswered).toEqual([10]);
+    // "No flip" is an answer: nothing opens, nothing left to ask.
+    const none = cfg({ 1: null, 10: "b1" });
+    expect(none.teeFlips.unanswered).toEqual([]);
+    expect(none.stacks[0].teeFlip).toBeNull();
+    expect(none.stacks[0].standing).toBe("0");
+  });
+
+  it("can be switched off in the setup, winners or not", () => {
+    const outcome = evaluateOneDown(
+      config({ reset: "nines", teeFlip: false, teeFlipWinners: { 1: "a1", 10: "b1" } }),
+      18,
+      through(),
+      ids,
+    );
+    expect(outcome.teeFlips).toEqual({ enabled: false, holes: [], unanswered: [] });
+    expect(outcome.stacks.map((stack) => stack.teeFlip)).toEqual([null, null]);
+    expect(outcome.stacks.map((stack) => stack.standing)).toEqual(["0", "0"]);
+  });
+
+  it("still reads a 1st-tee winner saved the old way", () => {
+    expect(evaluateOneDown(config({ teeFlipWinnerId: "a2" }), 18, through(), ids).standing).toBe("+1/0");
+    // The newer answer wins once there is one.
+    expect(
+      evaluateOneDown(config({ teeFlipWinnerId: "a2", teeFlipWinners: { 1: null } }), 18, through(), ids)
+        .standing,
+    ).toBe("0");
+  });
+
   it("starts a press called on the tee square, after the flip", () => {
-    const outcome = evaluateOneDown(config({ teeFlipWinnerId: "a1", manualPresses: { 0: 1 } }), 18, through(), ids);
+    const outcome = evaluateOneDown(
+      config({ teeFlipWinners: { 1: "a1" }, manualPresses: { 0: 1 } }),
+      18,
+      through(),
+      ids,
+    );
     expect(outcome.standing).toBe("+1/0/0");
     expect(outcome.stacks[0].bets.map((bet) => bet.openedBy)).toEqual(["start", "auto", "manual"]);
   });
 
-  it("shows beside the 1st on the card", () => {
-    const byHole = marginsByHole(flipToA, 18, through(1, 0), ids);
-    expect(formatStanding(byHole[1] ?? [])).toBe("+2/+1/0");
-    expect(formatStanding(byHole[2] ?? [])).toBe("+2/+1/0");
+  it("shows beside the first hole of each nine on the card", () => {
+    const front = marginsByHole(flipToA, 18, through(1, 0), ids);
+    expect(formatStanding(front[1] ?? [])).toBe("+2/+1/0");
+    expect(formatStanding(front[2] ?? [])).toBe("+2/+1/0");
+    const back = marginsByHole(
+      config({ reset: "nines", teeFlipWinners: { 10: "a1" } }),
+      18,
+      through(0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+      ids,
+    );
+    expect(formatStanding(back[9] ?? [])).toBe("0");
+    expect(formatStanding(back[10] ?? [])).toBe("+2/+1/0");
   });
 
   it("is nobody's when the winner has left the game", () => {
-    const cfg = config({ teeFlipWinnerId: "gone" });
-    expect(teeFlipSide(cfg)).toBeNull();
+    const cfg = config({ teeFlipWinners: { 1: "gone" } });
+    expect(teeFlipSide(cfg, 1)).toBeNull();
     expect(evaluateOneDown(cfg, 18, through(), ids).standing).toBe("0");
-    expect(teeFlipSide(config({ teeFlipWinnerId: null }))).toBeNull();
-    expect(teeFlipSide(config())).toBeNull();
+    expect(teeFlipSide(config({ teeFlipWinners: { 1: null } }), 1)).toBeNull();
+    expect(teeFlipSide(config(), 1)).toBeNull();
   });
 });
