@@ -123,7 +123,8 @@ The rules, precisely:
 
 Each number carries its sign: `+2` is our side two up in that bet, `-1` the
 other side one up, `0` square. Oldest bet first, so the opening bet is the
-first number and the newest press the last.
+first number and the newest press the last. A press called by hand is written
+in **bold**, so it can be told from the bets the game opened itself.
 
 The standing is written from the **scorer's side**: positive numbers and green
 mean you are up, whichever side of the bet you were put on. The app takes the

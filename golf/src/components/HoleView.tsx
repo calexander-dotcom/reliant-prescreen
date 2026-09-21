@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
-import { MAX_PRESSES_PER_HOLE, pressesBefore, standingFor } from "@/lib/bets/onedown";
+import { MAX_PRESSES_PER_HOLE, pressesBefore, standingEntries } from "@/lib/bets/onedown";
+import { Standing } from "./Standing";
 import { TeeFlipChooser, teeName } from "./TeeFlipChooser";
 import { TotalsStrip } from "./TotalsStrip";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
@@ -189,8 +190,8 @@ export function HoleView({
                       </p>
                     ) : null}
 
-                    <div className="tabular mt-0.5 break-all font-mono text-2xl font-bold text-turf-900">
-                      {stack ? standingFor(stack, sign) || "—" : "—"}
+                    <div className="tabular mt-0.5 break-all font-mono text-2xl font-normal text-turf-900">
+                      <Standing entries={stack ? standingEntries(stack, sign) : []} />
                     </div>
 
                     {result.outcome.overall ? (

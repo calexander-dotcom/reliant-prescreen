@@ -7,8 +7,9 @@ import {
   MAX_PRESSES_PER_HOLE,
   betStanding,
   pressesBefore,
-  standingFor,
+  standingEntries,
 } from "@/lib/bets/onedown";
+import { Standing } from "./Standing";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
 import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { formatMoney, formatSigned } from "@/lib/money";
@@ -410,8 +411,8 @@ function OneDownBody({
 
           {/* The standing as it gets said out loud: one number per open bet. */}
           <div className="mt-1 rounded-xl bg-neutral-900 px-3 py-2">
-            <div className="tabular break-all font-mono text-lg font-bold text-white">
-              {standingFor(stack, sign) || "—"}
+            <div className="tabular break-all font-mono text-lg font-normal text-white">
+              <Standing entries={standingEntries(stack, sign)} />
             </div>
             <div className="mt-0.5 text-xs text-neutral-400">
               {stack.bets.length} bet{stack.bets.length === 1 ? "" : "s"} ·{" "}

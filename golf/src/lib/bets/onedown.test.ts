@@ -10,6 +10,8 @@ import {
   marginsByHole,
   pressCounts,
   pressesBefore,
+  standingByHole,
+  standingEntries,
   standingFor,
   teeFlipSide,
 } from "./onedown";
@@ -807,5 +809,46 @@ describe("the tee flips", () => {
     expect(evaluateOneDown(cfg, 18, through(), ids).standing).toBe("0");
     expect(teeFlipSide(config({ teeFlipWinners: { 1: null } }), 1)).toBeNull();
     expect(teeFlipSide(config(), 1)).toBeNull();
+  });
+});
+
+describe("standing entries", () => {
+  // A wins 1 and 2, ties 3 with a press called after it, wins 4.
+  const outcome = evaluateOneDown(config({ manualPresses: { 3: 1 } }), 18, through(1, 1, 0, 1), ids);
+
+  it("marks the press called by hand and nothing else", () => {
+    expect(standingEntries(outcome.stacks[0], 1)).toEqual([
+      { margin: 3, pressed: false },
+      { margin: 2, pressed: false },
+      { margin: 1, pressed: false },
+      { margin: 1, pressed: true },
+      { margin: 0, pressed: false },
+    ]);
+    expect(standingEntries(outcome.stacks[0], -1).map((entry) => entry.margin)).toEqual([-3, -2, -1, -1, 0]);
+  });
+
+  it("marks a press on the tee and one before a hole, hole by hole", () => {
+    const byHole = standingByHole(
+      config({ teeFlipWinners: { 1: "a1" }, manualPresses: { 0: 1, 3: 1 } }),
+      18,
+      through(1, 0, 0),
+      ids,
+    );
+    // Flip +1, then the tee press: only the press is bold.
+    expect(byHole[1]).toEqual([
+      { margin: 2, pressed: false },
+      { margin: 1, pressed: false },
+      { margin: 1, pressed: true },
+      { margin: 0, pressed: false },
+    ]);
+    // After the 3rd the press before the 4th joins as a bold 0.
+    expect(byHole[3]?.map((entry) => [entry.margin, entry.pressed])).toEqual([
+      [2, false],
+      [1, false],
+      [1, true],
+      [0, false],
+      [0, true],
+    ]);
+    expect(byHole[4]).toBeNull();
   });
 });
