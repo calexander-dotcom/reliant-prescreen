@@ -48,7 +48,10 @@ is money lost.
 
 The Settle tab turns everyone's net position into the fewest payments that
 clear it (at most one less than the number of players), and gives you a plain
-text summary to paste into the group chat.
+text rundown to paste into the group chat: every game's terms, the tee flips,
+each nine's standing (a press called by hand is starred) and the standing after
+every hole, the presses, the overall, the greenies, then scores, money and who
+pays whom.
 
 ---
 

@@ -1,22 +1,11 @@
 "use client";
 
-import { teeFlipSide, teeFlipWinner } from "@/lib/bets/onedown";
+import { teeFlipSide, teeFlipWinner, teeName } from "@/lib/bets/onedown";
 import { setTeeFlipWinner } from "@/lib/mutations";
 import type { OneDownConfig, Round } from "@/lib/types";
 import { Button } from "./ui";
 
-/** How a tee is named: "the 1st tee", "the 10th tee". */
-export function teeName(startHole: number): string {
-  const suffix =
-    startHole % 10 === 1 && startHole !== 11
-      ? "st"
-      : startHole % 10 === 2 && startHole !== 12
-        ? "nd"
-        : startHole % 10 === 3 && startHole !== 13
-          ? "rd"
-          : "th";
-  return `the ${startHole}${suffix} tee`;
-}
+export { teeName };
 
 /**
  * Who won the flip on a tee. The winners start one up in the opening bet of

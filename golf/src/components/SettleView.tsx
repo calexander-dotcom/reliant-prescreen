@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { RoundComputation } from "@/lib/bets";
 import { formatMoney, formatSigned } from "@/lib/money";
+import { buildRoundSummary } from "@/lib/summary";
 import type { Round } from "@/lib/types";
 import { Banner, Button, Card, SectionTitle } from "./ui";
 
@@ -23,7 +24,7 @@ export function SettleView({
     (a, b) => (comp.grandTotals[b.id] ?? 0) - (comp.grandTotals[a.id] ?? 0),
   );
 
-  const summary = buildSummary(round, comp, nameOf);
+  const summary = buildRoundSummary(round, comp);
 
   const copy = async () => {
     try {
@@ -119,7 +120,9 @@ export function SettleView({
       </Card>
 
       <Card>
-        <SectionTitle>Share it</SectionTitle>
+        <SectionTitle hint="The whole rundown — tee flips, every nine, presses, the overall, greenies, scores and who pays whom — ready to paste into a text.">
+          Share it
+        </SectionTitle>
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-800">
           {summary}
         </pre>
@@ -136,47 +139,4 @@ export function SettleView({
       </Card>
     </div>
   );
-}
-
-function buildSummary(
-  round: Round,
-  comp: RoundComputation,
-  nameOf: (playerId: string) => string,
-): string {
-  const lines: string[] = [];
-  lines.push(`${round.courseName || "Round"} — ${round.date}`);
-
-  const ranked = [...round.players].sort(
-    (a, b) => (comp.grandTotals[b.id] ?? 0) - (comp.grandTotals[a.id] ?? 0),
-  );
-
-  lines.push("");
-  for (const player of ranked) {
-    const gross = comp.totalsByPlayer[player.id];
-    const score = gross?.holesPosted ? ` (${gross.gross} gross)` : "";
-    lines.push(
-      `${player.name}${score}: ${formatSigned(comp.grandTotals[player.id] ?? 0)}`,
-    );
-  }
-
-  if (comp.transfers.length > 0) {
-    lines.push("");
-    lines.push("Settle up:");
-    for (const transfer of comp.transfers) {
-      lines.push(
-        `  ${nameOf(transfer.fromId)} pays ${nameOf(transfer.toId)} ${formatMoney(
-          transfer.amount,
-        )}`,
-      );
-    }
-  }
-
-  if (comp.unbalancedHoles.length > 0) {
-    lines.push("");
-    lines.push(
-      `Not counted (does not net to zero): hole ${comp.unbalancedHoles.join(", ")}`,
-    );
-  }
-
-  return lines.join("\n");
 }
