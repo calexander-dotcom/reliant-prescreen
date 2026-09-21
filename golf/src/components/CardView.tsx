@@ -238,20 +238,23 @@ export function CardView({
           {round.players.map((player) => {
             const strokes = comp.strokes[player.id];
             return (
-              <li key={player.id} className="flex items-center justify-between py-2">
-                <span className="truncate pr-2 font-semibold text-neutral-900">
+              <li key={player.id} className="flex items-center justify-between gap-3 py-2">
+                <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                   {player.name}
                 </span>
-                <span className="tabular text-sm text-neutral-600">
-                  {player.handicapIndex === null
-                    ? "no index"
-                    : `index ${player.handicapIndex.toFixed(1)}`}
-                  {" · "}
-                  {strokes?.courseHandicap === null || strokes === undefined
-                    ? "CH –"
-                    : `CH ${strokes.courseHandicap}`}
-                  {" · "}
-                  <strong className="text-neutral-900">
+                {/* Two lines, both flush right: the index and course handicap,
+                    then what they actually play, so "plays" never wraps. */}
+                <span className="tabular shrink-0 text-right text-sm text-neutral-600">
+                  <span className="block whitespace-nowrap">
+                    {player.handicapIndex === null
+                      ? "no index"
+                      : `index ${player.handicapIndex.toFixed(1)}`}
+                    {" · "}
+                    {strokes?.courseHandicap === null || strokes === undefined
+                      ? "CH –"
+                      : `CH ${strokes.courseHandicap}`}
+                  </span>
+                  <strong className="block whitespace-nowrap text-neutral-900">
                     {strokes?.playingHandicap === null || strokes === undefined
                       ? "plays –"
                       : `plays ${strokes.playingHandicap}`}
