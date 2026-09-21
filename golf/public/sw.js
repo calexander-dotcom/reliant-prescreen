@@ -16,7 +16,7 @@
  * Offline still works, because every network-first path falls back to the cache.
  */
 
-const CACHE = "golfbets-v3";
+const CACHE = "onedowns-v4";
 const SHELL = ["/", "/new", "/manifest.webmanifest", "/icon-192.png"];
 /** Long enough for a weak signal, short enough not to feel broken. */
 const NETWORK_TIMEOUT_MS = 3000;

@@ -18,7 +18,7 @@ export default function HomePage() {
   return (
     <main className="space-y-5">
       <header className="pt-2">
-        <h1 className="text-3xl font-black tracking-tight text-turf-900">Golf Bets</h1>
+        <h1 className="text-3xl font-black tracking-tight text-turf-900">One Downs</h1>
         <p className="mt-1 text-sm text-neutral-600">
           Your card and the money, hole by hole. Every hole has to net to zero.
         </p>
