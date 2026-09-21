@@ -358,6 +358,21 @@ export function HoleView({
             presses === 0
               ? `No extra press before ${hole}.`
               : `${presses} extra press${presses === 1 ? "" : "es"} before ${hole}.`;
+          // A press joins the standing once the hole before it is scored, so
+          // the box says which it is rather than looking like it did nothing.
+          const stack = result.outcome.stacks.find(
+            (entry) => hole >= entry.startHole && hole <= entry.endHole,
+          );
+          const live = stack
+            ? stack.bets.filter((bet) => bet.openedBy === "manual" && bet.startHole === hole).length
+            : 0;
+          const waiting = presses > live;
+          const pressStatus =
+            presses === 0
+              ? null
+              : waiting
+                ? `Shows in the standing once hole ${hole - 1} is scored.`
+                : `In the standing above as ${presses === 1 ? "a bet" : `${presses} bets`} from ${hole}.`;
           return (
             <CollapsibleCard
               key={`press-${result.config.id}`}
@@ -393,6 +408,15 @@ export function HoleView({
                   +
                 </button>
               </div>
+              {pressStatus ? (
+                <p
+                  className={`mt-2 text-xs font-semibold ${
+                    waiting ? "text-amber-700" : "text-turf-700"
+                  }`}
+                >
+                  {pressStatus}
+                </p>
+              ) : null}
             </CollapsibleCard>
           );
         })}
