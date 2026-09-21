@@ -11,6 +11,7 @@ import {
   pressCounts,
   pressesBefore,
   standingFor,
+  teeFlipSide,
 } from "./onedown";
 
 const sideA: Side = { id: "a", name: "Team A", playerIds: ["a1", "a2"] };
@@ -672,5 +673,78 @@ describe("presses called before a hole, ahead of time", () => {
     // The old list shape still reads.
     expect(pressesBefore(config({ manualPresses: [3] as unknown as Record<number, number> }), 4)).toBe(1);
     expect(pressCounts({ 0: 1 }).get(0)).toBe(1);
+  });
+});
+
+describe("the tee flip", () => {
+  // Team A wins the flip on the 1st tee: stored as a player on their side.
+  const flipToA = config({ teeFlipWinnerId: "a2" });
+
+  it("puts the winners one up before a ball is hit, which opens the first press", () => {
+    const outcome = evaluateOneDown(flipToA, 18, through(), ids);
+    expect(outcome.teeFlip).toBe(0);
+    expect(outcome.standing).toBe("+1/0");
+    expect(outcome.stacks[0].bets.map((bet) => [bet.startHole, bet.openedBy, bet.margin])).toEqual([
+      [1, "start", 1],
+      [1, "auto", 0],
+    ]);
+    // One bet to A already, at $10 a side.
+    expect(outcome.sideTotals).toEqual([1000, -1000]);
+    expect(betStanding(outcome.stacks[0].bets[0], [sideA, sideB])).toBe("Team A 1 up");
+    expect(betStanding(outcome.stacks[0].bets[1], [sideA, sideB])).toBe("Opens on 1");
+  });
+
+  it("reads -1/0 from the losers' side", () => {
+    const outcome = evaluateOneDown(config({ teeFlipWinnerId: "b1" }), 18, through(), ids);
+    expect(outcome.teeFlip).toBe(1);
+    expect(outcome.standing).toBe("-1/0");
+    expect(standingFor(outcome.stacks[0], -1)).toBe("+1/0");
+  });
+
+  it("then plays on like any hole won: A takes the 1st for +2/+1/0", () => {
+    expect(evaluateOneDown(flipToA, 18, through(1), ids).standing).toBe("+2/+1/0");
+    // B takes the 1st back instead: the opening bet is square, B leads the
+    // press, and B being up opens the next.
+    expect(evaluateOneDown(flipToA, 18, through(-1), ids).standing).toBe("0/-1/0");
+  });
+
+  it("opens nothing on its own when the game presses at 2 down", () => {
+    const cfg = config({ teeFlipWinnerId: "a1", autoPressAt: 2 });
+    expect(evaluateOneDown(cfg, 18, through(), ids).standing).toBe("+1");
+    expect(evaluateOneDown(cfg, 18, through(1), ids).standing).toBe("+2/0");
+  });
+
+  it("is a hole of the front nine's game only", () => {
+    const outcome = evaluateOneDown(
+      config({ teeFlipWinnerId: "a1", reset: "nines", overallMultiplier: 2 }),
+      18,
+      through(),
+      ids,
+    );
+    expect(outcome.stacks[0].standing).toBe("+1/0");
+    expect(outcome.stacks[1].standing).toBe("0");
+    // The 18-hole bet starts square; the flip is not one of its holes.
+    expect(outcome.overall?.margin).toBe(0);
+    expect(outcome.overallTotals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+  });
+
+  it("starts a press called on the tee square, after the flip", () => {
+    const outcome = evaluateOneDown(config({ teeFlipWinnerId: "a1", manualPresses: { 0: 1 } }), 18, through(), ids);
+    expect(outcome.standing).toBe("+1/0/0");
+    expect(outcome.stacks[0].bets.map((bet) => bet.openedBy)).toEqual(["start", "auto", "manual"]);
+  });
+
+  it("shows beside the 1st on the card", () => {
+    const byHole = marginsByHole(flipToA, 18, through(1, 0), ids);
+    expect(formatStanding(byHole[1] ?? [])).toBe("+2/+1/0");
+    expect(formatStanding(byHole[2] ?? [])).toBe("+2/+1/0");
+  });
+
+  it("is nobody's when the winner has left the game", () => {
+    const cfg = config({ teeFlipWinnerId: "gone" });
+    expect(teeFlipSide(cfg)).toBeNull();
+    expect(evaluateOneDown(cfg, 18, through(), ids).standing).toBe("0");
+    expect(teeFlipSide(config({ teeFlipWinnerId: null }))).toBeNull();
+    expect(teeFlipSide(config())).toBeNull();
   });
 });

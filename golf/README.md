@@ -80,6 +80,11 @@ The rules, precisely:
 
 - After each hole, look at the **newest** bet. If either side is down in it, a
   fresh bet opens covering the next hole to the end of that nine.
+- The round starts with a **tee flip**. The side that wins it is one up in
+  the opening bet before a ball is hit, which by the rule above opens the
+  first press: the tee reads `+1/0` from the winners' side. The 1st hole's
+  screen and the Bets tab ask who won it. The flip is a hole of the front
+  nine's game only; the 18-hole bet starts square.
 - A hole that leaves the newest bet all square opens nothing. That is the
   moment somebody **presses by hand** instead. A press is called **before a
   hole** — any hole, the 1st included — and opens its own bet from that hole

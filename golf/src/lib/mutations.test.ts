@@ -12,6 +12,7 @@ import {
   setManualPresses,
   setPressesBefore,
   setScore,
+  setTeeFlipWinner,
 } from "./mutations";
 import { defaultOneDown } from "./bets/defaults";
 import type { Player, Round } from "./types";
@@ -261,5 +262,20 @@ describe("presses", () => {
   it("leaves other bets alone", () => {
     const round = setPressesBefore(withOneDown, "od1", 2, 1);
     expect(presses(setPressesBefore(round, "nope", 2, 3))).toEqual({ 1: 1 });
+  });
+});
+
+describe("setTeeFlipWinner", () => {
+  const withOneDown: Round = { ...base, bets: [defaultOneDown(players, "od1")] };
+  const flip = (round: Round) => {
+    const bet = round.bets[0];
+    return bet.kind === "onedown" ? bet.teeFlipWinnerId : undefined;
+  };
+
+  it("records a player on the winning side and clears back to no flip", () => {
+    const won = setTeeFlipWinner(withOneDown, "od1", "p1");
+    expect(flip(won)).toBe("p1");
+    expect(flip(setTeeFlipWinner(won, "od1", null))).toBeNull();
+    expect(flip(setTeeFlipWinner(won, "nope", null))).toBe("p1");
   });
 });

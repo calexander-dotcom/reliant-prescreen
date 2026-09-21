@@ -5,6 +5,7 @@ import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
 import { MAX_PRESSES_PER_HOLE, pressesBefore, standingFor } from "@/lib/bets/onedown";
+import { TeeFlipChooser } from "./TeeFlipChooser";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
 import {
   balanceHoleOnto,
@@ -533,7 +534,7 @@ export function HoleView({
 
       {comp.betResults.some((result) => result.kind === "onedown") ? (
         <Card>
-          <SectionTitle hint="A new bet opens on its own when someone goes down. A press before a hole opens one by hand on it — up to four a hole, here or ahead of time on the Bets tab.">
+          <SectionTitle hint="A new bet opens on its own when someone goes down. The side that wins the tee flip starts one up, which opens the first: +1/0. A press before a hole opens one by hand on it — up to four a hole, here or ahead of time on the Bets tab.">
             One downs
           </SectionTitle>
           <ul className="space-y-3">
@@ -654,6 +655,12 @@ export function HoleView({
                         </dd>
                       </div>
                     </dl>
+
+                    {hole === 1 ? (
+                      <div className="mt-3 border-t border-neutral-100 pt-2">
+                        <TeeFlipChooser round={round} config={result.config} update={update} />
+                      </div>
+                    ) : null}
 
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs font-semibold text-neutral-600">
