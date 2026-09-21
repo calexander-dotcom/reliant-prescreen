@@ -91,8 +91,12 @@ export function CardView({
         <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
-              <th className="sticky left-0 bg-white py-2 pr-2 text-left">Hole</th>
-              <th className="px-1 py-2 text-center font-semibold">Par</th>
+              <th className="sticky left-0 bg-white py-2 pr-2 text-left">
+                Hole
+                <span className="block text-[0.6rem] font-normal leading-none text-neutral-400">
+                  par
+                </span>
+              </th>
               {round.players.map((player) => (
                 <th key={player.id} className="px-1 py-2 text-center font-semibold">
                   <span className="block max-w-[4.5rem] truncate">
@@ -130,9 +134,11 @@ export function CardView({
               ),
             )}
             <tr className="border-t-2 border-neutral-300 font-bold">
-              <td className="sticky left-0 bg-white py-2 pr-2 text-left">Total</td>
-              <td className="px-1 py-2 text-center text-neutral-500">
-                {comp.holes.reduce((sum, hole) => sum + hole.par, 0)}
+              <td className="sticky left-0 bg-white py-2 pr-2 text-left">
+                Total
+                <span className="block text-[0.65rem] font-normal leading-none text-neutral-500">
+                  par {comp.holes.reduce((sum, hole) => sum + hole.par, 0)}
+                </span>
               </td>
               {round.players.map((player) => (
                 <td key={player.id} className="px-1 py-2 text-center">
@@ -151,8 +157,7 @@ export function CardView({
               <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase">
                 Net
               </td>
-              <td />
-              {round.players.map((player) => (
+                            {round.players.map((player) => (
                 <td key={player.id} className="px-1 py-1.5 text-center">
                   {comp.totalsByPlayer[player.id]?.holesPosted
                     ? comp.totalsByPlayer[player.id].net
@@ -172,8 +177,7 @@ export function CardView({
                 <td className="sticky left-0 bg-white py-1.5 pr-2 text-left text-xs uppercase text-neutral-500">
                   Overall
                 </td>
-                <td />
-                {round.players.map((player) => {
+                                {round.players.map((player) => {
                   const cents = comp.nineTotals.overall[player.id] ?? 0;
                   return (
                     <td
@@ -197,8 +201,7 @@ export function CardView({
               <td className="sticky left-0 bg-white py-2 pr-2 text-left text-xs uppercase text-neutral-500">
                 Money
               </td>
-              <td />
-              {round.players.map((player) => {
+                            {round.players.map((player) => {
                 const total = comp.grandTotals[player.id] ?? 0;
                 return (
                   <td
@@ -328,8 +331,10 @@ function HoleGroup({
                   !
                 </span>
               ) : null}
+              <span className="block text-[0.65rem] font-normal leading-none text-neutral-500">
+                par {hole.par}
+              </span>
             </th>
-            <td className="px-1 py-1.5 text-center text-neutral-500">{hole.par}</td>
             {round.players.map((player) => {
               const cell = comp.cells[player.id]?.[hole.number];
               const money = holeStatus?.amounts[player.id] ?? 0;
@@ -366,9 +371,9 @@ function HoleGroup({
       <tr className="border-b border-neutral-200 bg-neutral-50 font-semibold">
         <td className="sticky left-0 bg-neutral-50 py-1.5 pr-2 text-left text-xs uppercase text-neutral-500">
           {label}
-        </td>
-        <td className="px-1 py-1.5 text-center text-neutral-500">
-          {holes.reduce((sum, hole) => sum + hole.par, 0)}
+          <span className="block text-[0.65rem] font-normal normal-case leading-none text-neutral-500">
+            par {holes.reduce((sum, hole) => sum + hole.par, 0)}
+          </span>
         </td>
         {round.players.map((player) => {
           const money = nineMoney[player.id] ?? 0;
