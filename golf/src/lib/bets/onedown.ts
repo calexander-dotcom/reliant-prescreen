@@ -50,6 +50,8 @@ export interface OneDownStack {
   label: string;
   startHole: number;
   endHole: number;
+  /** The side that won the flip on this stack's first tee, if anyone did. */
+  teeFlip: 0 | 1 | null;
   bets: OneDownBet[];
   /** Margins oldest-first, as the standing is written on the card. */
   standing: string;
@@ -96,8 +98,13 @@ export interface GreenieOutcome {
 }
 
 export interface OneDownOutcome {
-  /** The side that won the flip on the 1st tee, if anyone in the game did. */
-  teeFlip: 0 | 1 | null;
+  teeFlips: {
+    enabled: boolean;
+    /** The tees a flip happens on: the first hole of each stack. */
+    holes: number[];
+    /** Tees the round has not been asked about yet. */
+    unanswered: number[];
+  };
   greenies: GreenieOutcome;
   stacks: OneDownStack[];
   /** The 18-hole bet at a multiple of the stake. Never presses. */
@@ -192,12 +199,34 @@ export function pressesBefore(config: OneDownConfig, hole: number): number {
   return pressCounts(config.manualPresses).get(hole - 1) ?? 0;
 }
 
+/** The tees a flip happens on — the first hole of each stack — when flips are on. */
+export function teeFlipHoles(config: OneDownConfig, holeCount: number): number[] {
+  if (config.teeFlip === false) return [];
+  return stackRanges(holeCount, config.reset).map((range) => range.startHole);
+}
+
 /**
- * Which side won the flip on the 1st tee. Null when nobody did, or the
- * winner is no longer on either side.
+ * Who won the flip on this tee: a player id, null for no flip, undefined
+ * when the round has not been asked yet.
  */
-export function teeFlipSide(config: OneDownConfig): 0 | 1 | null {
-  const winner = config.teeFlipWinnerId;
+export function teeFlipWinner(
+  config: OneDownConfig,
+  startHole: number,
+): PlayerId | null | undefined {
+  const winners = config.teeFlipWinners ?? {};
+  if (startHole in winners) return winners[startHole];
+  // Before the 10th had its own flip, the 1st tee's winner lived in one field.
+  if (startHole === 1 && config.teeFlipWinnerId !== undefined) return config.teeFlipWinnerId;
+  return undefined;
+}
+
+/**
+ * Which side won the flip on this tee. Null when flips are off, nobody
+ * did, or the winner is no longer on either side.
+ */
+export function teeFlipSide(config: OneDownConfig, startHole: number): 0 | 1 | null {
+  if (config.teeFlip === false) return null;
+  const winner = teeFlipWinner(config, startHole);
   if (!winner) return null;
   if (config.sides[0].playerIds.includes(winner)) return 0;
   if (config.sides[1].playerIds.includes(winner)) return 1;
@@ -337,9 +366,6 @@ export function evaluateOneDown(
   parFor: (hole: number) => number | null = () => null,
 ): OneDownOutcome {
   const manual = pressCounts(config.manualPresses);
-  const teeFlip = teeFlipSide(config);
-  // The flip is a hole won before the 1st, signed from side A like a result.
-  const flipMargin = teeFlip === null ? 0 : teeFlip === 0 ? 1 : -1;
 
   const marginFrom = (from: number, to: number) => {
     let total = 0;
@@ -404,13 +430,15 @@ export function evaluateOneDown(
 
   const stacks: OneDownStack[] = [];
 
-  stackRanges(holeCount, config.reset).forEach((range, stackIndex) => {
+  for (const range of stackRanges(holeCount, config.reset)) {
     type Opened = { startHole: number; openedBy: OneDownBet["openedBy"] };
-    // The tee flip counts in the opening bet of the round's first stack and
-    // nowhere else: a press called on the tee starts square, and the back
-    // nine starts over.
-    const flipFor = (entry: Opened) =>
-      stackIndex === 0 && entry.openedBy === "start" ? flipMargin : 0;
+    // Each stack starts with a flip on its first tee — the 1st, then the
+    // 10th. It is a hole won before a ball is hit, signed from side A like a
+    // result, and it counts in that stack's opening bet and nowhere else: a
+    // press called on the tee starts square.
+    const teeFlip = teeFlipSide(config, range.startHole);
+    const flipMargin = teeFlip === null ? 0 : teeFlip === 0 ? 1 : -1;
+    const flipFor = (entry: Opened) => (entry.openedBy === "start" ? flipMargin : 0);
 
     const opened: Opened[] = [{ startHole: range.startHole, openedBy: "start" }];
     // Losing the flip is being 1 down before a ball is hit, and that opens
@@ -486,16 +514,17 @@ export function evaluateOneDown(
       label: range.label,
       startHole: range.startHole,
       endHole: range.endHole,
+      teeFlip,
       bets,
       standing: formatStanding(bets.map((bet) => bet.margin)),
       led,
       sideTotals: sideTotalsOf(playerTotals),
       playerTotals,
     });
-  });
+  }
 
   // The 18-hole bet: one match, no presses, at a multiple of the stake. The
-  // tee flip does not count here; it is a hole of the front nine's game.
+  // tee flips do not count here; each is a hole of its own nine's game.
   let overall: OneDownBet | null = null;
   if (config.overallMultiplier > 0 && holeCount > 9) {
     const holesPlayed = holesPlayedIn(1, holeCount);
@@ -526,8 +555,14 @@ export function evaluateOneDown(
     stacks[0] ??
     null;
 
+  const flipHoles = teeFlipHoles(config, holeCount);
+
   return {
-    teeFlip,
+    teeFlips: {
+      enabled: config.teeFlip !== false,
+      holes: flipHoles,
+      unanswered: flipHoles.filter((hole) => teeFlipWinner(config, hole) === undefined),
+    },
     greenies,
     stacks,
     overall,

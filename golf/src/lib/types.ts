@@ -134,11 +134,20 @@ export interface OneDownConfig {
    */
   manualPresses: Record<number, number>;
   /**
-   * Who won the flip on the 1st tee: a player on the winning side, so it
-   * follows the people if the teams are shuffled afterwards. The winners
-   * start one up in the opening bet, which opens the first press by the
-   * 1-down rule — +1/0 before a ball is hit. Null or missing means no flip.
+   * Whether the round starts with a flip on the tee — the 1st, and the 10th
+   * when the stack starts over. The winners start one up in the opening
+   * bet, which opens the first press by the 1-down rule: +1/0 before a ball
+   * is hit. Undefined means on.
    */
+  teeFlip?: boolean;
+  /**
+   * Who won the flip on each tee, keyed by the stack's first hole (1, 10):
+   * a player on the winning side, so it follows the people if the teams are
+   * shuffled afterwards; null for no flip on that tee; missing when the
+   * round has not been asked yet.
+   */
+  teeFlipWinners?: Record<number, PlayerId | null>;
+  /** The 1st tee's winner as rounds before the 10th had its own flip stored it. */
   teeFlipWinnerId?: PlayerId | null;
   /** Whether the stack runs all 18 or starts over at the 10th. */
   reset: "round" | "nines";

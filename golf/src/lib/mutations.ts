@@ -221,19 +221,27 @@ export function setPressesBefore(
 }
 
 /**
- * Who won the flip on the 1st tee: a player on the winning side, or null for
- * no flip. See OneDownConfig.teeFlipWinnerId.
+ * Who won the flip on a tee — the 1st or the 10th: a player on the winning
+ * side, null for no flip, undefined to take the answer back. See
+ * OneDownConfig.teeFlipWinners.
  */
 export function setTeeFlipWinner(
   round: Round,
   betId: string,
-  winnerId: PlayerId | null,
+  startHole: number,
+  winnerId: PlayerId | null | undefined,
 ): Round {
   return touch({
     ...round,
-    bets: round.bets.map((bet) =>
-      bet.id !== betId || bet.kind !== "onedown" ? bet : { ...bet, teeFlipWinnerId: winnerId },
-    ),
+    bets: round.bets.map((bet) => {
+      if (bet.id !== betId || bet.kind !== "onedown") return bet;
+      const winners = { ...(bet.teeFlipWinners ?? {}) };
+      if (winnerId === undefined) delete winners[startHole];
+      else winners[startHole] = winnerId;
+      // The 1st tee's answer used to live in its own field; this one wins now.
+      const { teeFlipWinnerId: _legacy, ...rest } = bet;
+      return { ...rest, teeFlipWinners: winners };
+    }),
   });
 }
 

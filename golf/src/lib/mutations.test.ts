@@ -267,15 +267,28 @@ describe("presses", () => {
 
 describe("setTeeFlipWinner", () => {
   const withOneDown: Round = { ...base, bets: [defaultOneDown(players, "od1")] };
-  const flip = (round: Round) => {
+  const flips = (round: Round) => {
     const bet = round.bets[0];
-    return bet.kind === "onedown" ? bet.teeFlipWinnerId : undefined;
+    return bet.kind === "onedown" ? bet.teeFlipWinners : undefined;
   };
 
-  it("records a player on the winning side and clears back to no flip", () => {
-    const won = setTeeFlipWinner(withOneDown, "od1", "p1");
-    expect(flip(won)).toBe("p1");
-    expect(flip(setTeeFlipWinner(won, "od1", null))).toBeNull();
-    expect(flip(setTeeFlipWinner(won, "nope", null))).toBe("p1");
+  it("records a winner per tee, a no-flip, and takes an answer back", () => {
+    const first = setTeeFlipWinner(withOneDown, "od1", 1, "p1");
+    expect(flips(first)).toEqual({ 1: "p1" });
+    const both = setTeeFlipWinner(first, "od1", 10, "p3");
+    expect(flips(both)).toEqual({ 1: "p1", 10: "p3" });
+    expect(flips(setTeeFlipWinner(both, "od1", 1, null))).toEqual({ 1: null, 10: "p3" });
+    expect(flips(setTeeFlipWinner(both, "od1", 10, undefined))).toEqual({ 1: "p1" });
+    expect(flips(setTeeFlipWinner(both, "nope", 1, null))).toEqual({ 1: "p1", 10: "p3" });
+  });
+
+  it("retires the old single-field answer once a tee is answered", () => {
+    const legacy: Round = {
+      ...withOneDown,
+      bets: [{ ...defaultOneDown(players, "od1"), teeFlipWinnerId: "p2" }],
+    };
+    const bet = setTeeFlipWinner(legacy, "od1", 10, "p3").bets[0];
+    expect(bet.kind === "onedown" ? bet.teeFlipWinnerId : "kept").toBeUndefined();
+    expect(bet.kind === "onedown" ? bet.teeFlipWinners : null).toEqual({ 10: "p3" });
   });
 });

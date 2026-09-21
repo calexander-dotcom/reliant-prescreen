@@ -364,6 +364,20 @@ function OneDownFields({
           />
         </Field>
         <Field
+          label="Tee flips"
+          hint="A flip on the 1st tee, and the 10th when the stack starts over. The winners start one up, which opens the first press: +1/0."
+        >
+          <Toggle
+            name="Tee flips"
+            value={bet.teeFlip === false ? "off" : "on"}
+            onChange={(value) => onChange({ ...bet, teeFlip: value === "on" })}
+            options={[
+              { value: "on", label: "On" },
+              { value: "off", label: "Off" },
+            ]}
+          />
+        </Field>
+        <Field
           label="Alternate holes"
           hint="1, 3, 5, 7, 9 and 10, 12, 14, 16, 18 on both partners' scores added together; the even holes of each nine are best ball."
         >
@@ -765,6 +779,7 @@ export function BetSummaryLine({ bet, players }: { bet: BetConfig; players: Play
           ? ` · overall ${bet.overallMultiplier}x`
           : ""}
         {bet.greenies === false ? "" : " · greenies"}
+        {bet.teeFlip === false ? "" : " · tee flips"}
         {bet.alternateAggregate === false ? "" : " · aggregate on 1, 3, 5, 7, 9 and 10, 12, 14, 16, 18"}
       </span>
     );

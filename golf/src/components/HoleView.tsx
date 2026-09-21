@@ -5,7 +5,7 @@ import { aggregateHoles, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
 import { MAX_PRESSES_PER_HOLE, pressesBefore, standingFor } from "@/lib/bets/onedown";
-import { TeeFlipChooser } from "./TeeFlipChooser";
+import { TeeFlipChooser, teeName } from "./TeeFlipChooser";
 import { formatCompact, formatMoney, formatSigned } from "@/lib/money";
 import {
   balanceHoleOnto,
@@ -119,6 +119,40 @@ export function HoleView({
           &rarr;
         </Button>
       </div>
+
+      {comp.betResults
+        .filter(
+          (result): result is Extract<typeof result, { kind: "onedown" }> =>
+            result.kind === "onedown" && result.outcome.teeFlips.holes.includes(hole),
+        )
+        .map((result) => {
+          const answered = !result.outcome.teeFlips.unanswered.includes(hole);
+          const won =
+            result.outcome.stacks.find((stack) => stack.startHole === hole)?.teeFlip ?? null;
+          return (
+            <Card key={`flip-${result.config.id}`}>
+              <SectionTitle hint="The side that wins the flip starts one up in the opening bet, which opens the first press: +1/0 before a ball is hit.">
+                Tee flip on {teeName(hole)}
+              </SectionTitle>
+              {!answered ? <Banner tone="warn">Who won the tee flip?</Banner> : null}
+              {answered ? (
+                <Banner tone={won !== null ? "good" : undefined}>
+                  {won !== null
+                    ? `${result.config.sides[won].name} won it and start 1 up.`
+                    : "No flip on this tee."}
+                </Banner>
+              ) : null}
+              <div className="mt-3">
+                <TeeFlipChooser
+                  round={round}
+                  config={result.config}
+                  startHole={hole}
+                  update={update}
+                />
+              </div>
+            </Card>
+          );
+        })}
 
       <CollapsibleCard
         title="Scores"
@@ -655,12 +689,6 @@ export function HoleView({
                         </dd>
                       </div>
                     </dl>
-
-                    {hole === 1 ? (
-                      <div className="mt-3 border-t border-neutral-100 pt-2">
-                        <TeeFlipChooser round={round} config={result.config} update={update} />
-                      </div>
-                    ) : null}
 
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-xs font-semibold text-neutral-600">
