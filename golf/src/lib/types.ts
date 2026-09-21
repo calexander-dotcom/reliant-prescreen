@@ -133,6 +133,13 @@ export interface OneDownConfig {
    * time, before the round starts.
    */
   manualPresses: Record<number, number>;
+  /**
+   * Who won the flip on the 1st tee: a player on the winning side, so it
+   * follows the people if the teams are shuffled afterwards. The winners
+   * start one up in the opening bet, which opens the first press by the
+   * 1-down rule — +1/0 before a ball is hit. Null or missing means no flip.
+   */
+  teeFlipWinnerId?: PlayerId | null;
   /** Whether the stack runs all 18 or starts over at the 10th. */
   reset: "round" | "nines";
   /**

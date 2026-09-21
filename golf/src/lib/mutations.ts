@@ -220,6 +220,23 @@ export function setPressesBefore(
   return setManualPresses(round, betId, hole - 1, count);
 }
 
+/**
+ * Who won the flip on the 1st tee: a player on the winning side, or null for
+ * no flip. See OneDownConfig.teeFlipWinnerId.
+ */
+export function setTeeFlipWinner(
+  round: Round,
+  betId: string,
+  winnerId: PlayerId | null,
+): Round {
+  return touch({
+    ...round,
+    bets: round.bets.map((bet) =>
+      bet.id !== betId || bet.kind !== "onedown" ? bet : { ...bet, teeFlipWinnerId: winnerId },
+    ),
+  });
+}
+
 /** Nudge the presses before a hole up or down. */
 export function adjustPressesBefore(
   round: Round,

@@ -14,6 +14,7 @@ import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { formatMoney, formatSigned } from "@/lib/money";
 import type { OneDownConfig, Round } from "@/lib/types";
 import { BetEditor, BetSummaryLine } from "./BetEditor";
+import { TeeFlipChooser } from "./TeeFlipChooser";
 import { Banner, Button, Card, SectionTitle } from "./ui";
 
 /** Live status of every automatic bet, and the editor to change the terms. */
@@ -58,13 +59,17 @@ export function BetsView({
       ))}
 
       {!readOnly && update
-        ? round.bets
-            .filter((bet): bet is OneDownConfig => bet.kind === "onedown")
-            .map((bet) => (
+        ? comp.betResults
+            .filter(
+              (result): result is Extract<BetResult, { kind: "onedown" }> =>
+                result.kind === "onedown",
+            )
+            .map((result) => (
               <PressesCard
-                key={bet.id}
+                key={result.config.id}
                 round={round}
-                bet={bet}
+                // The computed config carries the sides' live labels.
+                bet={result.config}
                 onlyBet={round.bets.filter((entry) => entry.kind === "onedown").length === 1}
                 update={update}
               />
@@ -249,9 +254,10 @@ function BetResultCard({
 }
 
 /**
- * Presses called before each hole, for the whole card at once, so they can
- * be set on the 1st tee or the night before. A press before a hole opens
- * another bet by hand from that hole to the end of its nine.
+ * The tee flip and the presses called before each hole, for the whole card
+ * at once, so they can be set on the 1st tee or the night before. A press
+ * before a hole opens another bet by hand from that hole to the end of its
+ * nine.
  */
 function PressesCard({
   round,
@@ -274,10 +280,13 @@ function PressesCard({
   return (
     <Card>
       <SectionTitle
-        hint={`A press before a hole opens another bet by hand from that hole to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. Set them here before the round or on the hole screen as you go.`}
+        hint={`The side that wins the flip on the 1st tee starts one up, which opens the first press: +1/0 before a ball is hit. A press before a hole opens another bet by hand from that hole to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. Set them here before the round or on the hole screen as you go.`}
       >
-        Presses{onlyBet ? "" : ` · ${bet.label}`}
+        Tee flip and presses{onlyBet ? "" : ` · ${bet.label}`}
       </SectionTitle>
+      <div className="mb-3 border-b border-neutral-100 pb-3">
+        <TeeFlipChooser round={round} config={bet} update={update} />
+      </div>
       <div
         role="group"
         aria-label={`Presses before each hole${onlyBet ? "" : ` for ${bet.label}`}`}
@@ -374,7 +383,7 @@ function OneDownBody({
 
   return (
     <div className="space-y-3">
-      {outcome.stacks.map((stack) => (
+      {outcome.stacks.map((stack, stackIndex) => (
         <div key={stack.label}>
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-sm font-semibold text-neutral-900">
@@ -411,6 +420,11 @@ function OneDownBody({
                       ? "Opening bet"
                       : `From hole ${bet.startHole}`}
                   </span>
+                  {bet.openedBy === "start" && stackIndex === 0 && outcome.teeFlip !== null ? (
+                    <span className="ml-1.5 rounded bg-sky-100 px-1 text-[0.65rem] font-bold text-sky-900">
+                      TEE FLIP
+                    </span>
+                  ) : null}
                   {bet.openedBy === "manual" ? (
                     <span className="ml-1.5 rounded bg-amber-100 px-1 text-[0.65rem] font-bold text-amber-900">
                       PRESS

@@ -10,8 +10,11 @@ import { matchPayout, type HoleResult } from "./nassau";
  * new bets. A hole that leaves the newest bet all square opens nothing — which
  * is the moment a side presses by hand instead. A press can be called before
  * any hole, the 1st included, and ahead of time: it opens on that hole, once
- * the round gets there. Left to itself the game opens at most one new bet per
- * hole, which is what makes the standing read as one number per hole played:
+ * the round gets there. The round itself starts with a flip on the 1st tee:
+ * the side that wins it is one up in the opening bet before a ball is hit,
+ * which by the same rule opens the first press — +1/0 on the tee. Left to
+ * itself the game opens at most one new bet per hole, which is what makes
+ * the standing read as one number per hole played:
  *
  *     3-2-1-1-0        four bets to side A, one just opened at level
  *     2-1-0-0-(-1)-0   side B leads the fifth bet
@@ -93,6 +96,8 @@ export interface GreenieOutcome {
 }
 
 export interface OneDownOutcome {
+  /** The side that won the flip on the 1st tee, if anyone in the game did. */
+  teeFlip: 0 | 1 | null;
   greenies: GreenieOutcome;
   stacks: OneDownStack[];
   /** The 18-hole bet at a multiple of the stake. Never presses. */
@@ -185,6 +190,18 @@ export function pressCounts(
 /** Presses called before this hole, i.e. bets opened by hand on it. */
 export function pressesBefore(config: OneDownConfig, hole: number): number {
   return pressCounts(config.manualPresses).get(hole - 1) ?? 0;
+}
+
+/**
+ * Which side won the flip on the 1st tee. Null when nobody did, or the
+ * winner is no longer on either side.
+ */
+export function teeFlipSide(config: OneDownConfig): 0 | 1 | null {
+  const winner = config.teeFlipWinnerId;
+  if (!winner) return null;
+  if (config.sides[0].playerIds.includes(winner)) return 0;
+  if (config.sides[1].playerIds.includes(winner)) return 1;
+  return null;
 }
 
 function evaluateGreenies(
@@ -320,6 +337,9 @@ export function evaluateOneDown(
   parFor: (hole: number) => number | null = () => null,
 ): OneDownOutcome {
   const manual = pressCounts(config.manualPresses);
+  const teeFlip = teeFlipSide(config);
+  // The flip is a hole won before the 1st, signed from side A like a result.
+  const flipMargin = teeFlip === null ? 0 : teeFlip === 0 ? 1 : -1;
 
   const marginFrom = (from: number, to: number) => {
     let total = 0;
@@ -384,10 +404,20 @@ export function evaluateOneDown(
 
   const stacks: OneDownStack[] = [];
 
-  for (const range of stackRanges(holeCount, config.reset)) {
-    const opened: Array<{ startHole: number; openedBy: OneDownBet["openedBy"] }> = [
-      { startHole: range.startHole, openedBy: "start" },
-    ];
+  stackRanges(holeCount, config.reset).forEach((range, stackIndex) => {
+    type Opened = { startHole: number; openedBy: OneDownBet["openedBy"] };
+    // The tee flip counts in the opening bet of the round's first stack and
+    // nowhere else: a press called on the tee starts square, and the back
+    // nine starts over.
+    const flipFor = (entry: Opened) =>
+      stackIndex === 0 && entry.openedBy === "start" ? flipMargin : 0;
+
+    const opened: Opened[] = [{ startHole: range.startHole, openedBy: "start" }];
+    // Losing the flip is being 1 down before a ball is hit, and that opens
+    // the first press just as losing a hole would.
+    if (config.autoPressAt > 0 && Math.abs(flipFor(opened[0])) >= config.autoPressAt) {
+      opened.push({ startHole: range.startHole, openedBy: "auto" });
+    }
     // Presses called before the first hole of the stack — on the 1st tee, or
     // the 10th — ride alongside the opening bet from the start.
     for (let i = 0; i < (manual.get(range.startHole - 1) ?? 0); i += 1) {
@@ -404,7 +434,7 @@ export function evaluateOneDown(
       if (hole >= range.endHole) break;
 
       const newest = opened[opened.length - 1];
-      const newestMargin = marginFrom(newest.startHole, hole);
+      const newestMargin = flipFor(newest) + marginFrom(newest.startHole, hole);
 
       const autoPress =
         config.autoPressAt > 0 && Math.abs(newestMargin) >= config.autoPressAt;
@@ -428,7 +458,7 @@ export function evaluateOneDown(
     const bets: OneDownBet[] = opened.map((entry, index) => {
       const holesInBet = range.endHole - entry.startHole + 1;
       const holesPlayed = holesPlayedIn(entry.startHole, range.endHole);
-      const margin = marginFrom(entry.startHole, range.endHole);
+      const margin = flipFor(entry) + marginFrom(entry.startHole, range.endHole);
       return {
         index: index + 1,
         startHole: entry.startHole,
@@ -462,9 +492,10 @@ export function evaluateOneDown(
       sideTotals: sideTotalsOf(playerTotals),
       playerTotals,
     });
-  }
+  });
 
-  // The 18-hole bet: one match, no presses, at a multiple of the stake.
+  // The 18-hole bet: one match, no presses, at a multiple of the stake. The
+  // tee flip does not count here; it is a hole of the front nine's game.
   let overall: OneDownBet | null = null;
   if (config.overallMultiplier > 0 && holeCount > 9) {
     const holesPlayed = holesPlayedIn(1, holeCount);
@@ -496,6 +527,7 @@ export function evaluateOneDown(
     null;
 
   return {
+    teeFlip,
     greenies,
     stacks,
     overall,
@@ -516,7 +548,8 @@ export function betStanding(bet: OneDownBet, sides: [Side, Side]): string {
   if (bet.status === "won-a") return `${sides[0].name} wins`;
   if (bet.status === "won-b") return `${sides[1].name} wins`;
   if (bet.status === "halved") return "Halved";
-  if (bet.holesPlayed === 0) return `Opens on ${bet.startHole}`;
+  // A bet can lead before a hole is played: the opening bet, after the flip.
+  if (bet.holesPlayed === 0 && bet.margin === 0) return `Opens on ${bet.startHole}`;
   if (bet.margin === 0) return `All square thru ${bet.holesPlayed}`;
   const leader = bet.margin > 0 ? sides[0].name : sides[1].name;
   return `${leader} ${Math.abs(bet.margin)} up`;
