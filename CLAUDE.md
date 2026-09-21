@@ -157,6 +157,24 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
   ("Only build Production") would silence that.
 - Redis store connected to golf_bets for shared rounds (Redis Cloud, free
   tier, RAM-only). The app tolerates it being wiped.
+- **Three Vercel projects are connected to this one repository** — golf_bets,
+  workspace-recruiterasst and reliant-prescreen — so every push to any branch
+  starts a build in all three. The account is on the Hobby plan, which allows
+  100 deployments a day across the account. That limit was hit on 2026-09-21
+  at about 23:30 UTC after a day of small golf pull requests: Vercel answered
+  every build with "Deployment rate limited — retry in 24 hours", including
+  the production deployments for golf PRs #52–#56. **A rate-limited deployment
+  is dropped, not queued**: the next push to a production branch after the
+  limit lifts is what deploys the merged work. Until then the site serves the
+  last build that got through.
+- To keep this from recurring: `golf/vercel.json` turns off preview
+  deployments for the golf session's branch in golf_bets (a PR is merged
+  within minutes anyway); the golf session no longer pushes its branch after
+  each merge. **Owner:** in Vercel, on workspace-recruiterasst and
+  reliant-prescreen, set Settings → Git → Ignored Build Step to a command that
+  only builds when that project's own directory changed (for example
+  `git diff --quiet HEAD^ HEAD -- <its directory>/`), and the same on
+  golf_bets with `golf/`. Then a golf push costs one build, not three.
 
 ### Credentials known to exist
 
@@ -177,3 +195,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
+| 2026-09-21 | `claude/golf-gambling-tracker-2xn3ty` | Vercel's daily deployment limit hit; golf PRs #52–#56 are merged into the production branch but not deployed. The next production push after ~2026-09-22 23:30 UTC deploys them. | Vercel | waiting |
