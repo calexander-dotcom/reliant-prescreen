@@ -63,58 +63,65 @@ describe("the round as a text", () => {
   const text = buildRoundSummary(round, computeRound(round));
   const lines = text.split("\n");
 
-  it("leads with the course and the game's terms", () => {
-    expect(lines[0]).toBe("Streamsong Black — 2026-09-21 · 18 holes");
-    expect(text).toContain(
-      "One downs — $10.00 a bet per player, net, aggregate on 1, 3, 5, 7, 9 and 10, 12, 14, 16, 18",
-    );
-    expect(text).toContain(
-      "Charles / Andrew vs Andy / Dale. Standing from Charles / Andrew's side: + is Charles / Andrew up. * is a press called by hand.",
-    );
+  it("leads with the course and who is playing whom", () => {
+    expect(lines[0]).toBe("Streamsong Black — 2026-09-21");
+    expect(text).toContain("One downs — Charles / Andrew vs Andy / Dale, from Charles / Andrew's side");
   });
 
-  it("gives each nine its flip, standing, money, holes and presses", () => {
-    expect(text).toContain("Tee flip on the 1st tee: Charles / Andrew won it.");
-    expect(text).toContain("Front 9: +4/+3/+2/+1/+1*/0 — Charles / Andrew up $50.00 each");
+  it("gives each nine its final standing, with who pressed under it", () => {
     expect(text).toContain(
-      "  After each hole: 1 +2/+1/0 · 2 +3/+2/+1/0 · 3 +3/+2/+1/0/0* · 4 +4/+3/+2/+1/+1*/0",
+      "Front 9: +4/+3/+2/+1/+1/0 — Charles / Andrew up $50.00 each\n  Andy / Dale pressed before 4\nBack 9: -2/-1/0 — Andy / Dale up $20.00 each",
     );
-    expect(text).toContain("  Extra presses: before 4");
-    expect(text).toContain("Tee flip on the 10th tee: Andy / Dale won it.");
-    expect(text).toContain("Back 9: -2/-1/0 — Andy / Dale up $20.00 each");
+    // Nothing hole by hole, no flips, no stars.
+    expect(text).not.toContain("After each hole");
+    expect(text).not.toContain("Tee flip");
+    expect(text).not.toContain("*");
   });
 
-  it("covers the overall, the greenies and the game's total", () => {
+  it("has the all-day bet, the greenies that were won, and the game's total", () => {
     expect(text).toContain(
-      "Overall 18 ($20.00): Charles / Andrew 2 up — Charles / Andrew up $20.00 each",
+      "All day ($20.00): Charles / Andrew 2 up — Charles / Andrew up $20.00 each",
     );
-    expect(text).toContain(
-      "Greenies: 2 to Charles / Andrew, 1 to Andy / Dale — Charles / Andrew up $10.00 each (1 par 3 not entered)",
-    );
-    expect(text).toContain("  3 Charles · 7 Andrew · 12 Dale · 16 not entered");
+    expect(text).toContain("Greenies: 3 Charles, 7 Andrew, 12 Dale — Charles / Andrew up $10.00 each");
+    expect(text).not.toContain("not entered");
     expect(text).toContain("One downs total: Charles / Andrew up $60.00 each");
   });
 
-  it("ends with scores, money and who pays whom", () => {
-    expect(text).toContain("Scores\nCharles: 20 (15 out, 5 in) thru 5\n");
-    expect(text).toContain("Money\nCharles: +$60.00\nAndrew: +$60.00\nAndy: -$60.00\nDale: -$60.00");
-    const settle = text.slice(text.indexOf("Settle up"));
-    expect(settle).toMatch(/pays (Charles|Andrew) \$60\.00/);
-    expect((settle.match(/pays/g) ?? []).length).toBe(2);
+  it("ends with where everyone finished, and nothing about who pays whom", () => {
+    expect(text.trimEnd().endsWith("Charles (20 gross): +$60.00\nAndrew (22 gross): +$60.00\nAndy (22 gross): -$60.00\nDale (22 gross): -$60.00")).toBe(true);
+    expect(text).not.toContain("pays");
+    expect(text).not.toContain("Settle");
   });
 
-  it("says when the flips and greenies are not in yet, and skips games that are off", () => {
+  it("names the presser from the flip on the tee, and says nothing when nobody has lost yet", () => {
+    const withFlipPress: Round = {
+      ...round,
+      scores: {},
+      bets: [{ ...defaultOneDown(players, "od1"), manualPresses: { 0: 1 }, teeFlipWinners: { 1: "p1" } }],
+    };
+    expect(buildRoundSummary(withFlipPress, computeRound(withFlipPress))).toContain(
+      "Front 9: +1/0/0 — Charles / Andrew up $10.00 each\n  Andy / Dale pressed before 1",
+    );
+    const noFlip: Round = {
+      ...round,
+      scores: {},
+      bets: [{ ...defaultOneDown(players, "od1"), manualPresses: { 0: 2 } }],
+    };
+    expect(buildRoundSummary(noFlip, computeRound(noFlip))).toContain(
+      "Front 9: 0/0/0 — all square\n  2 presses before 1",
+    );
+  });
+
+  it("keeps a fresh round short and skips games that are off", () => {
     const fresh: Round = {
       ...round,
       scores: {},
       bets: [{ ...defaultOneDown(players, "od1"), greenies: false, overallMultiplier: 0 }],
     };
     const blank = buildRoundSummary(fresh, computeRound(fresh));
-    expect(blank).toContain("Tee flip on the 1st tee: not entered.");
-    expect(blank).toContain("Front 9: 0 — all square");
+    expect(blank).toContain("Front 9: 0 — all square\nBack 9: 0 — all square\nOne downs total: all square");
     expect(blank).not.toContain("Greenies");
-    expect(blank).not.toContain("Overall 18");
-    expect(blank).not.toContain("Scores");
-    expect(blank).toContain("Settle up\nNobody owes anybody.");
+    expect(blank).not.toContain("All day");
+    expect(blank).not.toContain("gross");
   });
 });
