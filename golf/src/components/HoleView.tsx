@@ -66,6 +66,11 @@ export function HoleView({
     }
   };
   const info = comp.holes.find((entry) => entry.number === hole) ?? comp.holes[0];
+  // `hole` is the position in the play order; these are the numbers on the tee
+  // markers, which is all a player wants to read. They differ only when the
+  // round started somewhere other than the 1st.
+  const shown = info?.onCourse ?? hole;
+  const shownBefore = comp.holes[hole - 2]?.onCourse ?? hole - 1;
   const ids = round.players.map((player) => player.id);
   const entry = round.manual[hole];
   const banker = entry?.bankerId ?? null;
@@ -170,7 +175,7 @@ export function HoleView({
         </Button>
         <div className="flex-1 text-center">
           <div className="text-2xl font-bold leading-tight text-turf-900">
-            Hole {hole}
+            Hole {shown}
           </div>
           <div className="text-sm text-neutral-600">
             Par {info?.par ?? 4}
@@ -199,7 +204,7 @@ export function HoleView({
           return (
             <Card key={`flip-${result.config.id}`}>
               <SectionTitle hint="The side that wins the flip starts one up in the opening bet, which opens the first press: +1/0 before a ball is hit.">
-                Tee flip on {teeName(hole)}
+                Tee flip on {teeName(shown)}
               </SectionTitle>
               {!answered ? <Banner tone="warn">Who won the tee flip?</Banner> : null}
               {answered ? (
@@ -372,7 +377,7 @@ export function HoleView({
               ) : null}
               <div
                 role="group"
-                aria-label={`Greenie on hole ${hole}`}
+                aria-label={`Greenie on hole ${shown}`}
                 className="mt-3 flex flex-wrap gap-2"
               >
                 {round.players.map((player) => (
@@ -422,8 +427,8 @@ export function HoleView({
           const presses = pressesBefore(result.config, hole);
           const pressSummary =
             presses === 0
-              ? `No extra press before ${hole}.`
-              : `${presses} extra press${presses === 1 ? "" : "es"} before ${hole}.`;
+              ? `No extra press before ${shown}.`
+              : `${presses} extra press${presses === 1 ? "" : "es"} before ${shown}.`;
           // A press joins the standing once the hole before it is scored, so
           // the box says which it is rather than looking like it did nothing.
           const stack = result.outcome.stacks.find(
@@ -437,12 +442,12 @@ export function HoleView({
             presses === 0
               ? null
               : waiting
-                ? `Shows in the standing once hole ${hole - 1} is scored.`
-                : `In the standing above as ${presses === 1 ? "a bet" : `${presses} bets`} from ${hole}.`;
+                ? `Shows in the standing once hole ${shownBefore} is scored.`
+                : `In the standing above as ${presses === 1 ? "a bet" : `${presses} bets`} from ${shown}.`;
           return (
             <CollapsibleCard
               key={`press-${result.config.id}`}
-              title={`Extra presses before ${hole}`}
+              title={`Extra presses before ${shown}`}
               hint={`Each one opens another bet by hand from here to the end of the nine — up to ${MAX_PRESSES_PER_HOLE} a hole. The game opens its own when someone is down.`}
               summary={pressSummary}
               storageKey="hole.press"
@@ -450,7 +455,7 @@ export function HoleView({
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  aria-label={`One fewer press before hole ${hole}`}
+                  aria-label={`One fewer press before hole ${shown}`}
                   disabled={presses === 0}
                   onClick={() => update(adjustPressesBefore(round, result.config.id, hole, -1))}
                   className="h-11 w-11 shrink-0 rounded-xl bg-neutral-100 text-2xl font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
@@ -466,7 +471,7 @@ export function HoleView({
                 </span>
                 <button
                   type="button"
-                  aria-label={`One more press before hole ${hole}`}
+                  aria-label={`One more press before hole ${shown}`}
                   disabled={presses >= MAX_PRESSES_PER_HOLE}
                   onClick={() => update(adjustPressesBefore(round, result.config.id, hole, 1))}
                   className="h-11 w-11 shrink-0 rounded-xl bg-turf-50 text-2xl font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
@@ -536,7 +541,7 @@ export function HoleView({
               </div>
               <div className="w-40">
                 <MoneyInput
-                  label={`${player.name} money on hole ${hole}`}
+                  label={`${player.name} money on hole ${shown}`}
                   tone="signed"
                   value={amounts[player.id] ?? 0}
                   onChange={(cents) =>
@@ -611,7 +616,7 @@ export function HoleView({
               onClick={copyPrevious}
               disabled={!round.manual[hole - 1]}
             >
-              Copy hole {hole - 1}
+              Copy hole {shownBefore}
             </Button>
           ) : null}
           <Button

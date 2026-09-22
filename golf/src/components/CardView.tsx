@@ -328,7 +328,7 @@ function HoleGroup({
             } ${unbalanced.has(hole.number) ? "bg-amber-50" : ""}`}
           >
             <th className="sticky left-0 bg-inherit py-1.5 pr-2 text-left font-semibold text-neutral-700">
-              {hole.number}
+              {hole.onCourse}
               {unbalanced.has(hole.number) ? (
                 <span className="ml-1 text-amber-700" title="Does not net to zero">
                   !

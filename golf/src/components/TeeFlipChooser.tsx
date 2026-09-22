@@ -1,6 +1,7 @@
 "use client";
 
 import { teeFlipSide, teeFlipWinner, teeName } from "@/lib/bets/onedown";
+import { holeAt } from "@/lib/holes";
 import { setTeeFlipWinner } from "@/lib/mutations";
 import type { OneDownConfig, Round } from "@/lib/types";
 import { Button } from "./ui";
@@ -23,12 +24,17 @@ export function TeeFlipChooser({
   round: Round;
   /** The bet with its sides labelled, as the round computation hands it out. */
   config: OneDownConfig;
-  /** The first hole of the nine the flip is for: 1 or 10. */
+  /**
+   * The position the nine this flip belongs to starts at: 1, or 10 when the
+   * stack starts over. Off a shotgun start those are not the numbers on the
+   * tee markers, so the heading reads the marker instead.
+   */
   startHole: number;
   update: (next: Round) => void;
   /** A heading above the buttons, with the standing answer beside it. */
   label?: string;
 }) {
+  const marker = holeAt(startHole, round.startHole ?? 1, round.holeCount);
   const answer = teeFlipWinner(config, startHole);
   const answered = answer !== undefined;
   const won = teeFlipSide(config, startHole);
@@ -51,7 +57,7 @@ export function TeeFlipChooser({
       ) : null}
       <div
         role="group"
-        aria-label={`Tee flip on hole ${startHole}`}
+        aria-label={`Tee flip on hole ${marker}`}
         className={`flex flex-wrap gap-2 ${label ? "mt-1.5" : ""}`}
       >
         {config.sides.map((side, index) => (

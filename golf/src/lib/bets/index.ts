@@ -1,5 +1,6 @@
 import { resolveStrokes, netScore, type PlayerStrokes } from "../handicap";
 import { sumCents } from "../money";
+import { normaliseStartHole, playOrder } from "../holes";
 import type {
   BetConfig,
   HoleInfo,
@@ -29,13 +30,30 @@ export * from "./banker";
 export * from "./skins";
 export * from "./settle";
 
+/**
+ * A hole as this round plays it.
+ *
+ * `number` is the position in the play order, counting from the tee the group
+ * started on, and it is what every bet counts in: stack ranges, the hole a
+ * press opens on, which holes play aggregate. `onCourse` is the number painted
+ * on the tee marker, which is all the player ever wants to read. Off the 1st
+ * the two are equal, which is why rounds recorded before shotgun starts
+ * existed need no conversion.
+ */
+export interface PlayedHole extends HoleInfo {
+  /** The number on the tee marker. */
+  onCourse: number;
+}
+
 /** A playable card when no course data is loaded: par 4s, stroke index in order. */
-export function defaultHoles(holeCount: number): HoleInfo[] {
-  return Array.from({ length: holeCount }, (_, index) => ({
+export function defaultHoles(holeCount: number, startHole = 1): PlayedHole[] {
+  return playOrder(startHole, holeCount).map((onCourse, index) => ({
     number: index + 1,
+    onCourse,
     par: 4,
     yardage: null,
-    strokeIndex: index + 1,
+    // No card to read, so the hole's own number is as good an order as any.
+    strokeIndex: onCourse,
   }));
 }
 
@@ -48,13 +66,23 @@ export function activeTee(round: Round): TeeSet | null {
   );
 }
 
-export function roundHoles(round: Round): HoleInfo[] {
+export function roundHoles(round: Round): PlayedHole[] {
+  const start = normaliseStartHole(round.startHole, round.holeCount);
   const tee = activeTee(round);
-  if (!tee || tee.holes.length === 0) return defaultHoles(round.holeCount);
-  const holes = tee.holes
-    .filter((hole) => hole.number <= round.holeCount)
-    .sort((a, b) => a.number - b.number);
-  return holes.length > 0 ? holes : defaultHoles(round.holeCount);
+  if (!tee || tee.holes.length === 0) return defaultHoles(round.holeCount, start);
+  const byNumber = new Map(tee.holes.map((hole) => [hole.number, hole]));
+  // Every position gets an entry even where the course data is missing one,
+  // because the card and the standings index straight into this list.
+  return playOrder(start, round.holeCount).map((onCourse, index) => {
+    const info = byNumber.get(onCourse);
+    return {
+      number: index + 1,
+      onCourse,
+      par: info?.par ?? 4,
+      yardage: info?.yardage ?? null,
+      strokeIndex: info?.strokeIndex ?? onCourse,
+    };
+  });
 }
 
 export interface ScoreCell {
@@ -96,7 +124,7 @@ export interface NineTotals {
 }
 
 export interface RoundComputation {
-  holes: HoleInfo[];
+  holes: PlayedHole[];
   tee: TeeSet | null;
   strokes: Record<PlayerId, PlayerStrokes>;
   cells: Record<PlayerId, Record<number, ScoreCell>>;

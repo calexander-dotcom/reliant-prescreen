@@ -11,6 +11,7 @@ import {
 } from "@/lib/bets/onedown";
 import { Standing } from "./Standing";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
+import { playOrder } from "@/lib/holes";
 import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { saveHouseRules } from "@/lib/storage";
 import { formatMoney, formatSigned } from "@/lib/money";
@@ -151,6 +152,9 @@ function BetResultCard({
   perspectiveId: string | null | undefined;
 }) {
   const totals = result.outcome.totals;
+  // Holes are positions in the play order; this reads one back as the number
+  // on the tee marker, which is the same number off the 1st.
+  const marker = (position: number) => comp.holes[position - 1]?.onCourse ?? position;
   // Which way round the match is read: positive and green are "our" side.
   const sign =
     result.kind === "nassau" || result.kind === "onedown"
@@ -192,7 +196,7 @@ function BetResultCard({
       </SectionTitle>
 
       {result.kind === "onedown" ? (
-        <OneDownBody result={result} sign={sign} nameOf={nameOf} />
+        <OneDownBody result={result} sign={sign} nameOf={nameOf} marker={marker} />
       ) : result.kind === "banker" ? (
         <BankerBody result={result} nameOf={nameOf} />
       ) : result.kind === "nassau" ? (
@@ -287,7 +291,11 @@ function PressesCard({
   // The computed config carries the sides' live labels.
   const bet: OneDownConfig = result.config;
   const flipHoles = result.outcome.teeFlips.holes;
+  // Holes are positions in the play order here, as everywhere the bets count.
+  // `marker` turns one back into the number on the tee, for reading only.
   const holes = Array.from({ length: round.holeCount }, (_, index) => index + 1);
+  const markers = playOrder(round.startHole ?? 1, round.holeCount);
+  const marker = (position: number) => markers[position - 1] ?? position;
   const called = holes.reduce((sum, hole) => sum + pressesBefore(bet, hole), 0);
   // Front nine down the left, back nine down the right, so a phone shows
   // the whole card without scrolling.
@@ -309,7 +317,7 @@ function PressesCard({
             config={bet}
             startHole={startHole}
             update={update}
-            label={`Flip on ${teeName(startHole)}`}
+            label={`Flip on ${teeName(marker(startHole))}`}
           />
         ))}
         {flipHoles.length === 0 ? (
@@ -332,11 +340,11 @@ function PressesCard({
                       count > 0 ? "text-turf-900" : "text-neutral-500"
                     }`}
                   >
-                    {hole}
+                    {marker(hole)}
                   </span>
                   <button
                     type="button"
-                    aria-label={`One fewer press before hole ${hole}`}
+                    aria-label={`One fewer press before hole ${marker(hole)}`}
                     disabled={count === 0}
                     onClick={() => update(adjustPressesBefore(round, bet.id, hole, -1))}
                     className="h-8 w-8 shrink-0 rounded-lg bg-neutral-100 text-lg font-bold text-neutral-700 ring-1 ring-inset ring-neutral-200 disabled:text-neutral-300"
@@ -352,7 +360,7 @@ function PressesCard({
                   </span>
                   <button
                     type="button"
-                    aria-label={`One more press before hole ${hole}`}
+                    aria-label={`One more press before hole ${marker(hole)}`}
                     disabled={count >= MAX_PRESSES_PER_HOLE}
                     onClick={() => update(adjustPressesBefore(round, bet.id, hole, 1))}
                     className="h-8 w-8 shrink-0 rounded-lg bg-turf-50 text-lg font-bold text-turf-800 ring-1 ring-inset ring-turf-200 disabled:text-turf-800/30"
@@ -389,10 +397,13 @@ function OneDownBody({
   result,
   sign,
   nameOf,
+  marker,
 }: {
   result: Extract<BetResult, { kind: "onedown" }>;
   sign: 1 | -1;
   nameOf: (playerId: string) => string;
+  /** A position in the play order as the number on the tee marker. */
+  marker: (position: number) => number;
 }) {
   const { outcome, config } = result;
   const [sideA, sideB] = config.sides;
@@ -531,7 +542,7 @@ function OneDownBody({
                   key={greenie.hole}
                   className="rounded-md bg-neutral-50 px-2 py-1 text-neutral-700"
                 >
-                  <span className="font-semibold">{greenie.hole}</span>{" "}
+                  <span className="font-semibold">{marker(greenie.hole)}</span>{" "}
                   {greenie.winnerId === undefined
                     ? "—"
                     : greenie.winnerId === null

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { BetEditor } from "@/components/BetEditor";
 import { CoursePicker } from "@/components/CoursePicker";
 import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
+import { startsOnFirst } from "@/lib/holes";
+import { teeName } from "@/lib/bets/onedown";
 import { signInAgain } from "@/lib/ghin/session";
 import { defaultSides } from "@/lib/bets/defaults";
 import { PlayerPicker } from "@/components/PlayerPicker";
@@ -178,6 +180,9 @@ export default function NewRoundPage() {
                 <p className="text-sm text-neutral-600">
                   {round.players.map((player) => player.name.split(" ")[0]).join(", ")} ·{" "}
                   {round.holeCount} holes
+                  {startsOnFirst(round.startHole, round.holeCount)
+                    ? ""
+                    : ` · from the ${teeName(round.startHole ?? 1).replace("the ", "")}`}
                 </p>
               </div>
               <Button variant="secondary" onClick={goBack}>

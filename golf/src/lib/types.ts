@@ -259,6 +259,17 @@ export interface Round {
   handicapMode: HandicapMode;
   /** holeCount is 9 or 18. */
   holeCount: number;
+  /**
+   * The hole this group teed off on. Shotgun starts send groups out all over
+   * the course, and the match still runs a front nine and a back nine: the
+   * first nine holes played and the second. Off the 7th that makes the front
+   * 7 through 15 and the back 16, 17, 18, 1 through 6.
+   *
+   * Everything the bets count — a stack's range, the hole a press opens on,
+   * which holes play aggregate — is a position in that order, not the number
+   * on the tee marker. Undefined means the 1st, where the two are the same.
+   */
+  startHole?: number;
   /** scores[playerId][holeNumber] = gross strokes, or null if not entered. */
   scores: Record<PlayerId, Record<number, number | null>>;
   /** Manual zero-sum money entries, keyed by hole number. */
