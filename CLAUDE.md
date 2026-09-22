@@ -167,20 +167,29 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
   is dropped, not queued**: the next push to a production branch after the
   limit lifts is what deploys the merged work. Until then the site serves the
   last build that got through.
-- To keep this from recurring, `golf/vercel.json` does two things for
-  golf_bets: it turns off preview deployments for the golf session's branch
-  (a PR is merged within minutes anyway), and its `ignoreCommand`
-  (`git diff --quiet HEAD^ HEAD ./`, run in the project's root directory)
-  skips any build in which nothing under `golf/` changed — so another
-  session's push no longer costs a golf build, and a golf push that only
-  touches this file does not either. Sessions cannot change Vercel's
-  dashboard settings: no session has a Vercel login or token, and this file's
-  rule 2 applies. **The other two projects build on every push to the
-  repository until one of these happens:** the owner sets Settings → Git →
-  Ignored Build Step on workspace-recruiterasst and reliant-prescreen to
-  `git diff --quiet HEAD^ HEAD ./`, or the session that owns each project
-  puts the same `ignoreCommand` in a `vercel.json` in that project's root
-  directory. Then a golf push costs one build, not three.
+- **All three projects now skip builds that are not theirs** (2026-09-22), so
+  a push costs one build instead of three:
+  - **golf_bets** — `golf/vercel.json` turns off preview deployments for the
+    golf session's branch (a PR is merged within minutes anyway) and sets
+    `ignoreCommand` to `git diff --quiet HEAD^ HEAD ./`, run in the project's
+    root directory, which skips any build in which nothing under `golf/`
+    changed.
+  - **workspace-recruiterasst** and **reliant-prescreen** — the owner set
+    Settings → Build and Deployment → Ignored Build Step → Custom to
+    `git diff --quiet HEAD^ HEAD -- . ':(exclude)golf/'` on 2026-09-22.
+    Both had an empty Root Directory, so the whole repository counted as
+    their code and every golf push rebuilt them. The pathspec form is safe
+    whichever way Root Directory is set: with it empty the command means
+    "skip when `golf/` was the only change", and with it set to a folder the
+    `.` narrows to that folder and it means "skip when nothing of mine
+    changed". A session that later gives one of these projects a real root
+    directory can simplify it to `git diff --quiet HEAD^ HEAD ./`.
+  Note the consequence for the golf app: **a production push that changes
+  nothing under `golf/` no longer deploys the site.** Only a golf-touching
+  push does, or a Redeploy from the golf_bets dashboard. In Vercel, Ignored
+  Build Step lives under Settings → Build and Deployment, not under Git.
+  Sessions cannot change these dashboard settings themselves: no session has
+  a Vercel login or token, and this file's rule 2 applies — ask the owner.
 
 ### Credentials known to exist
 
@@ -202,3 +211,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
 | 2026-09-21 | `claude/golf-gambling-tracker-2xn3ty` | Vercel's daily deployment limit hit; golf PRs #52–#56 are merged into the production branch but not deployed. The next production push after ~2026-09-22 23:30 UTC deploys them. | Vercel | waiting |
+| 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` + owner | Build guards so one push is one build: `ignoreCommand` in `golf/vercel.json` for golf_bets (PR #58), and the owner set an Ignored Build Step on workspace-recruiterasst and reliant-prescreen excluding `golf/`. Golf PRs #52–#58 are merged but still undeployed — the limit had not lifted at 00:03 UTC. | Vercel | guards done; deploy waiting on the limit |
