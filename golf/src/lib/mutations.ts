@@ -1,4 +1,5 @@
 import { balanceOnto, normalizeAmounts, teamTransfer, zeroAmounts } from "./bets/ledger";
+import { normaliseStartHole } from "./holes";
 import { MAX_PRESSES_PER_HOLE, pressCounts } from "./bets/onedown";
 import type { PlayerId, Round } from "./types";
 
@@ -377,4 +378,16 @@ export function setGreenie(
       return { ...bet, greenieWinners: winners };
     }),
   });
+}
+
+/**
+ * Which hole the group teed off on.
+ *
+ * Everything the bets count is a position from here, so moving the start hole
+ * relabels the card without disturbing a score, a press or a hole's money: the
+ * round that was "hole 1 of 18" simply becomes "hole 7 of 18". That is what
+ * you want when the starter moves a shotgun group at the last minute.
+ */
+export function setStartHole(round: Round, startHole: number): Round {
+  return touch({ ...round, startHole: normaliseStartHole(startHole, round.holeCount) });
 }

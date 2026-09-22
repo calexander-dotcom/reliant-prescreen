@@ -603,3 +603,93 @@ describe("side scores on the card", () => {
     expect(one.sideScores[3]).toEqual({ a: null, b: null, aggregate: true });
   });
 });
+
+describe("a shotgun start", () => {
+  const shotgun = (startHole: number, overrides: Partial<Round> = {}) =>
+    computeRound(round({ startHole, ...overrides }));
+
+  const oneDown = {
+    kind: "onedown" as const,
+    id: "od1",
+    label: "One downs",
+    amount: 1000,
+    sides: [
+      { id: "a", name: "A", playerIds: ["p1", "p2"] },
+      { id: "b", name: "B", playerIds: ["p3", "p4"] },
+    ] as [Side, Side],
+    basis: "gross" as const,
+    autoPressAt: 1,
+    manualPresses: {},
+    reset: "nines" as const,
+    overallMultiplier: 0,
+    stakeMode: "per-player" as const,
+    greenies: false,
+    teeFlip: true,
+  };
+
+  /** The tee markers, in the order the group plays them. */
+  const markers = (result: ReturnType<typeof computeRound>) =>
+    result.holes.map((hole) => hole.onCourse);
+
+  it("plays the card round from the tee the group started on", () => {
+    expect(markers(shotgun(7))).toEqual([
+      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 1, 2, 3, 4, 5, 6,
+    ]);
+  });
+
+  it("is the plain order off the 1st, and for a round that never said", () => {
+    const straight = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+    expect(markers(shotgun(1))).toEqual(straight);
+    expect(markers(computeRound(round()))).toEqual(straight);
+  });
+
+  it("keeps each hole's own par and stroke index", () => {
+    const holes = shotgun(7).holes;
+    // The fixture's stroke index is the hole number, which makes the wrap visible.
+    expect(holes[0].strokeIndex).toBe(7);
+    expect(holes[12].strokeIndex).toBe(1);
+  });
+
+  it("ends the front nine on the 15th and opens the back on the 16th", () => {
+    const result = shotgun(7, { bets: [oneDown] });
+    const one = result.betResults[0];
+    if (one.kind !== "onedown") throw new Error("expected the one-down game");
+    const [front, back] = one.outcome.stacks;
+    const marker = (position: number) => result.holes[position - 1].onCourse;
+
+    expect(front.label).toBe("Front 9");
+    expect(marker(front.startHole)).toBe(7);
+    expect(marker(front.endHole)).toBe(15);
+    expect(back.label).toBe("Back 9");
+    expect(marker(back.startHole)).toBe(16);
+    expect(marker(back.endHole)).toBe(6);
+  });
+
+  it("flips on the tee the group started on and again nine holes later", () => {
+    const result = shotgun(7, { bets: [oneDown] });
+    const one = result.betResults[0];
+    if (one.kind !== "onedown") throw new Error("expected the one-down game");
+    const marker = (position: number) => result.holes[position - 1].onCourse;
+    expect(one.outcome.teeFlips.holes.map(marker)).toEqual([7, 16]);
+  });
+
+  it("plays aggregate on alternate holes counting from the starting tee", () => {
+    const result = shotgun(7);
+    const marker = (position: number) => result.holes[position - 1].onCourse;
+    expect(aggregateHoles(18).map(marker)).toEqual([7, 9, 11, 13, 15, 16, 18, 2, 4, 6]);
+  });
+
+  it("splits Out and In by the nine played, not by the hole number", () => {
+    const scores: Record<string, Record<number, number>> = { p1: {} };
+    // Position 1 is the 7th; give it a 5 and every other hole a 4.
+    for (let position = 1; position <= 18; position += 1) scores.p1[position] = 4;
+    scores.p1[1] = 5;
+    const result = shotgun(7, {
+      players: [players[0]],
+      scores,
+      handicapMode: "none",
+    });
+    expect(result.totalsByPlayer.p1.grossOut).toBe(37);
+    expect(result.totalsByPlayer.p1.grossIn).toBe(36);
+  });
+});

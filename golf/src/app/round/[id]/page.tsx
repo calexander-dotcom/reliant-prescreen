@@ -14,6 +14,8 @@ import { computeRound } from "@/lib/bets";
 import { guessPerspective } from "@/lib/perspective";
 import { loadRound, saveRound } from "@/lib/storage";
 import type { Round } from "@/lib/types";
+import { startsOnFirst } from "@/lib/holes";
+import { teeName } from "@/lib/bets/onedown";
 
 type Tab = "hole" | "card" | "bets" | "settle";
 
@@ -90,6 +92,9 @@ export default function RoundPage() {
           <p className="truncate text-xs text-neutral-500">
             {round.date} · {comp.tee ? `${comp.tee.name} tees · ` : ""}
             {round.holeCount} holes
+            {startsOnFirst(round.startHole, round.holeCount)
+              ? ""
+              : ` · from the ${teeName(round.startHole ?? 1).replace("the ", "")}`}
           </p>
         </div>
       </header>

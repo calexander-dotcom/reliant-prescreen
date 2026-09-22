@@ -1,6 +1,7 @@
 import type { BetResult, RoundComputation } from "./bets";
 import { perspectiveSign, sideUp } from "./bets/nassau";
 import { betStanding, pressesBefore, standingFor, type OneDownStack } from "./bets/onedown";
+import { playOrder } from "./holes";
 import { formatMoney, formatSigned } from "./money";
 import type { PlayerId, Round, Side } from "./types";
 
@@ -57,6 +58,10 @@ function oneDownLines(
     return `${leader.name} up ${formatMoney(each.cents)}${each.each ? " each" : ""}`;
   };
 
+  // Holes are positions in the play order; a text for the group has to name
+  // the number on the tee marker instead.
+  const markers = playOrder(round.startHole ?? 1, round.holeCount);
+  const marker = (position: number) => markers[position - 1] ?? position;
   // Who won a hole, from what each side counted on it; null when halved or
   // not scored.
   const holeWinner = (hole: number): 0 | 1 | null => {
@@ -88,8 +93,8 @@ function oneDownLines(
       const side = pressedBy(stack, hole);
       lines.push(
         side
-          ? `  ${side.name} pressed${times(count)} before ${hole}`
-          : `  ${count === 1 ? "Press" : `${count} presses`} before ${hole}`,
+          ? `  ${side.name} pressed${times(count)} before ${marker(hole)}`
+          : `  ${count === 1 ? "Press" : `${count} presses`} before ${marker(hole)}`,
       );
     }
   }
@@ -110,7 +115,7 @@ function oneDownLines(
       won.length === 0
         ? "Greenies: none yet"
         : `Greenies: ${won
-            .map((greenie) => `${greenie.hole} ${nameOf(greenie.winnerId as PlayerId)}`)
+            .map((greenie) => `${marker(greenie.hole)} ${nameOf(greenie.winnerId as PlayerId)}`)
             .join(", ")}`;
     if (greenies.sweptBy !== null) {
       line += ` — swept by ${config.sides[greenies.sweptBy].name}, doubled`;
