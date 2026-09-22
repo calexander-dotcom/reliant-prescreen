@@ -162,11 +162,20 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
   starts a build in all three. The account is on the Hobby plan, which allows
   100 deployments a day across the account. That limit was hit on 2026-09-21
   at about 23:30 UTC after a day of small golf pull requests: Vercel answered
-  every build with "Deployment rate limited — retry in 24 hours", including
-  the production deployments for golf PRs #52–#56. **A rate-limited deployment
-  is dropped, not queued**: the next push to a production branch after the
-  limit lifts is what deploys the merged work. Until then the site serves the
-  last build that got through.
+  every build with "Deployment rate limited — retry in 24 hours" (API error
+  `api-deployments-free-per-day`). **A rate-limited deployment is dropped,
+  not queued** — no row appears in the Deployments list at all — so the site
+  goes on serving the last build that got through until a fresh push after
+  the limit lifts. What it cost here: the newest production build of the golf
+  app was PR #46, and PRs #47–#60 sat merged and unbuilt.
+  Two things worth knowing for next time:
+  - **The window is rolling, not a calendar day.** The counter had not reset
+    at 00:00 UTC. Capacity returns gradually, roughly 24 hours after each of
+    the spent deployments.
+  - **The dashboard cannot work around it.** Redeploy and Promote to
+    Production go through the same deployments API and are refused with the
+    same error, so there is no way to publish already-built work while the
+    cap is in force. The only levers are waiting or the Pro plan.
 - **All three projects now skip builds that are not theirs** (2026-09-22), so
   a push costs one build instead of three:
   - **golf_bets** — `golf/vercel.json` turns off preview deployments for the
