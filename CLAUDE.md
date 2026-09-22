@@ -167,14 +167,20 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
   is dropped, not queued**: the next push to a production branch after the
   limit lifts is what deploys the merged work. Until then the site serves the
   last build that got through.
-- To keep this from recurring: `golf/vercel.json` turns off preview
-  deployments for the golf session's branch in golf_bets (a PR is merged
-  within minutes anyway); the golf session no longer pushes its branch after
-  each merge. **Owner:** in Vercel, on workspace-recruiterasst and
-  reliant-prescreen, set Settings → Git → Ignored Build Step to a command that
-  only builds when that project's own directory changed (for example
-  `git diff --quiet HEAD^ HEAD -- <its directory>/`), and the same on
-  golf_bets with `golf/`. Then a golf push costs one build, not three.
+- To keep this from recurring, `golf/vercel.json` does two things for
+  golf_bets: it turns off preview deployments for the golf session's branch
+  (a PR is merged within minutes anyway), and its `ignoreCommand`
+  (`git diff --quiet HEAD^ HEAD ./`, run in the project's root directory)
+  skips any build in which nothing under `golf/` changed — so another
+  session's push no longer costs a golf build, and a golf push that only
+  touches this file does not either. Sessions cannot change Vercel's
+  dashboard settings: no session has a Vercel login or token, and this file's
+  rule 2 applies. **The other two projects build on every push to the
+  repository until one of these happens:** the owner sets Settings → Git →
+  Ignored Build Step on workspace-recruiterasst and reliant-prescreen to
+  `git diff --quiet HEAD^ HEAD ./`, or the session that owns each project
+  puts the same `ignoreCommand` in a `vercel.json` in that project's root
+  directory. Then a golf push costs one build, not three.
 
 ### Credentials known to exist
 

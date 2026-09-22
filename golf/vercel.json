@@ -3,5 +3,6 @@
     "deploymentEnabled": {
       "claude/golf-gambling-tracker-2xn3ty": false
     }
-  }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./"
 }
