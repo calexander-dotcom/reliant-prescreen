@@ -59,7 +59,12 @@ function migrateRound(round: Round): Round {
   return {
     ...round,
     holeCount: round.holeCount === 9 ? 9 : 18,
-    startHole: normaliseStartHole(round.startHole, round.holeCount === 9 ? 9 : 18),
+    // Left undefined on purpose when a round never said: that is how the hole
+    // screen knows to ask once, and every reader treats it as the 1st anyway.
+    startHole:
+      round.startHole === undefined
+        ? undefined
+        : normaliseStartHole(round.startHole, round.holeCount === 9 ? 9 : 18),
     players: Array.isArray(round.players) ? round.players : [],
     scores: round.scores ?? {},
     manual: round.manual ?? {},
@@ -106,7 +111,6 @@ export function createRound(partial: Partial<Round> = {}): Round {
     players: [],
     handicapMode: "off-low",
     holeCount: 18,
-    startHole: 1,
     scores: {},
     manual: {},
     bets: [],

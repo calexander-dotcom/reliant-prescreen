@@ -11,7 +11,8 @@ import {
 } from "@/lib/bets/onedown";
 import { Standing } from "./Standing";
 import { perspectiveSign, sideUp } from "@/lib/bets/nassau";
-import { playOrder } from "@/lib/holes";
+import { normaliseStartHole, playOrder } from "@/lib/holes";
+import { StartHoleGrid, startHoleHint } from "./StartHolePicker";
 import { adjustPressesBefore, setPerspective } from "@/lib/mutations";
 import { saveHouseRules } from "@/lib/storage";
 import { formatMoney, formatSigned } from "@/lib/money";
@@ -90,6 +91,16 @@ export function BetsView({
               />
             ))
         : null}
+
+      {!readOnly && update ? (
+        <Card>
+          <SectionTitle hint="On a shotgun start the front nine is the first nine you play and the back nine the second. The aggregate holes, the tee flips and the Out and In totals all follow the order you play, and changing this relabels the card without disturbing a score or a press.">
+            Starting hole
+          </SectionTitle>
+          <StartHoleGrid round={round} update={update} />
+          <p className="mt-2 text-xs text-neutral-500">{startHoleHint(round, normaliseStartHole(round.startHole, round.holeCount))}</p>
+        </Card>
+      ) : null}
 
       {sided && !readOnly && update ? (
         <Card>
