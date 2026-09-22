@@ -5,7 +5,8 @@ import { ApiError, apiCourse, apiMyCourses, apiSearchCourses } from "@/lib/api";
 import { GhinDiagnostics } from "./GhinDiagnostics";
 import type { CourseSummary } from "@/lib/ghin/normalize";
 import type { GhinProbe } from "@/lib/ghin/shape";
-import { normaliseStartHole, playOrder } from "@/lib/holes";
+import { normaliseStartHole } from "@/lib/holes";
+import { StartHolePicker } from "./StartHolePicker";
 import { preferredTeeId, saveTeePref } from "@/lib/storage";
 import type { Round } from "@/lib/types";
 import { Banner, Button, Card, Field, SectionTitle, Spinner, inputClass } from "./ui";
@@ -282,7 +283,7 @@ export function CoursePicker({
           </div>
         </Field>
         <div className="mt-3">
-          <StartHolePicker round={round} update={update} />
+          <StartHolePicker round={round} update={update} collapsible />
         </div>
       </div>
     </Card>
@@ -319,65 +320,5 @@ function CourseRow({
         </span>
       </button>
     </li>
-  );
-}
-
-/**
- * Which hole the group tees off on.
- *
- * Shotgun starts send groups out all over the course, and the match is still a
- * front nine and a back nine: the first nine holes played and the second. Off
- * the 7th that makes the front 7 through 15 and the back 16 onwards, with the
- * aggregate holes falling on 7, 9, 11, 13, 15 and the second tee flip on 16.
- *
- * Nearly every round is off the 1st, so this stays out of the way until it is
- * opened, and the summary line says so when it is not.
- */
-function StartHolePicker({
-  round,
-  update,
-}: {
-  round: Round;
-  update: (next: Round) => void;
-}) {
-  const start = normaliseStartHole(round.startHole, round.holeCount);
-  const [open, setOpen] = useState(start !== 1);
-  const order = playOrder(start, round.holeCount);
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-sm font-semibold text-turf-700 underline-offset-2 hover:underline"
-      >
-        Shotgun start? Choose the hole you tee off on
-      </button>
-    );
-  }
-
-  return (
-    <Field
-      label="Starting hole"
-      hint={
-        start === 1
-          ? "Straight off the 1st."
-          : `Front nine ${order[0]} to ${order[8] ?? order[order.length - 1]}, back nine from ${
-              order[9] ?? order[0]
-            }. Aggregate holes and the tee flips follow the order you play.`
-      }
-    >
-      <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: round.holeCount }, (_, index) => index + 1).map((hole) => (
-          <Button
-            key={hole}
-            variant={start === hole ? "primary" : "secondary"}
-            onClick={() => update({ ...round, startHole: hole })}
-          >
-            {hole}
-          </Button>
-        ))}
-      </div>
-    </Field>
   );
 }

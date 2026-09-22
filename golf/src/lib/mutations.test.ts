@@ -12,6 +12,7 @@ import {
   setManualPresses,
   setPressesBefore,
   setScore,
+  setStartHole,
   setTeeFlipWinner,
 } from "./mutations";
 import { defaultOneDown } from "./bets/defaults";
@@ -290,5 +291,23 @@ describe("setTeeFlipWinner", () => {
     const bet = setTeeFlipWinner(legacy, "od1", 10, "p3").bets[0];
     expect(bet.kind === "onedown" ? bet.teeFlipWinnerId : "kept").toBeUndefined();
     expect(bet.kind === "onedown" ? bet.teeFlipWinners : null).toEqual({ 10: "p3" });
+  });
+});
+
+describe("setStartHole", () => {
+  it("records the tee the group went out on", () => {
+    expect(setStartHole(base, 7).startHole).toBe(7);
+  });
+
+  it("keeps a hole the card cannot reach out of the round", () => {
+    expect(setStartHole({ ...base, holeCount: 9 }, 12).startHole).toBe(1);
+    expect(setStartHole(base, 0).startHole).toBe(1);
+  });
+
+  it("answers the question even when the answer is the 1st", () => {
+    // Undefined is "not asked yet", which is what the opening question reads,
+    // so answering "the 1st" has to write a number rather than leave it unset.
+    expect(base.startHole).toBeUndefined();
+    expect(setStartHole(base, 1).startHole).toBe(1);
   });
 });

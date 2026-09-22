@@ -19,11 +19,13 @@ import {
   cycleBankerDouble,
   setHoleBanker,
   setGreenie,
+  setStartHole,
 } from "@/lib/mutations";
 import type { BetConfig, Round } from "@/lib/types";
 import { MoneyByNine } from "./MoneyByNine";
 import { MoneyInput } from "./MoneyInput";
 import { ScoreStepper } from "./ScoreStepper";
+import { StartHoleGrid } from "./StartHolePicker";
 import {
   Banner,
   Button,
@@ -61,6 +63,24 @@ export function HoleView({
     setFlipsPutOff(next);
     try {
       sessionStorage.setItem(putOffKey, JSON.stringify([...next]));
+    } catch {
+      // Private mode or blocked storage: it just asks again next time.
+    }
+  };
+  // Same for the starting hole: put it off and the round plays as the 1st
+  // until the setup tab says otherwise.
+  const startPutOffKey = `onedowns.startPutOff.${round.id}`;
+  const [startPutOff, setStartPutOff] = useState(() => {
+    try {
+      return sessionStorage.getItem(startPutOffKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const putOffStart = () => {
+    setStartPutOff(true);
+    try {
+      sessionStorage.setItem(startPutOffKey, "1");
     } catch {
       // Private mode or blocked storage: it just asks again next time.
     }
@@ -118,6 +138,15 @@ export function HoleView({
     update(next);
   };
 
+  // Which hole the group teed off on, asked once at the top of the round and
+  // before the tee flip, since the flip is on whichever tee that turns out to
+  // be. A round that already answered carries a startHole; one that has scores
+  // on it is past the point of asking.
+  const anyScored = round.players.some((player) =>
+    Object.values(round.scores[player.id] ?? {}).some((score) => score !== null),
+  );
+  const askStartHole = round.startHole === undefined && !anyScored && !startPutOff;
+
   const flipToAsk = comp.betResults.find(
     (result): result is Extract<typeof result, { kind: "onedown" }> =>
       result.kind === "onedown" &&
@@ -127,6 +156,44 @@ export function HoleView({
 
   return (
     <div className="space-y-4">
+      {askStartHole ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-hole-title"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <h2 id="start-hole-title" className="text-lg font-bold text-turf-900">
+              Which hole are you starting on?
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              On a shotgun start the front nine is the first nine you play and the
+              back nine the second, and the aggregate holes and tee flips follow.
+            </p>
+            <div className="mt-4">
+              <Button variant="primary" onClick={() => update(setStartHole(round, 1))}>
+                Starting on the 1st
+              </Button>
+            </div>
+            <div className="mt-4 border-t border-neutral-100 pt-3">
+              <p className="mb-2 text-xs font-semibold text-neutral-600">
+                Or pick the hole you teed off on
+              </p>
+              <StartHoleGrid round={round} update={update} />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button variant="ghost" onClick={putOffStart}>
+                Ask me later
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {flipToAsk ? (
         <div
           className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center"
@@ -139,7 +206,7 @@ export function HoleView({
             className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
           >
             <h2 id="tee-flip-title" className="text-lg font-bold text-turf-900">
-              Who won the tee flip on {teeName(hole)}?
+              Who won the tee flip on {teeName(shown)}?
             </h2>
             <p className="mt-1 text-sm text-neutral-600">
               The winners start one up in the opening bet, which opens the first press:
