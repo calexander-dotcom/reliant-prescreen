@@ -14,6 +14,7 @@ import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
 import { guessPerspective } from "@/lib/perspective";
 import { loadRound, saveRound } from "@/lib/storage";
+import { useSharePublisher } from "@/lib/share/usePublisher";
 import type { Round } from "@/lib/types";
 import { startsOnFirst } from "@/lib/holes";
 import { teeName } from "@/lib/bets/onedown";
@@ -63,6 +64,8 @@ export default function RoundPage() {
   };
 
   const comp = useMemo(() => (round ? computeRound(round) : null), [round]);
+  // Publish shared updates from any tab, not just the one the share card is on.
+  const shareStatus = useSharePublisher(round);
 
   if (missing) {
     return (
@@ -132,7 +135,7 @@ export default function RoundPage() {
             }}
           />
           <GgImport round={round} update={update} />
-          <ShareCard round={round} update={update} />
+          <ShareCard round={round} update={update} status={shareStatus} />
         </>
       ) : null}
       {tab === "bets" ? (
