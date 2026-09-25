@@ -1,68 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ApiError, apiCreateShare, apiPublishShare, apiStopShare } from "@/lib/api";
+import { useState } from "react";
+import { ApiError, apiCreateShare, apiStopShare } from "@/lib/api";
 import { publishableRound } from "@/lib/share/payload";
+import type { PublishStatus } from "@/lib/share/usePublisher";
 import type { Round } from "@/lib/types";
 import { Banner, Button, Card, SectionTitle, Spinner } from "./ui";
-
-/** Wait this long after the last edit before publishing. */
-const DEBOUNCE_MS = 4000;
 
 /**
  * Share a round read-only.
  *
  * The link carries only the share id. The token that permits publishing stays
  * on this device, so everyone who opens the link can watch and nobody can
- * change anything. Updates are debounced rather than sent per keystroke —
- * entering a hole is several edits in a row and they only need to land once.
+ * change anything. The publishing itself runs above the tabs (see
+ * useSharePublisher), so scores sent from the Hole tab reach followers even
+ * though this card lives on the Card tab; here we start and stop sharing and
+ * show that publisher's status.
  */
 export function ShareCard({
   round,
   update,
+  status,
 }: {
   round: Round;
   update: (next: Round) => void;
+  /** Live status from the page-level publisher. */
+  status?: PublishStatus;
 }) {
   const [busy, setBusy] = useState(false);
-  const [state, setState] = useState<"idle" | "publishing" | "published" | "failed">(
-    "idle",
-  );
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [publishedAt, setPublishedAt] = useState<string | null>(null);
 
   const share = round.share ?? null;
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Read inside the timer so the publish always sends the newest round.
-  const latest = useRef(round);
-  latest.current = round;
-
-  useEffect(() => {
-    if (!share) return;
-    if (timer.current) clearTimeout(timer.current);
-
-    timer.current = setTimeout(() => {
-      setState("publishing");
-      setError(null);
-      apiPublishShare(share.id, share.token, publishableRound(latest.current))
-        .then(() => {
-          setState("published");
-          setPublishedAt(new Date().toLocaleTimeString());
-        })
-        .catch((caught) => {
-          setState("failed");
-          setError(
-            caught instanceof ApiError ? caught.message : "Could not publish.",
-          );
-        });
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-    // Re-runs on every round change, which is what schedules the next publish.
-  }, [round, share]);
 
   const link =
     share && typeof window !== "undefined"
@@ -75,8 +44,6 @@ export function ShareCard({
     try {
       const created = await apiCreateShare(publishableRound(round));
       update({ ...round, share: created });
-      setState("published");
-      setPublishedAt(new Date().toLocaleTimeString());
     } catch (caught) {
       setError(
         caught instanceof ApiError ? caught.message : "Could not start sharing.",
@@ -95,7 +62,6 @@ export function ShareCard({
       // The link stops working either way once it is off this round.
     } finally {
       update({ ...round, share: null });
-      setState("idle");
       setBusy(false);
     }
   };
@@ -131,9 +97,11 @@ export function ShareCard({
     );
   }
 
+  const state = status?.state ?? "idle";
+
   return (
     <Card>
-      <SectionTitle hint="View only. They see each hole a few seconds after you enter it.">
+      <SectionTitle hint="View only. They see each hole a few seconds after you enter it, from any tab.">
         Others are following
       </SectionTitle>
 
@@ -152,11 +120,13 @@ export function ShareCard({
         {state === "publishing" ? (
           <span className="text-neutral-500">Sending the latest…</span>
         ) : state === "failed" ? (
-          <span className="text-red-700">{error} Changes here are still saved.</span>
-        ) : publishedAt ? (
-          <span className="text-turf-700">Up to date as of {publishedAt}</span>
+          <span className="text-red-700">
+            {status?.error} Changes here are still saved.
+          </span>
+        ) : status?.publishedAt ? (
+          <span className="text-turf-700">Up to date as of {status.publishedAt}</span>
         ) : (
-          <span className="text-neutral-500">Waiting for the next change…</span>
+          <span className="text-neutral-500">Watching for the next change…</span>
         )}
       </div>
     </Card>
