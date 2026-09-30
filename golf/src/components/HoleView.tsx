@@ -581,6 +581,10 @@ export function HoleView({
 
       <TotalsStrip round={round} comp={comp} />
 
+      {/* Hand-entered money is only the game under banker or no automatic
+          game; the score-based games work it out. Show it there, and on any
+          hole that already has money on it so an entry is never orphaned. */}
+      {moneyOpenByDefault || anyEntered ? (
       <CollapsibleCard
         title="Money this hole"
         hint="Enter what each player won or lost. Fill in all but one and the last fills itself, since it has to net to zero."
@@ -715,6 +719,7 @@ export function HoleView({
           </Button>
         </div>
       </CollapsibleCard>
+      ) : null}
 
       {comp.betResults
         .filter(
