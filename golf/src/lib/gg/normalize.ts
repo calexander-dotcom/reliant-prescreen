@@ -130,26 +130,91 @@ export function foursomeFromGg(group: GgPairingGroup, courseName?: string): GgFo
 }
 
 /**
- * Fold a Golf Genius score pull onto what a round already holds.
- *
- * Golf Genius is the master where it has a score: a value from the feed wins,
- * even over a hand-typed one, so a slip in One Downs self-corrects once the
- * real score lands. Where Golf Genius is blank it changes nothing, so a hole
- * entered ahead of the feed survives and an empty feed never wipes the card.
+ * How a hole's own entry stands against the Golf Genius feed.
+ *  - "match"     both have it and agree
+ *  - "mismatch"  both have it and differ — the one to show in red
+ *  - "from-gg"   you have not entered it; the value came from Golf Genius
+ *  - "manual"    you entered it; Golf Genius has not caught up
+ *  - "empty"     neither has it yet
  */
-export function mergeGgScores(
-  existing: Record<string, Record<number, number | null>>,
-  incoming: Record<string, Record<number, number | null>>,
-): Record<string, Record<number, number | null>> {
-  const merged: Record<string, Record<number, number | null>> = {};
-  for (const id of Object.keys(existing)) merged[id] = { ...existing[id] };
-  for (const id of Object.keys(incoming)) {
-    const target = { ...(merged[id] ?? {}) };
-    for (const [hole, value] of Object.entries(incoming[id])) {
-      if (typeof value === "number") target[Number(hole)] = value; // GG has it: it wins
-      // GG blank: leave whatever is already there
+export type ScoreStatus = "match" | "mismatch" | "from-gg" | "manual" | "empty";
+
+export interface HoleReconcile {
+  /** The score to play the bets off: your entry if you made one, else the feed. */
+  value: number | null;
+  status: ScoreStatus;
+  manual: number | null;
+  gg: number | null;
+}
+
+/**
+ * Reconcile your entries against the Golf Genius feed, per player per hole.
+ *
+ * Your manual entry is yours and is never overwritten. Golf Genius is a
+ * cross-check: it fills a hole you have not typed (marked "from-gg"), and where
+ * both of you have a hole and disagree it is flagged "mismatch" for the card to
+ * show in red. Nothing is silently replaced — a red hole is for a human to
+ * settle. Both sides key by the same player ids, which holds because a round
+ * created from a GGID uses the Golf Genius roster ids as its player ids.
+ */
+export function reconcileScores(
+  manual: Record<string, Record<number, number | null>>,
+  gg: Record<string, Record<number, number | null>>,
+  holeCount = HOLES,
+): Record<string, Record<number, HoleReconcile>> {
+  const ids = new Set([...Object.keys(manual), ...Object.keys(gg)]);
+  const out: Record<string, Record<number, HoleReconcile>> = {};
+  for (const id of ids) {
+    const row: Record<number, HoleReconcile> = {};
+    for (let hole = 1; hole <= holeCount; hole += 1) {
+      const m = manual[id]?.[hole] ?? null;
+      const g = gg[id]?.[hole] ?? null;
+      let value: number | null;
+      let status: ScoreStatus;
+      if (m !== null && g !== null) {
+        value = m;
+        status = m === g ? "match" : "mismatch";
+      } else if (m !== null) {
+        value = m;
+        status = "manual";
+      } else if (g !== null) {
+        value = g;
+        status = "from-gg";
+      } else {
+        value = null;
+        status = "empty";
+      }
+      row[hole] = { value, status, manual: m, gg: g };
     }
-    merged[id] = target;
+    out[id] = row;
   }
-  return merged;
+  return out;
+}
+
+/** The score to actually play off per player per hole: yours, else the feed. */
+export function effectiveScores(
+  reconciled: Record<string, Record<number, HoleReconcile>>,
+): Record<string, Record<number, number | null>> {
+  const out: Record<string, Record<number, number | null>> = {};
+  for (const [id, row] of Object.entries(reconciled)) {
+    const scores: Record<number, number | null> = {};
+    for (const [hole, cell] of Object.entries(row)) scores[Number(hole)] = cell.value;
+    out[id] = scores;
+  }
+  return out;
+}
+
+/** Every hole where your entry and Golf Genius disagree — the red cells. */
+export function scoreMismatches(
+  reconciled: Record<string, Record<number, HoleReconcile>>,
+): Array<{ playerId: string; hole: number; manual: number; gg: number }> {
+  const out: Array<{ playerId: string; hole: number; manual: number; gg: number }> = [];
+  for (const [playerId, row] of Object.entries(reconciled)) {
+    for (const [hole, cell] of Object.entries(row)) {
+      if (cell.status === "mismatch" && cell.manual !== null && cell.gg !== null) {
+        out.push({ playerId, hole: Number(hole), manual: cell.manual, gg: cell.gg });
+      }
+    }
+  }
+  return out;
 }

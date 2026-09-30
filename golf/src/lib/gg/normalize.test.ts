@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   courseFromGg,
+  effectiveScores,
   foursomeFromGg,
-  mergeGgScores,
   parseGgIndex,
+  reconcileScores,
+  scoreMismatches,
   type GgPairingGroup,
 } from "./normalize";
 
@@ -75,18 +77,40 @@ describe("foursomeFromGg", () => {
   });
 });
 
-describe("mergeGgScores (Golf Genius is master where it has a score)", () => {
-  it("a feed value overrides a manual one", () => {
-    const merged = mergeGgScores({ p1: { 1: 9 } }, { p1: { 1: 4 } });
-    expect(merged.p1[1]).toBe(4);
+describe("reconcileScores (manual is yours; Golf Genius cross-checks)", () => {
+  it("flags a hole where your entry and Golf Genius disagree", () => {
+    const r = reconcileScores({ p1: { 1: 5 } }, { p1: { 1: 4 } }, 1);
+    expect(r.p1[1].status).toBe("mismatch");
+    expect(r.p1[1].value).toBe(5); // your entry is kept, not overwritten
+    expect(r.p1[1].manual).toBe(5);
+    expect(r.p1[1].gg).toBe(4);
   });
-  it("a blank feed never wipes an existing score", () => {
-    const merged = mergeGgScores({ p1: { 1: 5 } }, { p1: { 1: null } });
-    expect(merged.p1[1]).toBe(5);
+  it("marks a hole you left blank as filled from Golf Genius", () => {
+    const r = reconcileScores({ p1: {} }, { p1: { 1: 4 } }, 1);
+    expect(r.p1[1].status).toBe("from-gg");
+    expect(r.p1[1].value).toBe(4);
   });
-  it("keeps holes the feed does not mention", () => {
-    const merged = mergeGgScores({ p1: { 2: 6 } }, { p1: { 1: 4 } });
-    expect(merged.p1[1]).toBe(4);
-    expect(merged.p1[2]).toBe(6);
+  it("keeps your entry when Golf Genius has not caught up", () => {
+    const r = reconcileScores({ p1: { 1: 5 } }, { p1: {} }, 1);
+    expect(r.p1[1].status).toBe("manual");
+    expect(r.p1[1].value).toBe(5);
+  });
+  it("agrees quietly when both match", () => {
+    const r = reconcileScores({ p1: { 1: 4 } }, { p1: { 1: 4 } }, 1);
+    expect(r.p1[1].status).toBe("match");
+  });
+});
+
+describe("effectiveScores / scoreMismatches", () => {
+  it("plays off your entry, else the feed", () => {
+    const r = reconcileScores({ p1: { 1: 5, 2: null } }, { p1: { 1: 4, 2: 3 } }, 2);
+    const eff = effectiveScores(r);
+    expect(eff.p1[1]).toBe(5); // mismatch keeps yours
+    expect(eff.p1[2]).toBe(3); // blank filled from GG
+  });
+  it("lists only the red cells", () => {
+    const r = reconcileScores({ p1: { 1: 5, 2: 4 } }, { p1: { 1: 4, 2: 4 } }, 2);
+    const bad = scoreMismatches(r);
+    expect(bad).toEqual([{ playerId: "p1", hole: 1, manual: 5, gg: 4 }]);
   });
 });
