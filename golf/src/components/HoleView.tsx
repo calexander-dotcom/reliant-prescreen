@@ -377,6 +377,7 @@ export function HoleView({
           {round.players.map((player) => {
             const cell = comp.cells[player.id]?.[hole];
             const strokes = cell?.strokes ?? 0;
+            const rec = comp.reconcile[player.id]?.[hole];
             return (
               <li key={player.id} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
@@ -393,6 +394,26 @@ export function HoleView({
                       ? ` · net ${cell.net}`
                       : ""}
                   </div>
+                  {rec?.status === "mismatch" && rec.gg !== null ? (
+                    <div className="mt-1 flex items-center gap-2 text-xs">
+                      <span className="gg-pulse font-bold text-red-600">
+                        Golf Genius: {rec.gg}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => update(setScore(round, player.id, hole, rec.gg))}
+                        className="rounded-md bg-red-50 px-1.5 py-0.5 font-semibold text-red-700 ring-1 ring-inset ring-red-200"
+                      >
+                        use {rec.gg}
+                      </button>
+                    </div>
+                  ) : rec?.status === "from-gg" && rec.gg !== null ? (
+                    <div className="mt-1 text-xs font-semibold text-turf-600">
+                      From Golf Genius: {rec.gg} · counting
+                    </div>
+                  ) : rec?.status === "match" ? (
+                    <div className="mt-1 text-xs text-turf-600">Golf Genius ✓</div>
+                  ) : null}
                 </div>
                 <ScoreStepper
                   label={player.name}

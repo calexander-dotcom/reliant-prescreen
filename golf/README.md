@@ -462,6 +462,44 @@ the session token it returns. Omitting it returns
 than a value check, so the default satisfies it; `GHIN_CLIENT_TOKEN` overrides
 it if that changes.
 
+## Golf Genius
+
+The club scores in Golf Genius, so the group enters there once and the round
+mirrors it here rather than anyone typing scores twice. A foursome gets a fresh
+**Foursome GGID** each round; type it on the setup screen ("Start from Golf
+Genius") and the app pulls in the four players, their handicaps and the course.
+All that is left is partners and the bet.
+
+During play the round polls its foursome about every fifteen seconds. The feed
+never overwrites a score entered by hand — hand entry is the master. Instead it
+**cross-checks**:
+
+- a hole nobody typed is **filled from the feed** (a small `gg` on the card),
+- a hole where the typed score and the feed **disagree** is flagged in
+  **pulsing red**, on the card and under the hole, for a human to settle (a
+  one-tap "use N" accepts the feed's number),
+- everything else agrees quietly.
+
+It is **read-only**: Golf Genius has no API to write scores back (see
+[Not built](#not-built)), so nothing is ever sent.
+
+The key stays on the server. The browser talks only to our own routes:
+
+- `GET /api/gg/resolve?ggid=…` — find the event and round a foursome GGID
+  belongs to (Golf Genius has no direct GGID lookup, so it scans the rounds
+  near today across the account's events, in parallel), and return the
+  normalized foursome. Called once, at setup.
+- `GET /api/gg/foursome?eventId=…&roundId=…&ggid=…` — re-read that one group's
+  scores. Called on the timer while the round is open.
+
+Both read the key from **`GOLF_GENIUS_API_KEY`** (set in the deployment's
+environment) and return only the foursome — no emails, no account internals. A
+deployment without the key answers `501`, and the setup card says Golf Genius is
+not connected. The v2 API puts the key in the URL path, so it must never reach a
+client component; `src/lib/gg/api.ts` is server-only. There is also an older
+paste path (`src/lib/gg/import.ts`) for bringing scores in by hand when there is
+no GGID.
+
 ## Running it
 
 ```bash

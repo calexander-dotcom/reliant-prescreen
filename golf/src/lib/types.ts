@@ -12,7 +12,7 @@ export interface Player {
   ghinNumber?: string | null;
   /** Which tee set this player is using (index into course.tees). */
   teeId?: string | null;
-  source: "ghin" | "manual";
+  source: "ghin" | "manual" | "gg";
 }
 
 export interface HoleInfo {
@@ -42,7 +42,7 @@ export interface Course {
   city?: string | null;
   state?: string | null;
   tees: TeeSet[];
-  source: "ghin" | "manual";
+  source: "ghin" | "manual" | "gg";
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +291,35 @@ export interface Round {
    * here — `publishableRound` strips the whole field before anything is sent.
    */
   share?: { id: string; token: string } | null;
+  /**
+   * A live tie-in to a Golf Genius foursome, set when the round was created
+   * from a GGID. It is the cross-check the group scores against: the app polls
+   * it during play and flags any hole where a hand-entered score disagrees.
+   * It never overwrites a hand-entered score, and it holds no secret — the API
+   * key stays on the server, and only these ids and the scores come back.
+   */
+  gg?: GgLink | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * What a round remembers about its Golf Genius foursome.
+ *
+ * `scores` is the latest feed snapshot: gross strokes keyed by player id, then
+ * by the hole number Golf Genius counts on the card — the number on the tee
+ * marker, 1..18 — not this round's play-order position. It is re-keyed to
+ * positions where it is read, so a shotgun start still lines up.
+ */
+export interface GgLink {
+  /** The foursome GGID the owner typed for this round. */
+  ggid: string;
+  /** The Golf Genius event and round the foursome was found in, for polling. */
+  eventId: string;
+  roundId: string;
+  /** The event's name, for a line on the round screen. */
+  eventName?: string;
+  scores: Record<PlayerId, Record<number, number | null>>;
+  /** ISO time of the last successful read, for the "updated Ns ago" line. */
   updatedAt: string;
 }

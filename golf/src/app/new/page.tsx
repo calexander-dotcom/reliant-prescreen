@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { BetEditor } from "@/components/BetEditor";
 import { CoursePicker } from "@/components/CoursePicker";
+import { GgRoundSetup } from "@/components/GgRoundSetup";
 import { GhinPanel, type GhinConnection } from "@/components/GhinPanel";
+import { PartnerPicker } from "@/components/PartnerPicker";
 import { startsOnFirst } from "@/lib/holes";
 import { teeName } from "@/lib/bets/onedown";
 import { signInAgain } from "@/lib/ghin/session";
@@ -140,6 +142,8 @@ export default function NewRoundPage() {
 
       {step === "who" ? (
         <>
+          <GgRoundSetup round={round} update={setRound} />
+
           <GhinPanel connection={ghin} onChange={setGhin} />
 
           <CoursePicker
@@ -190,6 +194,8 @@ export default function NewRoundPage() {
               </Button>
             </div>
           </Card>
+
+          <PartnerPicker round={round} update={setRound} />
 
           <Card>
             <SectionTitle hint="One game per round. Skip this and you get $10 one downs. Change it any time.">
