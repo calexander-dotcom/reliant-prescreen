@@ -29,6 +29,17 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "settle", label: "Settle" },
 ];
 
+/** The first hole still missing a score — where to resume when none is stored. */
+function firstUnscored(round: Round): number {
+  for (let pos = 1; pos <= round.holeCount; pos += 1) {
+    const missing = round.players.some(
+      (player) => (round.scores[player.id]?.[pos] ?? null) === null,
+    );
+    if (missing) return pos;
+  }
+  return 1;
+}
+
 /** A coarse "how long ago", refreshed whenever a poll re-renders the page. */
 function agoLabel(ms: number | null): string {
   if (!ms) return "";
@@ -61,9 +72,10 @@ export default function RoundPage() {
     const ready = found.perspectiveId === undefined ? guessPerspective(found) : found;
     setRound(ready);
     if (ready !== found) saveRound(ready);
-    // Reopen on the hole we were last entering, not the 1st.
-    const last = loadLastHole(id);
-    if (last) setHole(Math.min(last, ready.holeCount));
+    // Reopen on the hole we were last entering; failing that (a round scored
+    // before this was remembered), the first hole still needing a score.
+    const target = loadLastHole(id) ?? firstUnscored(ready);
+    setHole(Math.min(Math.max(target, 1), ready.holeCount));
     const query = new URLSearchParams(window.location.search);
     const wanted = query.get("tab");
     if (wanted === "bets" || wanted === "card" || wanted === "settle") setTab(wanted);

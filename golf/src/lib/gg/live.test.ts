@@ -76,4 +76,31 @@ describe("mergeGgFeed", () => {
     const r = round(null);
     expect(mergeGgFeed(r, feed({ p1: { 1: 4 } }))).toBe(r);
   });
+
+  it("never erases a score a thin or empty poll drops", () => {
+    const r = round({
+      ggid: "abc",
+      eventId: "e1",
+      roundId: "rd1",
+      scores: { p1: { 1: 4, 2: 5 } },
+      updatedAt: "2026-09-30T00:00:00.000Z",
+    });
+    // The 2nd is missing from this poll; it must stay, and nothing changed.
+    expect(mergeGgFeed(r, feed({ p1: { 1: 4 } }))).toBe(r);
+    // An entirely empty poll keeps the whole card.
+    expect(mergeGgFeed(r, feed({}))).toBe(r);
+  });
+
+  it("still takes a correction from the feed", () => {
+    const r = round({
+      ggid: "abc",
+      eventId: "e1",
+      roundId: "rd1",
+      scores: { p1: { 1: 4 } },
+      updatedAt: "2026-09-30T00:00:00.000Z",
+    });
+    const next = mergeGgFeed(r, feed({ p1: { 1: 6 } }));
+    expect(next).not.toBe(r);
+    expect(next.gg?.scores.p1[1]).toBe(6);
+  });
 });
