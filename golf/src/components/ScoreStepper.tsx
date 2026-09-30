@@ -53,8 +53,18 @@ export function ScoreStepper({
       </button>
       <button
         type="button"
-        aria-label={`Score for ${label}`}
-        onClick={() => (value === null ? onChange(par) : onChange(null))}
+        aria-label={
+          value !== null && tone === "gg"
+            ? `Confirm ${value} for ${label}`
+            : `Score for ${label}`
+        }
+        onClick={() => {
+          // Tap an empty box to start at par; tap a Golf Genius score to accept
+          // it as your own; tap your own score to clear it (back to the feed).
+          if (value === null) onChange(par);
+          else if (tone === "gg") onChange(value);
+          else onChange(null);
+        }}
         className={`tabular relative h-11 w-14 rounded-xl text-xl font-bold ring-1 ring-inset ${centerClass}`}
       >
         {value ?? "–"}
