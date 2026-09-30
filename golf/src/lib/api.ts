@@ -1,6 +1,7 @@
 "use client";
 
 import type { CourseSummary } from "./ghin/normalize";
+import type { GgFoursome } from "./gg/normalize";
 import type { GhinProbe } from "./ghin/shape";
 import type { SharedRound } from "./share/payload";
 import type { Course, Player, Round } from "./types";
@@ -187,4 +188,39 @@ export async function apiStopShare(id: string, token: string): Promise<void> {
 /** Read a shared round. No token: this is the view-only path. */
 export async function apiFetchShare(id: string): Promise<SharedRound> {
   return request<SharedRound>(`/api/share/${encodeURIComponent(id)}`);
+}
+
+// --- Golf Genius (read-only) -----------------------------------------------
+//
+// The key lives on the server. These call our own /api/gg routes, which hold
+// it and hand back only the normalized foursome — no emails, no account
+// internals. A 501 means this deployment has no key set.
+
+export interface GgResolveResult {
+  eventId: string;
+  roundId: string;
+  eventName: string;
+  foursome: GgFoursome;
+}
+
+/** Find the round a foursome GGID belongs to. Called once, at round setup. */
+export async function apiGgResolve(ggid: string): Promise<GgResolveResult> {
+  return request<GgResolveResult>(`/api/gg/resolve?ggid=${encodeURIComponent(ggid)}`);
+}
+
+/** Re-read one foursome's scores. Called on a timer while the round is live. */
+export async function apiGgFoursome(args: {
+  eventId: string;
+  roundId: string;
+  ggid: string;
+}): Promise<GgFoursome> {
+  const search = new URLSearchParams({
+    eventId: args.eventId,
+    roundId: args.roundId,
+    ggid: args.ggid,
+  });
+  const { foursome } = await request<{ foursome: GgFoursome }>(
+    `/api/gg/foursome?${search.toString()}`,
+  );
+  return foursome;
 }

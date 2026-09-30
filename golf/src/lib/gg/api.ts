@@ -89,9 +89,12 @@ export interface FoursomeLocation {
 }
 
 /**
- * Find the pairing group a foursome GGID belongs to. Scans each event's likely
- * rounds; returns the first match. Called once when a round is set up; after
- * that the caller keeps the event and round ids and polls `fetchFoursome`.
+ * Find the pairing group a foursome GGID belongs to. The API has no direct
+ * lookup, so this scans the rounds that could plausibly be today's across every
+ * event. Done in parallel — one event's rounds, then every candidate round's
+ * tee sheet at once — because sequentially it took twenty seconds and this is
+ * on the path of someone standing on the first tee. Called once when a round is
+ * set up; after that the caller keeps the ids and polls `fetchFoursome`.
  */
 export async function resolveFoursome(
   key: string,
@@ -103,32 +106,46 @@ export async function resolveFoursome(
   const today = now.toISOString().slice(0, 10);
   const events = unwrap<GgEvent>(await ggGet(key, "events"), "event");
 
-  for (const event of events) {
-    if (!event.id) continue;
-    const rounds = unwrap<GgRound>(
-      await ggGet(key, `events/${event.id}/rounds`),
-      "round",
-    );
-    for (const round of candidateRounds(rounds, today)) {
-      if (!round.id) continue;
+  // Each event's rounds, all at once.
+  const perEvent = await Promise.all(
+    events.map(async (event) => {
+      if (!event.id) return { event, rounds: [] as GgRound[] };
+      const rounds = unwrap<GgRound>(
+        await ggGet(key, `events/${event.id}/rounds`),
+        "round",
+      );
+      return { event, rounds: candidateRounds(rounds, today) };
+    }),
+  );
+
+  // Flatten to the event/round pairs worth reading, keeping their scan order so
+  // the first match found is stable, then read every tee sheet at once.
+  const pairs: Array<{ event: GgEvent; round: GgRound }> = [];
+  for (const { event, rounds } of perEvent) {
+    for (const round of rounds) {
+      if (event.id && round.id) pairs.push({ event, round });
+    }
+  }
+
+  const matches = await Promise.all(
+    pairs.map(async ({ event, round }) => {
       const sheet = unwrap<GgPairingGroup>(
         await ggGet(key, `events/${event.id}/rounds/${round.id}/tee_sheet`),
         "pairing_group",
       );
-      const group = sheet.find(
-        (g) => (g.foursome_ggid ?? "").toLowerCase() === target,
-      );
-      if (group) {
-        return {
-          eventId: event.id,
-          roundId: round.id,
-          eventName: event.name ?? "Golf Genius event",
-          group,
-        };
-      }
-    }
-  }
-  return null;
+      const group = sheet.find((g) => (g.foursome_ggid ?? "").toLowerCase() === target);
+      return group ? { event, round, group } : null;
+    }),
+  );
+
+  const hit = matches.find((m): m is NonNullable<typeof m> => m !== null);
+  if (!hit) return null;
+  return {
+    eventId: hit.event.id as string,
+    roundId: hit.round.id as string,
+    eventName: hit.event.name ?? "Golf Genius event",
+    group: hit.group,
+  };
 }
 
 /** Course names by id, so a foursome reads "Mid South Club", not an id. */

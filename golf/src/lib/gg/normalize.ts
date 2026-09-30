@@ -1,3 +1,4 @@
+import { positionOf } from "../holes";
 import type { Course, HoleInfo, Player, TeeSet } from "../types";
 
 /**
@@ -200,6 +201,31 @@ export function effectiveScores(
     const scores: Record<number, number | null> = {};
     for (const [hole, cell] of Object.entries(row)) scores[Number(hole)] = cell.value;
     out[id] = scores;
+  }
+  return out;
+}
+
+/**
+ * Re-key a Golf Genius score map from the numbers on the tee markers (1..18,
+ * how Golf Genius counts) to this round's play-order positions, so it lines up
+ * with the hand-entered scores. On a round that starts on the 1st the two are
+ * the same; on a shotgun start they are not. Mirrors what the paste import does
+ * with `positionOf`, so both ways of bringing scores in agree.
+ */
+export function ggScoresByPosition(
+  scores: Record<string, Record<number, number | null>>,
+  startHole: number,
+  holeCount = HOLES,
+): Record<string, Record<number, number | null>> {
+  const out: Record<string, Record<number, number | null>> = {};
+  for (const [id, byHole] of Object.entries(scores)) {
+    const row: Record<number, number | null> = {};
+    for (const [hole, value] of Object.entries(byHole)) {
+      const onCourse = Number(hole);
+      if (!Number.isInteger(onCourse) || onCourse < 1 || onCourse > holeCount) continue;
+      row[positionOf(onCourse, startHole, holeCount)] = value;
+    }
+    out[id] = row;
   }
   return out;
 }

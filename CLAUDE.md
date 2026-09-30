@@ -208,6 +208,7 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
 | MarketCheck API key | same | car listings | revoke if nothing else uses it |
 | Redis Cloud connection string | Vercel env of golf_bets (injected by the integration) | shared golf rounds | active |
 | GHIN login | typed on the phone; token kept in the browser only | golf app's GHIN import | nothing stored server-side |
+| Golf Genius API key (`GOLF_GENIUS_API_KEY`) | Vercel env of golf_bets (Production, type Secret); read server-side only, never in the browser or repo | golf app's Golf Genius read: foursome auto-fill and live score cross-check | active (added by owner 2026-09-30) |
 
 ## Active work log
 
@@ -222,3 +223,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-21 | `claude/golf-gambling-tracker-2xn3ty` | Vercel's daily deployment limit hit at ~23:30 UTC; golf PRs #47–#62 ended up merged into the production branch but unbuilt. | Vercel | resolved 2026-09-22 |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` + owner | Build guards so one push is one build: `ignoreCommand` in `golf/vercel.json` for golf_bets (PR #58), and the owner set an Ignored Build Step on workspace-recruiterasst and reliant-prescreen excluding `golf/`. | Vercel | done |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` | Cap lifted about 19:20 UTC, roughly 20 hours after it bit. PR #63 (a service worker cache bump) was the golf-touching push that carried PRs #47–#62 to production; golf_bets reported "Deployment has completed" at 19:22 UTC. | Vercel | live |
+| 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |

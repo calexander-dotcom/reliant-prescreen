@@ -1,6 +1,13 @@
 import { resolveStrokes, netScore, type PlayerStrokes } from "../handicap";
 import { sumCents } from "../money";
 import { normaliseStartHole, playOrder } from "../holes";
+import {
+  effectiveScores,
+  ggScoresByPosition,
+  reconcileScores,
+  scoreMismatches as computeScoreMismatches,
+  type HoleReconcile,
+} from "../gg/normalize";
 import type {
   BetConfig,
   HoleInfo,
@@ -142,6 +149,14 @@ export interface RoundComputation {
   /** Non-zero means some hole was left out of balance. */
   residual: number;
   unbalancedHoles: number[];
+  /**
+   * How each player's hand-entered score stands against the Golf Genius feed,
+   * per play-order position. Empty when the round has no Golf Genius tie-in.
+   * The card reads this to flag the holes that disagree.
+   */
+  reconcile: Record<PlayerId, Record<number, HoleReconcile>>;
+  /** The holes (play-order) where an entry disagrees with Golf Genius. */
+  mismatches: Array<{ playerId: PlayerId; hole: number; manual: number; gg: number }>;
 }
 
 export function computeRound(round: Round): RoundComputation {
@@ -159,6 +174,17 @@ export function computeRound(round: Round): RoundComputation {
 
   const strokes = resolveStrokes(round.players, teeFor, holes, round.handicapMode);
 
+  // Golf Genius, when the round is tied to a foursome: re-key the feed to this
+  // round's play-order, then reconcile it against the hand-entered scores. The
+  // effective score plays the bets — a hole you typed is yours, a hole you have
+  // not typed is filled from Golf Genius — while `reconcile` keeps the disagreements
+  // for the card to flag. With no tie-in this is just the hand-entered scores.
+  const ggByPosition = round.gg
+    ? ggScoresByPosition(round.gg.scores, normaliseStartHole(round.startHole, round.holeCount), round.holeCount)
+    : {};
+  const reconcile = reconcileScores(round.scores, ggByPosition, round.holeCount);
+  const effective = effectiveScores(reconcile);
+
   const cells: Record<PlayerId, Record<number, ScoreCell>> = {};
   const totalsByPlayer: RoundComputation["totalsByPlayer"] = {};
 
@@ -170,7 +196,7 @@ export function computeRound(round: Round): RoundComputation {
     let holesPosted = 0;
 
     for (const hole of holes) {
-      const gross = round.scores[player.id]?.[hole.number] ?? null;
+      const gross = effective[player.id]?.[hole.number] ?? null;
       const holeStrokes = strokes[player.id]?.byHole[hole.number] ?? 0;
       const cellNet = netScore(gross, holeStrokes);
       playerCells[hole.number] = { gross, strokes: holeStrokes, net: cellNet };
@@ -293,6 +319,8 @@ export function computeRound(round: Round): RoundComputation {
     transfers: settle(grandTotals),
     residual: settlementResidual(grandTotals),
     unbalancedHoles,
+    reconcile,
+    mismatches: computeScoreMismatches(reconcile),
   };
 }
 

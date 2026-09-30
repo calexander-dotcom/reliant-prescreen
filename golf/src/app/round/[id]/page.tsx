@@ -14,6 +14,7 @@ import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
 import { guessPerspective } from "@/lib/perspective";
 import { loadRound, saveRound } from "@/lib/storage";
+import { useGgLive } from "@/lib/gg/useLive";
 import { useSharePublisher } from "@/lib/share/usePublisher";
 import type { Round } from "@/lib/types";
 import { startsOnFirst } from "@/lib/holes";
@@ -27,6 +28,15 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "bets", label: "Bets" },
   { id: "settle", label: "Settle" },
 ];
+
+/** A coarse "how long ago", refreshed whenever a poll re-renders the page. */
+function agoLabel(ms: number | null): string {
+  if (!ms) return "";
+  const secs = Math.round((Date.now() - ms) / 1000);
+  if (secs < 15) return "just now";
+  if (secs < 60) return `${secs}s ago`;
+  return `${Math.round(secs / 60)}m ago`;
+}
 
 export default function RoundPage() {
   const params = useParams<{ id: string }>();
@@ -66,6 +76,8 @@ export default function RoundPage() {
   const comp = useMemo(() => (round ? computeRound(round) : null), [round]);
   // Publish shared updates from any tab, not just the one the share card is on.
   const shareStatus = useSharePublisher(round);
+  // When the round is tied to a Golf Genius foursome, keep its scores fresh.
+  const ggLive = useGgLive(round, update);
 
   if (missing) {
     return (
@@ -102,6 +114,32 @@ export default function RoundPage() {
           </p>
         </div>
       </header>
+
+      {round.gg ? (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              ggLive.state === "error"
+                ? "bg-red-500"
+                : ggLive.state === "ok"
+                  ? "bg-turf-500"
+                  : "bg-amber-400"
+            }`}
+          />
+          <span className="text-neutral-500" title={ggLive.error ?? undefined}>
+            {ggLive.state === "error"
+              ? "Golf Genius sync paused"
+              : ggLive.state === "ok"
+                ? `Golf Genius · updated ${agoLabel(ggLive.lastOk)}`
+                : "Golf Genius · connecting…"}
+          </span>
+          {comp.mismatches.length > 0 ? (
+            <span className="gg-pulse font-semibold text-red-600">
+              {comp.mismatches.length} to check
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* The Hole tab shows the tiles further down, under the extra presses. */}
       {tab !== "hole" ? <TotalsStrip round={round} comp={comp} /> : null}

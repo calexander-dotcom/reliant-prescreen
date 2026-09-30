@@ -3,6 +3,7 @@ import {
   courseFromGg,
   effectiveScores,
   foursomeFromGg,
+  ggScoresByPosition,
   parseGgIndex,
   reconcileScores,
   scoreMismatches,
@@ -98,6 +99,27 @@ describe("reconcileScores (manual is yours; Golf Genius cross-checks)", () => {
   it("agrees quietly when both match", () => {
     const r = reconcileScores({ p1: { 1: 4 } }, { p1: { 1: 4 } }, 1);
     expect(r.p1[1].status).toBe("match");
+  });
+});
+
+describe("ggScoresByPosition (line the feed up with the round's play order)", () => {
+  it("is a straight pass-through when the round starts on the 1st", () => {
+    const out = ggScoresByPosition({ p1: { 1: 4, 2: 5, 18: 6 } }, 1, 18);
+    expect(out.p1[1]).toBe(4);
+    expect(out.p1[2]).toBe(5);
+    expect(out.p1[18]).toBe(6);
+  });
+  it("re-keys marker numbers to positions on a shotgun start", () => {
+    // Off the 7th: the 7th is played first, the 6th last.
+    const out = ggScoresByPosition({ p1: { 7: 4, 8: 5, 6: 6 } }, 7, 18);
+    expect(out.p1[1]).toBe(4);
+    expect(out.p1[2]).toBe(5);
+    expect(out.p1[18]).toBe(6);
+  });
+  it("drops holes outside the card", () => {
+    const out = ggScoresByPosition({ p1: { 0: 3, 19: 3, 5: 4 } }, 1, 18);
+    expect(out.p1[5]).toBe(4);
+    expect(Object.keys(out.p1)).toHaveLength(1);
   });
 });
 

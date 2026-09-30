@@ -80,6 +80,16 @@ export function CardView({
         </Banner>
       ) : null}
 
+      {comp.mismatches.length > 0 ? (
+        <Banner tone="warn">
+          <span className="gg-pulse mr-1 inline-block font-black text-red-600">●</span>
+          {comp.mismatches.length === 1
+            ? "One score disagrees with Golf Genius"
+            : `${comp.mismatches.length} scores disagree with Golf Genius`}{" "}
+          — shown in red below. Your entry stands until you change it.
+        </Banner>
+      ) : null}
+
       <Card className="overflow-x-auto">
         <SectionTitle
           hint={`Score on top, that hole's money underneath.${
@@ -341,13 +351,33 @@ function HoleGroup({
             {round.players.map((player) => {
               const cell = comp.cells[player.id]?.[hole.number];
               const money = holeStatus?.amounts[player.id] ?? 0;
+              const rec = comp.reconcile[player.id]?.[hole.number];
+              const mismatch = rec?.status === "mismatch";
+              const fromGg = rec?.status === "from-gg";
               return (
                 <td key={player.id} className="px-1 py-1.5 text-center">
-                  <div className="font-semibold text-neutral-900">
-                    {cell?.gross ?? "–"}
+                  <div className={`font-semibold ${mismatch ? "text-red-600" : "text-neutral-900"}`}>
+                    {mismatch ? (
+                      <span
+                        className="gg-pulse font-bold text-red-600"
+                        title={`You have ${rec?.manual}; Golf Genius has ${rec?.gg}`}
+                      >
+                        {cell?.gross ?? "–"}
+                      </span>
+                    ) : (
+                      cell?.gross ?? "–"
+                    )}
                     {cell && cell.gross !== null && cell.strokes > 0 ? (
                       <span className="align-super text-[0.6rem] text-turf-600">
                         {"•".repeat(Math.min(cell.strokes, 3))}
+                      </span>
+                    ) : null}
+                    {fromGg ? (
+                      <span
+                        className="align-super ml-0.5 text-[0.55rem] font-bold uppercase text-turf-500"
+                        title="Filled from Golf Genius"
+                      >
+                        gg
                       </span>
                     ) : null}
                   </div>

@@ -40,3 +40,30 @@ input[type="number"] {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/*
+ * A score that disagrees with the Golf Genius feed. It zooms in and out so it
+ * catches the eye across the table — a human has to settle which number is
+ * right. Honours "reduce motion": it still goes red, it just holds still.
+ */
+@keyframes gg-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.45);
+  }
+}
+
+.gg-pulse {
+  display: inline-block;
+  transform-origin: center;
+  animation: gg-pulse 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gg-pulse {
+    animation: none;
+  }
+}
