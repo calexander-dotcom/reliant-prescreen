@@ -12,7 +12,7 @@ export interface Player {
   ghinNumber?: string | null;
   /** Which tee set this player is using (index into course.tees). */
   teeId?: string | null;
-  source: "ghin" | "manual";
+  source: "ghin" | "manual" | "gg";
 }
 
 export interface HoleInfo {
@@ -42,7 +42,7 @@ export interface Course {
   city?: string | null;
   state?: string | null;
   tees: TeeSet[];
-  source: "ghin" | "manual";
+  source: "ghin" | "manual" | "gg";
 }
 
 // ---------------------------------------------------------------------------
