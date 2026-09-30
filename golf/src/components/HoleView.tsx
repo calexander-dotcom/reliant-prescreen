@@ -211,7 +211,7 @@ export function HoleView({
   // be. A round that already answered carries a startHole; one that has scores
   // on it is past the point of asking.
   const anyScored = round.players.some((player) =>
-    Object.values(round.scores[player.id] ?? {}).some((score) => score !== null),
+    comp.holes.some((entry) => (comp.cells[player.id]?.[entry.number]?.gross ?? null) !== null),
   );
   const askStartHole = round.startHole === undefined && !anyScored && !startPutOff;
 
@@ -570,16 +570,16 @@ export function HoleView({
       <CollapsibleCard
         title="Scores"
         storageKey="hole.scores"
-        hint="Tap the number to clear it. First tap starts at par."
+        hint="Golf Genius scores show in green. Tap + or − to enter or change a score by hand."
         summary={
           round.players.some(
-            (player) => (round.scores[player.id]?.[hole] ?? null) !== null,
+            (player) => (comp.cells[player.id]?.[hole]?.gross ?? null) !== null,
           )
             ? round.players
                 .map(
                   (player) =>
                     `${player.name.split(" ")[0]} ${
-                      round.scores[player.id]?.[hole] ?? "–"
+                      comp.cells[player.id]?.[hole]?.gross ?? "–"
                     }`,
                 )
                 .join(" · ")
@@ -621,8 +621,8 @@ export function HoleView({
                       </button>
                     </div>
                   ) : rec?.status === "from-gg" && rec.gg !== null ? (
-                    <div className="mt-1 text-xs font-semibold text-turf-600">
-                      From Golf Genius: {rec.gg} · counting
+                    <div className="mt-1 text-xs text-turf-600">
+                      From Golf Genius — tap + or − to change
                     </div>
                   ) : rec?.status === "match" ? (
                     <div className="mt-1 text-xs text-turf-600">Golf Genius ✓</div>
@@ -631,7 +631,14 @@ export function HoleView({
                 <ScoreStepper
                   label={player.name}
                   par={info?.par ?? 4}
-                  value={round.scores[player.id]?.[hole] ?? null}
+                  value={cell?.gross ?? null}
+                  tone={
+                    rec?.status === "mismatch"
+                      ? "mismatch"
+                      : rec?.status === "from-gg"
+                        ? "gg"
+                        : "manual"
+                  }
                   onChange={(value) => update(setScore(round, player.id, hole, value))}
                 />
               </li>
@@ -652,7 +659,7 @@ export function HoleView({
           const answered = hole in winners;
           const winner = winners[hole];
           const scoresIn = round.players.every(
-            (player) => (round.scores[player.id]?.[hole] ?? null) !== null,
+            (player) => (comp.cells[player.id]?.[hole]?.gross ?? null) !== null,
           );
           const [sideA, sideB] = result.config.sides;
           const wonBy =
