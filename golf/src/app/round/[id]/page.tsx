@@ -17,7 +17,8 @@ import { loadLastHole, loadRound, saveLastHole, saveRound } from "@/lib/storage"
 import { useGgLive } from "@/lib/gg/useLive";
 import { useSharePublisher } from "@/lib/share/usePublisher";
 import type { Round } from "@/lib/types";
-import { startsOnFirst } from "@/lib/holes";
+import { normaliseStartHole, startsOnFirst } from "@/lib/holes";
+import { ggScoresByPosition } from "@/lib/gg/normalize";
 import { teeName } from "@/lib/bets/onedown";
 
 type Tab = "hole" | "card" | "bets" | "settle";
@@ -29,15 +30,28 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "settle", label: "Settle" },
 ];
 
-/** The first hole still missing a score — where to resume when none is stored. */
+/**
+ * The first hole still missing a score — where to keep scoring from. Counts a
+ * hole as scored whether the number was typed in or came from Golf Genius, so a
+ * round scored through the feed resumes at the right hole rather than the 1st.
+ */
 function firstUnscored(round: Round): number {
+  const gg = round.gg
+    ? ggScoresByPosition(
+        round.gg.scores,
+        normaliseStartHole(round.startHole, round.holeCount),
+        round.holeCount,
+      )
+    : {};
   for (let pos = 1; pos <= round.holeCount; pos += 1) {
     const missing = round.players.some(
-      (player) => (round.scores[player.id]?.[pos] ?? null) === null,
+      (player) =>
+        (round.scores[player.id]?.[pos] ?? null) === null &&
+        (gg[player.id]?.[pos] ?? null) === null,
     );
     if (missing) return pos;
   }
-  return 1;
+  return round.holeCount;
 }
 
 /** A coarse "how long ago", refreshed whenever a poll re-renders the page. */
@@ -72,9 +86,10 @@ export default function RoundPage() {
     const ready = found.perspectiveId === undefined ? guessPerspective(found) : found;
     setRound(ready);
     if (ready !== found) saveRound(ready);
-    // Reopen on the hole we were last entering; failing that (a round scored
-    // before this was remembered), the first hole still needing a score.
-    const target = loadLastHole(id) ?? firstUnscored(ready);
+    // Reopen where you left off: the further of the hole you last had open and
+    // the first hole still needing a score, so a GG-fed round (nothing typed on
+    // hole 1 yet) resumes at the live hole, not the 1st.
+    const target = Math.max(firstUnscored(ready), loadLastHole(id) ?? 1);
     setHole(Math.min(Math.max(target, 1), ready.holeCount));
     const query = new URLSearchParams(window.location.search);
     const wanted = query.get("tab");

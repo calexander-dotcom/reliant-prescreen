@@ -39,6 +39,16 @@ export function ServiceWorker({ build }: { build: string }) {
   }, []);
 
   useEffect(() => {
+    // Ask the browser to keep our storage — a round in progress must not be
+    // evicted under storage pressure. Best-effort; harmless where unsupported.
+    try {
+      void navigator.storage?.persist?.();
+    } catch {
+      // Some browsers throw on access; nothing to do.
+    }
+  }, []);
+
+  useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     let cancelled = false;
 
