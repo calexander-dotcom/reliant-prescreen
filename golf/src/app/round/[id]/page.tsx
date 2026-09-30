@@ -13,7 +13,7 @@ import { TotalsStrip } from "@/components/TotalsStrip";
 import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
 import { guessPerspective } from "@/lib/perspective";
-import { loadRound, saveRound } from "@/lib/storage";
+import { loadLastHole, loadRound, saveLastHole, saveRound } from "@/lib/storage";
 import { useGgLive } from "@/lib/gg/useLive";
 import { useSharePublisher } from "@/lib/share/usePublisher";
 import type { Round } from "@/lib/types";
@@ -61,11 +61,19 @@ export default function RoundPage() {
     const ready = found.perspectiveId === undefined ? guessPerspective(found) : found;
     setRound(ready);
     if (ready !== found) saveRound(ready);
+    // Reopen on the hole we were last entering, not the 1st.
+    const last = loadLastHole(id);
+    if (last) setHole(Math.min(last, ready.holeCount));
     const query = new URLSearchParams(window.location.search);
     const wanted = query.get("tab");
     if (wanted === "bets" || wanted === "card" || wanted === "settle") setTab(wanted);
     if (query.get("edit") === "1") setEditSetup(true);
   }, [id]);
+
+  // Remember the hole across closes, so Resume lands right back on it.
+  useEffect(() => {
+    if (id && round) saveLastHole(id, hole);
+  }, [id, hole, round]);
 
   // Persist on every change: the tab can be closed at any moment out there.
   const update = (next: Round) => {

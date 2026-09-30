@@ -294,6 +294,37 @@ export function savePanelOpen(key: string, open: boolean): void {
   );
 }
 
+// --- Last hole viewed, per round ------------------------------------------
+//
+// So resuming a round drops you back on the hole you were entering, not the 1st.
+// This is device-local UI state, kept out of the round itself so it never
+// publishes to a shared copy or churns the round's updatedAt. Stored as a
+// position in the play order, the same number the Hole tab works in.
+
+const LAST_HOLE_KEY = "golfbets.lastHole.v1";
+
+export function loadLastHole(roundId: string): number | null {
+  if (!canStore()) return null;
+  const map = safeParse<Record<string, number>>(
+    window.localStorage.getItem(LAST_HOLE_KEY),
+    {},
+  );
+  const value = map?.[roundId];
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+export function saveLastHole(roundId: string, hole: number): void {
+  if (!canStore()) return;
+  const map = safeParse<Record<string, number>>(
+    window.localStorage.getItem(LAST_HOLE_KEY),
+    {},
+  );
+  window.localStorage.setItem(
+    LAST_HOLE_KEY,
+    JSON.stringify({ ...(map ?? {}), [roundId]: hole }),
+  );
+}
+
 // --- Tee preferences ------------------------------------------------------
 
 interface TeePrefs {
