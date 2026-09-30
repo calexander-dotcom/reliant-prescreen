@@ -77,7 +77,7 @@ describe("mergeGgFeed", () => {
     expect(mergeGgFeed(r, feed({ p1: { 1: 4 } }))).toBe(r);
   });
 
-  it("never erases a score a thin or empty poll drops", () => {
+  it("mirrors the feed — a score removed in Golf Genius carries through", () => {
     const r = round({
       ggid: "abc",
       eventId: "e1",
@@ -85,10 +85,11 @@ describe("mergeGgFeed", () => {
       scores: { p1: { 1: 4, 2: 5 } },
       updatedAt: "2026-09-30T00:00:00.000Z",
     });
-    // The 2nd is missing from this poll; it must stay, and nothing changed.
-    expect(mergeGgFeed(r, feed({ p1: { 1: 4 } }))).toBe(r);
-    // An entirely empty poll keeps the whole card.
-    expect(mergeGgFeed(r, feed({}))).toBe(r);
+    // The 2nd was deleted in Golf Genius; the app follows.
+    const next = mergeGgFeed(r, feed({ p1: { 1: 4 } }));
+    expect(next).not.toBe(r);
+    expect(next.gg?.scores.p1[2] ?? null).toBeNull();
+    expect(next.gg?.scores.p1[1]).toBe(4);
   });
 
   it("still takes a correction from the feed", () => {

@@ -223,10 +223,11 @@ export function HoleView({
   );
 
   /*
-   * One to play: on the hole that closes a nine (or the round), what each way
-   * that hole can go is worth. Only once the rest of the nine is in and this
-   * hole is still open — "you have entered the 8th, here is the 9th" — and only
-   * for the one-down game.
+   * One to play: what each way the hole that closes a nine (or the round) can go
+   * is worth. It shows on that closing hole AND the one before it — so it is up
+   * while you play the 8th (previewing the 9th) and the 17th (previewing the
+   * 18th) — once the rest of the nine is in and the closing hole is still open.
+   * One-down game only.
    */
   const closeout = (() => {
     const bet = comp.betResults.find(
@@ -234,20 +235,27 @@ export function HoleView({
         result.kind === "onedown",
     );
     if (!bet) return null;
-    const stack = bet.outcome.stacks.find((entry) => entry.endHole === hole);
+    const stack = bet.outcome.stacks.find(
+      (entry) => hole >= entry.startHole && hole <= entry.endHole,
+    );
     if (!stack) return null;
+    const deciding = stack.endHole;
+    // Only near the close: the closing hole itself, or the one before it.
+    if (hole !== deciding && hole !== deciding - 1) return null;
     const base: Record<number, HoleResult> = {};
     for (const [key, sides] of Object.entries(bet.sideScores)) {
       base[Number(key)] = compareSides(sides.a, sides.b);
     }
-    // Need the rest of the nine scored, and this hole still to play.
-    for (let h = stack.startHole; h < hole; h += 1) {
+    // Every hole up to the one before the close must be in, and the close itself
+    // still to play.
+    for (let h = stack.startHole; h < deciding; h += 1) {
       if (base[h] === null || base[h] === undefined) return null;
     }
-    if (base[hole] !== null && base[hole] !== undefined) return null;
-    const scenarios = closeoutScenarios(bet.config, round.holeCount, base, ids, hole);
+    if (base[deciding] !== null && base[deciding] !== undefined) return null;
+    const scenarios = closeoutScenarios(bet.config, round.holeCount, base, ids, deciding);
     if (!scenarios) return null;
-    const includesOverall = stack.endHole === round.holeCount && bet.outcome.overall !== null;
+    const includesOverall = deciding === round.holeCount && bet.outcome.overall !== null;
+    const onCourse = comp.holes[deciding - 1]?.onCourse ?? deciding;
     // Greenies ride alongside the match, decided by closest-to-pin rather than
     // who wins the hole, so they are the same whichever way it goes. Show the
     // running tally when any have been won.
@@ -256,7 +264,7 @@ export function HoleView({
       g.enabled && g.counts[0] + g.counts[1] > 0
         ? { counts: g.counts, totals: g.totals }
         : null;
-    return { sides: bet.config.sides, scenarios, includesOverall, greenies };
+    return { sides: bet.config.sides, scenarios, includesOverall, greenies, onCourse };
   })();
 
   // Holes every player already has a score on — ringed in the jump strip.
@@ -479,9 +487,9 @@ export function HoleView({
 
       {closeout ? (
         <Card>
-          <SectionTitle hint="One hole to play in this nine. What each way it can go is worth — the score you are about to enter is not counted yet.">
-            One to play
-            {closeout.includesOverall ? " · includes the 18-hole bet" : ""}
+          <SectionTitle hint="What each way this hole can go is worth, before it is played — money is per player.">
+            One to play · hole {closeout.onCourse}
+            {closeout.includesOverall ? " · with the 18-hole bet" : ""}
           </SectionTitle>
           <table className="tabular w-full border-collapse text-sm">
             <thead>
@@ -570,7 +578,7 @@ export function HoleView({
       <CollapsibleCard
         title="Scores"
         storageKey="hole.scores"
-        hint="Golf Genius scores show in green. Tap + or − to enter or change a score by hand."
+        hint="Golf Genius scores show in green and already count. Tap a green box to confirm it as your own, or + / − to change a score by hand."
         summary={
           round.players.some(
             (player) => (comp.cells[player.id]?.[hole]?.gross ?? null) !== null,
@@ -622,7 +630,7 @@ export function HoleView({
                     </div>
                   ) : rec?.status === "from-gg" && rec.gg !== null ? (
                     <div className="mt-1 text-xs text-turf-600">
-                      From Golf Genius — tap + or − to change
+                      From Golf Genius (counts already) — tap the box to confirm
                     </div>
                   ) : rec?.status === "match" ? (
                     <div className="mt-1 text-xs text-turf-600">Golf Genius ✓</div>

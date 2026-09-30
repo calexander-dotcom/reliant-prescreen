@@ -31,52 +31,23 @@ export function sameScores(
 }
 
 /**
- * Fold a fresh feed into the one held, letting it add or correct a hole but
- * never blank one out. Golf Genius scores only ever firm up during a round, so
- * a poll that comes back thin or empty — a dummy round, a momentary blip — must
- * not erase a score that was already showing. A real new number (including a
- * correction) always wins; only a drop to nothing is ignored.
- */
-export function stickyMerge(
-  held: Record<string, Record<number, number | null>>,
-  fresh: Record<string, Record<number, number | null>>,
-): Record<string, Record<number, number | null>> {
-  const ids = new Set([...Object.keys(held), ...Object.keys(fresh)]);
-  const out: Record<string, Record<number, number | null>> = {};
-  for (const id of ids) {
-    const heldRow = held[id] ?? {};
-    const freshRow = fresh[id] ?? {};
-    const row: Record<number, number | null> = {};
-    const holes = new Set([...Object.keys(heldRow), ...Object.keys(freshRow)]);
-    for (const hole of holes) {
-      const h = Number(hole);
-      const next = freshRow[h] ?? null;
-      const prev = heldRow[h] ?? null;
-      const value = next !== null ? next : prev;
-      if (value !== null) row[h] = value;
-    }
-    out[id] = row;
-  }
-  return out;
-}
-
-/**
  * Merge a freshly read foursome's scores into the round.
  *
- * Returns the same round reference when nothing changed, so the caller can skip
- * a needless save. The feed can add or correct a score but never erase one it
- * had already shown (see `stickyMerge`). The round must already carry a `gg`
- * tie-in (its ids are how the foursome was polled); without one it is untouched.
+ * The feed mirrors Golf Genius: a poll reflects exactly what is there, so a
+ * score added, changed or removed in Golf Genius all carry through. A failed
+ * poll never reaches here — the caller skips it — so this only ever sees a real
+ * reading. Returns the same round reference when nothing changed, so the caller
+ * can skip a needless save. The round must already carry a `gg` tie-in (its ids
+ * are how the foursome was polled); without one it is untouched.
  */
 export function mergeGgFeed(round: Round, foursome: GgFoursome, now: Date = new Date()): Round {
   if (!round.gg) return round;
-  const merged = stickyMerge(round.gg.scores, foursome.scores);
-  if (sameScores(round.gg.scores, merged)) return round;
+  if (sameScores(round.gg.scores, foursome.scores)) return round;
   return {
     ...round,
     gg: {
       ...round.gg,
-      scores: merged,
+      scores: foursome.scores,
       updatedAt: now.toISOString(),
     },
   };
