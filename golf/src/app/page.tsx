@@ -20,6 +20,8 @@ export default function HomePage() {
     <main className="space-y-5">
       <Hero />
 
+      {rounds && rounds.length > 0 ? <ResumeCard round={rounds[0]} /> : null}
+
       <Card>
         <SectionTitle hint="Saved on this device. Works with no signal.">
           Rounds
@@ -70,6 +72,47 @@ export default function HomePage() {
         </ul>
       </Card>
     </main>
+  );
+}
+
+/**
+ * A jump straight back into the round in progress — the most recent one, with
+ * its Golf Genius tie-in and all. Rounds live in the browser, so closing the
+ * app never loses them; this just saves hunting for it in the list. Hidden once
+ * every hole has a score, when there is nothing left to resume.
+ */
+function ResumeCard({ round }: { round: Round }) {
+  const comp = computeRound(round);
+  const posted = Object.values(comp.totalsByPlayer).reduce(
+    (max, entry) => Math.max(max, entry.holesPosted),
+    0,
+  );
+  const complete =
+    round.players.length > 0 &&
+    round.players.every((player) => {
+      for (let hole = 1; hole <= round.holeCount; hole += 1) {
+        if ((round.scores[player.id]?.[hole] ?? null) === null) return false;
+      }
+      return true;
+    });
+  if (complete) return null;
+
+  return (
+    <Link
+      href={`/round/${round.id}`}
+      className="block rounded-2xl bg-turf-700 p-4 text-white shadow-sm active:bg-turf-800"
+    >
+      <div className="text-xs font-bold uppercase tracking-wide text-turf-100">
+        Resume round
+      </div>
+      <div className="mt-0.5 truncate text-lg font-black">
+        {round.courseName || "Untitled round"}
+      </div>
+      <div className="text-sm text-turf-100">
+        {round.date} · thru {posted} of {round.holeCount}
+        {round.gg ? " · Golf Genius" : ""}
+      </div>
+    </Link>
   );
 }
 
