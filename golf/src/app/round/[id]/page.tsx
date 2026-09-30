@@ -8,7 +8,6 @@ import { CardView } from "@/components/CardView";
 import { HoleView } from "@/components/HoleView";
 import { SettleView } from "@/components/SettleView";
 import { ShareCard } from "@/components/ShareCard";
-import { GgImport } from "@/components/GgImport";
 import { TotalsStrip } from "@/components/TotalsStrip";
 import { Banner, Card, LinkButton, SectionTitle } from "@/components/ui";
 import { computeRound } from "@/lib/bets";
@@ -207,7 +206,6 @@ export default function RoundPage() {
               setTab("hole");
             }}
           />
-          <GgImport round={round} update={update} />
           <ShareCard round={round} update={update} status={shareStatus} />
         </>
       ) : null}

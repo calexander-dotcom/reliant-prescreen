@@ -100,6 +100,21 @@ export function CardView({
       : [oneDown.config.sides[1], oneDown.config.sides[0]]
     : [null, null];
 
+  // Greenies on the par 3s: who took each, in a column of its own. Only shown
+  // when the game plays them and the course has par 3s.
+  const greenieList = oneDown?.outcome.greenies.enabled ? oneDown.outcome.greenies.holes : [];
+  const showGreenies = greenieList.length > 0;
+  const usSideIndex = oneDownSign > 0 ? 0 : 1;
+  const greenieByHole = new Map(greenieList.map((green) => [green.hole, green]));
+  const greenieAt = (hole: number): GreenieView | null => {
+    const green = greenieByHole.get(hole);
+    if (!green) return null;
+    if (green.winnerId === undefined) return { name: "—", tone: "muted" };
+    if (!green.winnerId || green.side === null) return { name: "none", tone: "muted" };
+    const name = round.players.find((player) => player.id === green.winnerId)?.name.split(" ")[0] ?? "?";
+    return { name, tone: green.side === usSideIndex ? "us" : "them" };
+  };
+
   return (
     <div className="space-y-4">
       {comp.unbalancedHoles.length > 0 ? (
@@ -150,6 +165,9 @@ export function CardView({
                   <th className="px-1 py-2 text-center font-semibold">Sides</th>
                   <th className="px-1 py-2 text-left font-semibold">1 down</th>
                   <th className="px-1 py-2 text-center font-semibold">Press</th>
+                  {showGreenies ? (
+                    <th className="px-1 py-2 text-center font-semibold">Greenie</th>
+                  ) : null}
                 </>
               ) : null}
             </tr>
@@ -171,6 +189,7 @@ export function CardView({
                   standingAt={oneDown ? standingAt : null}
                   sidesAt={oneDown ? sidesAt : null}
                   pressesAt={oneDown ? pressesAt : null}
+                  greenieAt={showGreenies ? greenieAt : null}
                   flipNote={flipNoteFor(groupIndex)}
                   flipColSpan={flipColSpan}
                 />
@@ -336,6 +355,7 @@ function HoleGroup({
   standingAt,
   sidesAt,
   pressesAt,
+  greenieAt,
   flipNote,
   flipColSpan,
 }: {
@@ -348,6 +368,8 @@ function HoleGroup({
   sidesAt: ((hole: number) => SideScoresView | null) | null;
   /** Extra presses called before the hole. */
   pressesAt: ((hole: number) => number) | null;
+  /** Who took the greenie on a par 3, when the game plays greenies. */
+  greenieAt: ((hole: number) => GreenieView | null) | null;
   /** The tee-flip line for this nine, shown on the row it teed off on. */
   flipNote: string | null;
   /** Columns the flip line spans. */
@@ -447,6 +469,7 @@ function HoleGroup({
               </td>
             ) : null}
             {pressesAt ? <PressCell count={pressesAt(hole.number)} /> : null}
+            {greenieAt ? <GreenieCell info={greenieAt(hole.number)} /> : null}
           </tr>
         );
       })}
@@ -494,6 +517,28 @@ function PressCell({ count }: { count: number }) {
       ) : (
         ""
       )}
+    </td>
+  );
+}
+
+/** The greenie on a par 3: whose it is, coloured by whether it is our side. */
+interface GreenieView {
+  name: string;
+  tone: "us" | "them" | "muted";
+}
+
+/** The greenie winner on a par 3, in green when ours, red when theirs. */
+function GreenieCell({ info }: { info: GreenieView | null }) {
+  if (!info) return <td className="px-1 py-1.5" />;
+  const cls =
+    info.tone === "us"
+      ? "text-turf-700"
+      : info.tone === "them"
+        ? "text-red-700"
+        : "text-neutral-400";
+  return (
+    <td className={`whitespace-nowrap px-1 py-1.5 text-center text-xs font-semibold ${cls}`}>
+      {info.name}
     </td>
   );
 }
