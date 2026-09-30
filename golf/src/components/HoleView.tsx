@@ -22,7 +22,6 @@ import {
   setStartHole,
 } from "@/lib/mutations";
 import type { BetConfig, Round } from "@/lib/types";
-import { MoneyByNine } from "./MoneyByNine";
 import { MoneyInput } from "./MoneyInput";
 import { ScoreStepper } from "./ScoreStepper";
 import { StartHoleGrid } from "./StartHolePicker";
@@ -862,18 +861,6 @@ export function HoleView({
             </Card>
           );
         })}
-
-
-      <Card>
-        <SectionTitle
-          hint={`Hand-entered holes and the game together, by nine — the same figures as the Card tab.${
-            comp.nineTotals.hasOverall ? " Overall is the whole-round bet." : ""
-          }`}
-        >
-          Running money
-        </SectionTitle>
-        <MoneyByNine round={round} comp={comp} />
-      </Card>
     </div>
   );
 }
