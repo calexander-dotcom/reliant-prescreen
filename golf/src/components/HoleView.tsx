@@ -1,7 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { aggregateHoles, compareSides, type HoleResult, type RoundComputation } from "@/lib/bets";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  aggregateHoles,
+  compareSides,
+  type HoleResult,
+  type PlayedHole,
+  type RoundComputation,
+} from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
 import {
@@ -41,6 +47,59 @@ import {
 /** Green when a side is up, red when down, grey at level. */
 function moneyClass(cents: number): string {
   return cents > 0 ? "text-turf-700" : cents < 0 ? "text-red-700" : "text-neutral-400";
+}
+
+/**
+ * A scrollable row of every hole in play order, the current one enlarged in the
+ * middle, tap any to jump. Labels are the numbers on the tee markers, so on a
+ * shotgun start off the 7th the row reads 7, 8, 9 … not 1, 2, 3. A hole every
+ * player has a score on is ringed, so it is easy to see what still needs one.
+ */
+function HoleStrip({
+  holes,
+  current,
+  complete,
+  onPick,
+}: {
+  holes: PlayedHole[];
+  current: number;
+  complete: Set<number>;
+  onPick: (position: number) => void;
+}) {
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }, [current]);
+
+  return (
+    <div className="-mx-1 overflow-x-auto px-1">
+      <div className="flex items-center gap-1.5 py-1">
+        {holes.map((hole) => {
+          const active = hole.number === current;
+          const done = complete.has(hole.number);
+          return (
+            <button
+              key={hole.number}
+              ref={active ? activeRef : undefined}
+              type="button"
+              onClick={() => onPick(hole.number)}
+              aria-label={`Go to hole ${hole.onCourse}`}
+              aria-current={active ? "true" : undefined}
+              className={
+                active
+                  ? "tabular flex h-12 min-w-[3rem] shrink-0 items-center justify-center rounded-xl bg-turf-700 px-3 text-xl font-black text-white shadow"
+                  : done
+                    ? "tabular flex h-9 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg bg-white px-2 text-sm font-bold text-turf-700 ring-1 ring-inset ring-turf-300"
+                    : "tabular flex h-9 min-w-[2.25rem] shrink-0 items-center justify-center rounded-lg bg-neutral-100 px-2 text-sm font-semibold text-neutral-500"
+              }
+            >
+              {hole.onCourse}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function HoleView({
@@ -200,6 +259,17 @@ export function HoleView({
     return { sides: bet.config.sides, scenarios, includesOverall, greenies };
   })();
 
+  // Holes every player already has a score on — ringed in the jump strip.
+  const completeHoles = new Set(
+    comp.holes
+      .filter(
+        (entry) =>
+          round.players.length > 0 &&
+          round.players.every((player) => (round.scores[player.id]?.[entry.number] ?? null) !== null),
+      )
+      .map((entry) => entry.number),
+  );
+
   return (
     <div className="space-y-4">
       {askStartHole ? (
@@ -278,31 +348,38 @@ export function HoleView({
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <Button
-          variant="secondary"
-          onClick={() => onHoleChange(Math.max(1, hole - 1))}
-          disabled={hole <= 1}
-        >
-          &larr;
-        </Button>
-        <div className="flex-1 text-center">
-          <div className="text-2xl font-bold leading-tight text-turf-900">
-            Hole {shown}
+      <div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="secondary"
+            ariaLabel="Previous hole"
+            onClick={() => onHoleChange(Math.max(1, hole - 1))}
+            disabled={hole <= 1}
+          >
+            &larr;
+          </Button>
+          <div className="min-w-0 flex-1">
+            <HoleStrip
+              holes={comp.holes}
+              current={hole}
+              complete={completeHoles}
+              onPick={onHoleChange}
+            />
           </div>
-          <div className="text-sm text-neutral-600">
-            Par {info?.par ?? 4}
-            {info?.yardage ? ` · ${info.yardage} yds` : ""}
-            {info ? ` · SI ${info.strokeIndex}` : ""}
-          </div>
+          <Button
+            variant="secondary"
+            ariaLabel="Next hole"
+            onClick={() => onHoleChange(Math.min(round.holeCount, hole + 1))}
+            disabled={hole >= round.holeCount}
+          >
+            &rarr;
+          </Button>
         </div>
-        <Button
-          variant="secondary"
-          onClick={() => onHoleChange(Math.min(round.holeCount, hole + 1))}
-          disabled={hole >= round.holeCount}
-        >
-          &rarr;
-        </Button>
+        <div className="mt-1 text-center text-sm text-neutral-600">
+          Hole {shown} · Par {info?.par ?? 4}
+          {info?.yardage ? ` · ${info.yardage} yds` : ""}
+          {info ? ` · SI ${info.strokeIndex}` : ""}
+        </div>
       </div>
 
       {comp.betResults
