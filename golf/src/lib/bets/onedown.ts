@@ -626,6 +626,61 @@ export function evaluateOneDown(
   };
 }
 
+/** One way the deciding hole of a nine can go, and what it is worth. */
+export interface CloseoutOutcome {
+  /** +1 side A takes the hole, 0 halved, -1 side B. */
+  result: HoleResult;
+  /** The nine's resulting standing, from side A, oldest bet first. */
+  standing: StandingEntry[];
+  /** [side A, side B] money that settles on this hole, in cents. */
+  sideTotals: [number, number];
+}
+
+/**
+ * With one hole left in a nine (or the round), what each way it can go is
+ * worth: side A takes it, it is halved, or side B takes it. Each outcome
+ * carries the nine's resulting standing and the money that settles on the
+ * hole — the stack that ends here, plus the 18-hole overall bet when the hole
+ * is the last of the round.
+ *
+ * Returns null unless `decidingHole` is the last hole of its stack, so a caller
+ * can ask on every hole and only get an answer where it means something.
+ * `baseResults` is the results so far; the deciding hole is overridden per
+ * scenario, so it does not matter whether it has been scored yet.
+ */
+export function closeoutScenarios(
+  config: OneDownConfig,
+  holeCount: number,
+  baseResults: Record<number, HoleResult>,
+  playerIds: PlayerId[],
+  decidingHole: number,
+): { a: CloseoutOutcome; halve: CloseoutOutcome; b: CloseoutOutcome } | null {
+  const range = stackRanges(holeCount, config.reset).find((r) => r.endHole === decidingHole);
+  if (!range) return null;
+  const isRoundEnd = decidingHole === holeCount;
+
+  const outcomeFor = (result: HoleResult): CloseoutOutcome => {
+    const outcome = evaluateOneDown(
+      config,
+      holeCount,
+      { ...baseResults, [decidingHole]: result },
+      playerIds,
+    );
+    const stack = outcome.stacks.find(
+      (s) => decidingHole >= s.startHole && decidingHole <= s.endHole,
+    );
+    const stackSide = stack?.sideTotals ?? [0, 0];
+    const overallSide = isRoundEnd ? outcome.overallSideTotals : [0, 0];
+    return {
+      result,
+      standing: stack ? standingEntries(stack, 1) : [],
+      sideTotals: [stackSide[0] + overallSide[0], stackSide[1] + overallSide[1]],
+    };
+  };
+
+  return { a: outcomeFor(1), halve: outcomeFor(0), b: outcomeFor(-1) };
+}
+
 /** Who is up in one bet, for the detail list. */
 export function betStanding(bet: OneDownBet, sides: [Side, Side]): string {
   if (bet.status === "won-a") return `${sides[0].name} wins`;
