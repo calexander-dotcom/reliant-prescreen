@@ -496,9 +496,7 @@ Both read the key from **`GOLF_GENIUS_API_KEY`** (set in the deployment's
 environment) and return only the foursome — no emails, no account internals. A
 deployment without the key answers `501`, and the setup card says Golf Genius is
 not connected. The v2 API puts the key in the URL path, so it must never reach a
-client component; `src/lib/gg/api.ts` is server-only. There is also an older
-paste path (`src/lib/gg/import.ts`) for bringing scores in by hand when there is
-no GGID.
+client component; `src/lib/gg/api.ts` is server-only.
 
 ## Running it
 
