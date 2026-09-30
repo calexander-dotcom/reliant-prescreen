@@ -53,6 +53,24 @@ export function CardView({
   const openingStacks = oneDown
     ? evaluateOneDown(oneDown.config, round.holeCount, {}, ids).stacks
     : [];
+  // The flip line for a nine's first row: who won it and the standing it began
+  // at. Front then back; on a shotgun start the front's first row is the hole
+  // the group teed off on, so it lands right before that hole either way.
+  const flipNoteFor = (groupIndex: number): string | null => {
+    if (!oneDown) return null;
+    const stack = openingStacks[groupIndex];
+    if (!stack) return null;
+    const answered = !flipUnanswered.has(stack.startHole);
+    const flip =
+      stack.teeFlip !== null
+        ? `${oneDown.config.sides[stack.teeFlip].name} won the flip`
+        : answered
+          ? "No tee flip"
+          : "Tee flip not set";
+    const raw = formatStanding(standingEntries(stack, oneDownSign).map((entry) => entry.margin));
+    return `${flip} · started ${raw === "0" ? "even" : raw}`;
+  };
+  const flipColSpan = 1 + round.players.length + (oneDown ? 3 : 0);
   const standingAt = (hole: number): StandingEntry[] | null => {
     const entries = oneDown?.byHole[hole];
     return entries
@@ -111,29 +129,6 @@ export function CardView({
         >
           Scorecard
         </SectionTitle>
-        {oneDown && openingStacks.length > 0 ? (
-          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
-            {openingStacks.map((stack) => {
-              const answered = !flipUnanswered.has(stack.startHole);
-              const flip =
-                stack.teeFlip !== null
-                  ? `${oneDown.config.sides[stack.teeFlip].name} won the flip`
-                  : answered
-                    ? "no flip"
-                    : "flip not set";
-              const raw = formatStanding(
-                standingEntries(stack, oneDownSign).map((entry) => entry.margin),
-              );
-              return (
-                <span key={stack.startHole} className="whitespace-nowrap">
-                  <span className="font-semibold text-neutral-700">{stack.label}:</span> {flip} ·
-                  started{" "}
-                  <span className="tabular font-mono">{raw === "0" ? "even" : raw}</span>
-                </span>
-              );
-            })}
-          </div>
-        ) : null}
         <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
@@ -176,6 +171,8 @@ export function CardView({
                   standingAt={oneDown ? standingAt : null}
                   sidesAt={oneDown ? sidesAt : null}
                   pressesAt={oneDown ? pressesAt : null}
+                  flipNote={flipNoteFor(groupIndex)}
+                  flipColSpan={flipColSpan}
                 />
               ),
             )}
@@ -339,6 +336,8 @@ function HoleGroup({
   standingAt,
   sidesAt,
   pressesAt,
+  flipNote,
+  flipColSpan,
 }: {
   label: string;
   /** This nine's money per player, shown under the score subtotal. */
@@ -349,6 +348,10 @@ function HoleGroup({
   sidesAt: ((hole: number) => SideScoresView | null) | null;
   /** Extra presses called before the hole. */
   pressesAt: ((hole: number) => number) | null;
+  /** The tee-flip line for this nine, shown on the row it teed off on. */
+  flipNote: string | null;
+  /** Columns the flip line spans. */
+  flipColSpan: number;
   holes: RoundComputation["holes"];
   round: Round;
   comp: RoundComputation;
@@ -362,6 +365,16 @@ function HoleGroup({
 
   return (
     <>
+      {flipNote ? (
+        <tr className="bg-turf-50/60">
+          <td
+            colSpan={flipColSpan}
+            className="py-1 pr-2 text-left text-[0.7rem] font-semibold text-turf-800"
+          >
+            {flipNote}
+          </td>
+        </tr>
+      ) : null}
       {holes.map((hole) => {
         const holeStatus = status[hole.number - 1];
         const standing = standingAt ? standingAt(hole.number) : null;
