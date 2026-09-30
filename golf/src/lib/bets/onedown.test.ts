@@ -873,9 +873,11 @@ describe("closeoutScenarios (one hole to play in the nine)", () => {
     expect(scen!.a.sideTotals[0]).toBe(2000);
     expect(scen!.halve.sideTotals[0]).toBe(1000);
     expect(scen!.b.sideTotals[0]).toBe(-1000);
-    // Zero-sum between the sides.
+    // Zero-sum between the sides, and the per-player money sums back to it.
     for (const outcome of [scen!.a, scen!.halve, scen!.b]) {
       expect(outcome.sideTotals[0] + outcome.sideTotals[1]).toBe(0);
+      expect(outcome.playerTotals.a1 + outcome.playerTotals.a2).toBe(outcome.sideTotals[0]);
+      expect(outcome.playerTotals.b1 + outcome.playerTotals.b2).toBe(outcome.sideTotals[1]);
     }
     expect(scen!.a.standing).toHaveLength(2);
   });

@@ -189,7 +189,15 @@ export function HoleView({
     const scenarios = closeoutScenarios(bet.config, round.holeCount, base, ids, hole);
     if (!scenarios) return null;
     const includesOverall = stack.endHole === round.holeCount && bet.outcome.overall !== null;
-    return { sides: bet.config.sides, scenarios, includesOverall };
+    // Greenies ride alongside the match, decided by closest-to-pin rather than
+    // who wins the hole, so they are the same whichever way it goes. Show the
+    // running tally when any have been won.
+    const g = bet.outcome.greenies;
+    const greenies =
+      g.enabled && g.counts[0] + g.counts[1] > 0
+        ? { counts: g.counts, totals: g.totals }
+        : null;
+    return { sides: bet.config.sides, scenarios, includesOverall, greenies };
   })();
 
   return (
@@ -432,22 +440,53 @@ export function HoleView({
                   </td>
                   <td
                     className={`px-1 py-1.5 text-right font-bold ${moneyClass(
-                      outcome.sideTotals[0],
+                      outcome.playerTotals[closeout.sides[0].playerIds[0]] ?? 0,
                     )}`}
                   >
-                    {formatCompact(outcome.sideTotals[0])}
+                    {formatCompact(outcome.playerTotals[closeout.sides[0].playerIds[0]] ?? 0)}
                   </td>
                   <td
                     className={`px-1 py-1.5 text-right font-bold ${moneyClass(
-                      outcome.sideTotals[1],
+                      outcome.playerTotals[closeout.sides[1].playerIds[0]] ?? 0,
                     )}`}
                   >
-                    {formatCompact(outcome.sideTotals[1])}
+                    {formatCompact(outcome.playerTotals[closeout.sides[1].playerIds[0]] ?? 0)}
                   </td>
                 </tr>
               ))}
+              {closeout.greenies ? (
+                <tr className="border-t border-neutral-200 align-top">
+                  <td className="py-1.5 pr-2 text-left font-semibold text-neutral-800">
+                    Greenies
+                  </td>
+                  <td className="px-1 py-1.5 text-left text-xs text-neutral-500">
+                    {closeout.includesOverall ? "final" : "so far"}
+                  </td>
+                  {[0, 1].map((side) => {
+                    const count = closeout.greenies!.counts[side];
+                    const cents =
+                      closeout.greenies!.totals[closeout.sides[side].playerIds[0]] ?? 0;
+                    return (
+                      <td key={side} className="px-1 py-1.5 text-right">
+                        <span className="tabular whitespace-nowrap text-xs">
+                          <span className="font-semibold text-neutral-600">{count}g</span>{" "}
+                          <span className={`font-bold ${moneyClass(cents)}`}>
+                            {formatCompact(cents)}
+                          </span>
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ) : null}
             </tbody>
           </table>
+          <p className="mt-2 text-xs text-neutral-500">
+            Money is per player.
+            {closeout.greenies
+              ? " Greenies are closest-to-the-pin on the par 3s and net between the sides."
+              : ""}
+          </p>
         </Card>
       ) : null}
 

@@ -634,6 +634,8 @@ export interface CloseoutOutcome {
   standing: StandingEntry[];
   /** [side A, side B] money that settles on this hole, in cents. */
   sideTotals: [number, number];
+  /** The same money per player, in cents — what each player wins or loses. */
+  playerTotals: Record<PlayerId, number>;
 }
 
 /**
@@ -671,10 +673,17 @@ export function closeoutScenarios(
     );
     const stackSide = stack?.sideTotals ?? [0, 0];
     const overallSide = isRoundEnd ? outcome.overallSideTotals : [0, 0];
+    const playerTotals: Record<PlayerId, number> = Object.fromEntries(
+      playerIds.map((id) => [
+        id,
+        (stack?.playerTotals[id] ?? 0) + (isRoundEnd ? (outcome.overallTotals[id] ?? 0) : 0),
+      ]),
+    );
     return {
       result,
       standing: stack ? standingEntries(stack, 1) : [],
       sideTotals: [stackSide[0] + overallSide[0], stackSide[1] + overallSide[1]],
+      playerTotals,
     };
   };
 
