@@ -5,6 +5,7 @@ import { sideUp, type HoleResult } from "./nassau";
 import {
   MAX_PRESSES_PER_HOLE,
   betStanding,
+  closeoutScenarios,
   evaluateOneDown,
   formatStanding,
   marginsByHole,
@@ -850,5 +851,52 @@ describe("standing entries", () => {
       [0, true],
     ]);
     expect(byHole[4]).toBeNull();
+  });
+});
+
+describe("closeoutScenarios (one hole to play in the nine)", () => {
+  // Side A wins the 1st (opening a press), ties 2 through 8; the 9th is to play.
+  const base = through(1, 0, 0, 0, 0, 0, 0, 0);
+  const nines = config({
+    reset: "nines",
+    overallMultiplier: 0,
+    teeFlip: false,
+    autoPressAt: 1,
+  });
+
+  it("prices side A win, halve and side B win on the deciding hole", () => {
+    const scen = closeoutScenarios(nines, 18, base, ids, 9);
+    expect(scen).not.toBeNull();
+    // Two bets are live (the opener and the press A's win opened).
+    // A wins the 9th: leads both bets. Halve: leads only the opener.
+    // B wins: opener squares, B takes the press.
+    expect(scen!.a.sideTotals[0]).toBe(2000);
+    expect(scen!.halve.sideTotals[0]).toBe(1000);
+    expect(scen!.b.sideTotals[0]).toBe(-1000);
+    // Zero-sum between the sides.
+    for (const outcome of [scen!.a, scen!.halve, scen!.b]) {
+      expect(outcome.sideTotals[0] + outcome.sideTotals[1]).toBe(0);
+    }
+    expect(scen!.a.standing).toHaveLength(2);
+  });
+
+  it("returns null off the last hole of a stack", () => {
+    expect(closeoutScenarios(nines, 18, base, ids, 5)).toBeNull();
+  });
+
+  it("adds the 18-hole overall bet on the final hole", () => {
+    // Everything halved through 17; the 18th decides the back nine and the
+    // overall (at 2x). Back stack 1x + overall 2x = 3x to the winner.
+    const flat = through(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    const withOverall = config({
+      reset: "nines",
+      overallMultiplier: 2,
+      teeFlip: false,
+      autoPressAt: 1,
+    });
+    const scen = closeoutScenarios(withOverall, 18, flat, ids, 18);
+    expect(scen!.a.sideTotals[0]).toBe(3000);
+    expect(scen!.halve.sideTotals[0]).toBe(0);
+    expect(scen!.b.sideTotals[0]).toBe(-3000);
   });
 });

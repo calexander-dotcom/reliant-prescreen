@@ -3,7 +3,13 @@
 import type { BetResult, RoundComputation } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
-import { pressesBefore, type StandingEntry } from "@/lib/bets/onedown";
+import {
+  evaluateOneDown,
+  formatStanding,
+  pressesBefore,
+  standingEntries,
+  type StandingEntry,
+} from "@/lib/bets/onedown";
 import { Standing } from "./Standing";
 import { formatCompact } from "@/lib/money";
 import type { Round } from "@/lib/types";
@@ -40,6 +46,13 @@ export function CardView({
     (result): result is Extract<BetResult, { kind: "onedown" }> => result.kind === "onedown",
   );
   const oneDownSign = oneDown ? perspectiveSign(oneDown.config.sides, round.perspectiveId) : 1;
+  // Where each nine's match began: the tee flip and the opening standing, read
+  // from the scorer's side so it lines up with the standing column below. Run
+  // the game with no holes played to get just the flip and any opening press.
+  const flipUnanswered = new Set(oneDown?.outcome.teeFlips.unanswered ?? []);
+  const openingStacks = oneDown
+    ? evaluateOneDown(oneDown.config, round.holeCount, {}, ids).stacks
+    : [];
   const standingAt = (hole: number): StandingEntry[] | null => {
     const entries = oneDown?.byHole[hole];
     return entries
@@ -98,6 +111,29 @@ export function CardView({
         >
           Scorecard
         </SectionTitle>
+        {oneDown && openingStacks.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
+            {openingStacks.map((stack) => {
+              const answered = !flipUnanswered.has(stack.startHole);
+              const flip =
+                stack.teeFlip !== null
+                  ? `${oneDown.config.sides[stack.teeFlip].name} won the flip`
+                  : answered
+                    ? "no flip"
+                    : "flip not set";
+              const raw = formatStanding(
+                standingEntries(stack, oneDownSign).map((entry) => entry.margin),
+              );
+              return (
+                <span key={stack.startHole} className="whitespace-nowrap">
+                  <span className="font-semibold text-neutral-700">{stack.label}:</span> {flip} ·
+                  started{" "}
+                  <span className="tabular font-mono">{raw === "0" ? "even" : raw}</span>
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
         <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">

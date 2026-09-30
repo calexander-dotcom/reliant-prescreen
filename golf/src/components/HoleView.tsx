@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { aggregateHoles, type RoundComputation } from "@/lib/bets";
+import { aggregateHoles, compareSides, type HoleResult, type RoundComputation } from "@/lib/bets";
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
-import { MAX_PRESSES_PER_HOLE, pressesBefore, standingEntries } from "@/lib/bets/onedown";
+import {
+  MAX_PRESSES_PER_HOLE,
+  closeoutScenarios,
+  pressesBefore,
+  standingEntries,
+} from "@/lib/bets/onedown";
 import { Standing } from "./Standing";
 import { TeeFlipChooser, teeName } from "./TeeFlipChooser";
 import { TotalsStrip } from "./TotalsStrip";
@@ -32,6 +37,11 @@ import {
   CollapsibleCard,
   SectionTitle,
 } from "./ui";
+
+/** Green when a side is up, red when down, grey at level. */
+function moneyClass(cents: number): string {
+  return cents > 0 ? "text-turf-700" : cents < 0 ? "text-red-700" : "text-neutral-400";
+}
 
 export function HoleView({
   round,
@@ -152,6 +162,35 @@ export function HoleView({
       result.outcome.teeFlips.unanswered.includes(hole) &&
       !flipsPutOff.has(`${result.config.id}:${hole}`),
   );
+
+  /*
+   * One to play: on the hole that closes a nine (or the round), what each way
+   * that hole can go is worth. Only once the rest of the nine is in and this
+   * hole is still open — "you have entered the 8th, here is the 9th" — and only
+   * for the one-down game.
+   */
+  const closeout = (() => {
+    const bet = comp.betResults.find(
+      (result): result is Extract<typeof result, { kind: "onedown" }> =>
+        result.kind === "onedown",
+    );
+    if (!bet) return null;
+    const stack = bet.outcome.stacks.find((entry) => entry.endHole === hole);
+    if (!stack) return null;
+    const base: Record<number, HoleResult> = {};
+    for (const [key, sides] of Object.entries(bet.sideScores)) {
+      base[Number(key)] = compareSides(sides.a, sides.b);
+    }
+    // Need the rest of the nine scored, and this hole still to play.
+    for (let h = stack.startHole; h < hole; h += 1) {
+      if (base[h] === null || base[h] === undefined) return null;
+    }
+    if (base[hole] !== null && base[hole] !== undefined) return null;
+    const scenarios = closeoutScenarios(bet.config, round.holeCount, base, ids, hole);
+    if (!scenarios) return null;
+    const includesOverall = stack.endHole === round.holeCount && bet.outcome.overall !== null;
+    return { sides: bet.config.sides, scenarios, includesOverall };
+  })();
 
   return (
     <div className="space-y-4">
@@ -350,6 +389,65 @@ export function HoleView({
                 );
               })}
           </ul>
+        </Card>
+      ) : null}
+
+      {closeout ? (
+        <Card>
+          <SectionTitle hint="One hole to play in this nine. What each way it can go is worth — the score you are about to enter is not counted yet.">
+            One to play
+            {closeout.includesOverall ? " · includes the 18-hole bet" : ""}
+          </SectionTitle>
+          <table className="tabular w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
+                <th className="py-1.5 pr-2 text-left font-semibold">If the hole is</th>
+                <th className="px-1 py-1.5 text-left font-semibold">Nine ends</th>
+                <th className="px-1 py-1.5 text-right font-semibold">
+                  <span className="ml-auto block max-w-[5rem] truncate">
+                    {closeout.sides[0].name}
+                  </span>
+                </th>
+                <th className="px-1 py-1.5 text-right font-semibold">
+                  <span className="ml-auto block max-w-[5rem] truncate">
+                    {closeout.sides[1].name}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {(
+                [
+                  [`${closeout.sides[0].name} win`, closeout.scenarios.a],
+                  ["Halved", closeout.scenarios.halve],
+                  [`${closeout.sides[1].name} win`, closeout.scenarios.b],
+                ] as const
+              ).map(([label, outcome], index) => (
+                <tr key={index} className="border-b border-neutral-100 last:border-0">
+                  <td className="py-1.5 pr-2 text-left font-semibold text-neutral-800">
+                    {label}
+                  </td>
+                  <td className="px-1 py-1.5 text-left font-mono text-xs text-neutral-700">
+                    <Standing entries={outcome.standing} empty="AS" />
+                  </td>
+                  <td
+                    className={`px-1 py-1.5 text-right font-bold ${moneyClass(
+                      outcome.sideTotals[0],
+                    )}`}
+                  >
+                    {formatCompact(outcome.sideTotals[0])}
+                  </td>
+                  <td
+                    className={`px-1 py-1.5 text-right font-bold ${moneyClass(
+                      outcome.sideTotals[1],
+                    )}`}
+                  >
+                    {formatCompact(outcome.sideTotals[1])}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Card>
       ) : null}
 
