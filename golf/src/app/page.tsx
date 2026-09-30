@@ -75,6 +75,19 @@ export default function HomePage() {
   );
 }
 
+/** Every player has a score on every hole — the round is done, not mid-play. */
+function roundComplete(round: Round): boolean {
+  return (
+    round.players.length > 0 &&
+    round.players.every((player) => {
+      for (let hole = 1; hole <= round.holeCount; hole += 1) {
+        if ((round.scores[player.id]?.[hole] ?? null) === null) return false;
+      }
+      return true;
+    })
+  );
+}
+
 /**
  * A jump straight back into the round in progress — the most recent one, with
  * its Golf Genius tie-in and all. Rounds live in the browser, so closing the
@@ -87,15 +100,7 @@ function ResumeCard({ round }: { round: Round }) {
     (max, entry) => Math.max(max, entry.holesPosted),
     0,
   );
-  const complete =
-    round.players.length > 0 &&
-    round.players.every((player) => {
-      for (let hole = 1; hole <= round.holeCount; hole += 1) {
-        if ((round.scores[player.id]?.[hole] ?? null) === null) return false;
-      }
-      return true;
-    });
-  if (complete) return null;
+  if (roundComplete(round)) return null;
 
   return (
     <Link
@@ -142,9 +147,15 @@ function RoundRow({ round, onDelete }: { round: Round; onDelete: () => void }) {
             : ""}
         </div>
       </Link>
-      <LinkButton href={`/round/${round.id}?tab=bets&edit=1`} variant="secondary">
-        Setup
-      </LinkButton>
+      {posted > 0 && !roundComplete(round) ? (
+        <LinkButton href={`/round/${round.id}`} variant="primary">
+          Resume
+        </LinkButton>
+      ) : (
+        <LinkButton href={`/round/${round.id}?tab=bets&edit=1`} variant="secondary">
+          Setup
+        </LinkButton>
+      )}
       <Button
         variant="ghost"
         onClick={() => {
