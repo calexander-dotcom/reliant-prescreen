@@ -71,7 +71,7 @@ Owner-maintained.
 | OpenClaw gateway — Telegram/WhatsApp AI agents, including **Rex** | OpenClaw, user `ubuntu` | `/home/ubuntu/.openclaw/` | Telegram bots | owner | See **OpenClaw and Rex** below. |
 | LaborEdge app (`laboredge-server.js`) — holds the working LE auth (`leAuth()`) | node, user `ubuntu`, up since about 2026-09-11 | `/home/ubuntu/laboredge-app/` | `*:8084` | owner | Seen running 2026-10-01; how it is started not checked. |
 | LE job board (`server.js`) | node, user `ubuntu` | `/home/ubuntu/le-jobboard/` | ? | owner | Feeds le.synergymedicalstaffing.com; `search_jobs` below reads it. |
-| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists` | node, user `ubuntu` | `/home/ubuntu/le-mcp/le-mcp-server/` | `127.0.0.1:8099` behind nginx at `https://le-mcp.synergymedicalstaffing.com/mcp/<MCP_AUTH_TOKEN>` | owner | Connected to Rex 2026-10-01. Rejects any Host but the public name (`Invalid Host: 127.0.0.1`), so clients must use the https URL. |
+| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists`; added 2026-10-01: `find_candidate` (email/phone live, name from the LaborEdge app's index), `get_deal_sheets`, `get_journal` | pm2 app `le-mcp-server`, user `ubuntu`; logs in to LE as `api_synergy_compliance` | `/home/ubuntu/le-mcp/le-mcp-server/` | `127.0.0.1:8099` behind nginx at `https://le-mcp.synergymedicalstaffing.com/mcp/<MCP_AUTH_TOKEN>` | owner | Connected to Rex 2026-10-01. Rejects any Host but the public name (`Invalid Host: 127.0.0.1`), so clients must use the https URL. |
 | *everything else* (about 25 node ports listening) | ? | ? | ? | ? | **Owner to fill in.** |
 
 To fill this in, **SSH into the instance first** (the user there is
@@ -174,6 +174,22 @@ Rex's `MEMORY.md` had Onboarding/Working swapped (2321/2325 — the mix-up
 behind the 66 expired OIG/SAM credentials); corrected 2026-10-01 with a
 warning. `CLAUDE_CODE_PROMPT.md` and `LE_OUTREACH_SPEC.md` in his workspace
 still carry the old mapping.
+
+**LaborEdge MCP tools added 2026-10-01** (in `le-mcp-server/server.js`, backup
+`server.js.bak-20261001`; restarted with `pm2 restart le-mcp-server`). Request
+shapes copied from code already live (GET-only rule): `find_candidate`,
+`get_deal_sheets` (`candidates/dealsheet/details`, ≤10 ids) and `get_journal`
+(`candidates/journal/sync`, one day per call). Tested through Rex: lookup and
+deal sheets work; **`get_journal` gets 403 `permission.denied`** because the
+server's LE user `api_synergy_compliance` was never granted journal access
+(LE enabled it for `api_synergy_recruiter` and `api_synergy_testing`, ticket
+59576). The name index (`laboredge-app/.laboredge-candidate-index.json`) was
+last built 2026-05-20 and holds 6,242 candidates — stale.
+
+**Exposed credentials (2026-10-01):** `~/le-mcp/wf-le.js` hardcodes the
+`api_synergy_recruiter` password and the LE client `basic` value as fallbacks;
+a session's grep printed both into its transcript. Owner to have LaborEdge
+rotate them and remove the fallbacks (the server reads `LE_*` env vars).
 
 **Knowledge-sync redaction fix (2026-10-01):** `rex-knowledge-redact.py`
 matched only a capitalised `Basic` header, so the LE deal-service client
