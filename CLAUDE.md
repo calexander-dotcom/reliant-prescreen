@@ -59,13 +59,16 @@ The owner is Charles.
 ### EC2 instance (Ubuntu)
 
 Separate from the Chromebook below, which turned out to be where most of
-the automation lives. What runs here is still unknown to the sessions; the
-Chromebook holds `sync-memory-to-ec2.sh` and an SSH key for this box.
+the automation lives. Apart from OpenClaw (next section), what runs here is
+still unknown to the sessions; the Chromebook holds `sync-memory-to-ec2.sh`,
+`~/.claude/rex-knowledge-sync.sh` and SSH access to this box (the `ec2`
+host alias in `~/.ssh/config`, and `~/.ssh/openclaw-key.pem`).
 Owner-maintained.
 
 | What | How it runs | Path | Ports / domains | Owned by | Notes |
 |---|---|---|---|---|---|
 | `car_watch.py` | cron, hourly (`0 * * * *`), user `ubuntu` | `/home/ubuntu/car_watch` | — | retired | Remove the cron line and the directory; the `.env` there holds SendGrid and MarketCheck API keys — revoke them. |
+| OpenClaw gateway — Telegram/WhatsApp AI agents, including **Rex** | OpenClaw, user `ubuntu` | `/home/ubuntu/.openclaw/` | Telegram bots | owner | See **OpenClaw and Rex** below. |
 | *everything else* | ? | ? | ? | ? | **Owner to fill in.** |
 
 To fill this in, **SSH into the instance first** (the user there is
@@ -76,6 +79,83 @@ will write it up here:
 ```
 crontab -l; sudo ls /etc/cron.d; systemctl list-units --type=service --state=running --no-pager; systemctl list-timers --all --no-pager; docker ps 2>/dev/null; pm2 list 2>/dev/null; sudo ss -ltnp; ls -la ~
 ```
+
+### OpenClaw and Rex (on the EC2 box) — the team's Telegram AI agents
+
+Inventoried 2026-10-01 by a local Claude Code session on the Chromebook,
+read-only, from `~/.openclaw/openclaw.json`, the agent folders and session
+logs. **OpenClaw** is an agent framework that connects LLM agents to chat
+apps. One gateway on the EC2 box serves several agents, each bound to its own
+Telegram bot:
+
+| Agent id | Bot account | Who talks to it | Workspace |
+|---|---|---|---|
+| `rex` | `rex` (@Synergy_staffing_bot) | Charles and Susan (allowlist; separate conversation each) | `~/.openclaw/workspace` |
+| `recruiter` ("Barb") | `barb` | recruiters, incl. Angela | `~/.openclaw/workspace-recruiterasst` |
+| `barb-marcia`, `barb-tracey`, `barb-ann` | `default`, `tracey`, `ann` | Marcia, Tracey, Ann | `~/.openclaw/workspace-recruiterasst` |
+| `atlas` | `atlas` | Charles | `~/openclaw-trading/workspace` |
+| `alexanderfambot` | WhatsApp (channel disabled) | family | `~/openclaw/workspace/alexanderfambot` |
+| `main` | — | — | `~/openclaw/workspace` (the default) |
+
+There is also an agent folder `~/.openclaw/agents/claude-code` (not in the
+agent list) and an `~/.openclaw/acpx` folder — possibly a bridge that runs
+Claude Code as an OpenClaw agent; not investigated.
+
+**Rex** is the back-office assistant for Charles and **Susan** (Susan's access
+was given on 2026-09-10). As found on 2026-10-01:
+
+- **Model:** global default `anthropic/claude-sonnet-4-6`, fallback Haiku 4.5;
+  sub-agents and cron jobs run Haiku 4.5. Rex has no per-agent override.
+- **Instructions:** `agents/rex/agent/agent.md`, and in the workspace
+  `SOUL.md` (OpenClaw's generic template), `IDENTITY.md`, `USER.md` (Charles +
+  Susan), `AGENTS.md` (red lines: LaborEdge and other APIs GET-only; email
+  drafts only; never reveal credentials), `TOOLS.md`, `MEMORY.md`.
+  `SOUL-rex.md` is a separate candidate-texting persona, not his main soul.
+- **Knowledge:** the Chromebook's Claude Code memory
+  (`~/.claude/projects/-home-calexander/memory/`) is copied nightly to
+  `workspace/memory/knowledge/` by the user systemd timer
+  `rex-knowledge-sync.timer` (02:30) → `~/.claude/rex-knowledge-sync.sh` →
+  `~/.claude/rex-knowledge-redact.py`, which blanks credentials and refuses to
+  ship if anything secret-shaped survives. `MEMORY.md` arrives as `INDEX.md`.
+  **Anything written into that memory directory reaches Rex** — never put a
+  raw secret there. Rex reaches it only through memory search, which he often
+  skips.
+- **Tools:** skills `synergy-gmail` (search/read/draft in Charles's or
+  Susan's mailbox; no send), `synergy-drive` (read-only, as Charles),
+  `synergy-paychex` (Paychex Flex, read-only); plus shell, web search and
+  fetch. **No LaborEdge or QuickBooks skill** — their credentials sit in
+  `workspace/credentials/`, so Rex improvises those API calls.
+- **Known weakness:** wrong answers to Susan on basics (e.g. the 2026-09-10
+  benefits question answered from a dead rate sheet). Fixes in progress — see
+  the work log.
+- **Prompt size limit:** OpenClaw injects each workspace file into the prompt
+  only up to `agents.defaults.bootstrapMaxChars` (default 12,000 characters).
+  Rex's `MEMORY.md` is about 15,900, so until 2026-10-01 it was cut mid-way
+  through the "Benefits 2026–27" section and the Paychex section never reached
+  him. The owner raised the limit to 24,000 on 2026-10-01; Rex's was the only
+  file over 12,000 in any workspace, so no other agent changed.
+- **Gateway:** user systemd service `openclaw-gateway.service` (port 18790),
+  OpenClaw 2026.5.7 installed (2026.9.4 available; 5.7's catalogue stops at
+  Opus 4.7). Config changes need `systemctl --user restart
+  openclaw-gateway.service`, which briefly drops every agent. Brave web search
+  is configured but its plugin is not installed, so Rex's web search is dead.
+
+**Changed 2026-10-01** (backups in
+`~/.openclaw/backups/20261001-rex-upgrade/`): Rex's own model set to
+`anthropic/claude-opus-4-7`, fallback Sonnet 4.6, sub-agents Sonnet 4.6 (in
+his `agents.list` entry; other agents untouched) — live after the owner's
+restart at 12:56 EDT, confirmed by a test question in an isolated session
+(`rex-upgrade-test-20261001`) that ran on Opus 4.7 and cited its source; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
+and adds rules for answering (open the whole note, fetch live data, cite the
+source, say "I'm not sure"); `SOUL.md` replaced with an accuracy-first one.
+`bootstrapMaxChars` raised to 24000 (owner). **Not done, waiting on the
+owner:** read-only LaborEdge and QuickBooks skills.
+
+Rules for sessions: the gateway is shared by every agent above, so change
+only Rex's own entry and files unless the owner says otherwise, back up
+before editing (`~/.openclaw/backups/<date>-<reason>/`), and use value-mode
+`openclaw config set` then `openclaw config validate` (`config patch` fails
+on an old schema complaint).
 
 ### Chromebook Linux container (`penguin`, user `calexander`) — where most of the owner's automation lives
 
@@ -131,10 +211,15 @@ watchers and one-off scripts. Do not assume any of these is dead or alive:
   website-down work?), `workflow-portal/`, `oe-console/`,
   `new-hire-benefits/`, `signnow-work/`, `nursys/`, `mr-promote/`,
   `sms_work/`, `workflows/`, `le-text-extension/` and
-  `synergy-comms-extension/` (Chrome extensions), `Open Claw/` (touched
-  2026-09-15 — **unidentified**).
-- `sync-memory-to-ec2.sh` — this machine pushes something to the EC2 box
-  and holds a key for it in `~/.ssh/`.
+  `synergy-comms-extension/` (Chrome extensions), and `Open Claw/` —
+  despite the name, **not** OpenClaw itself: a working folder of business
+  documents (tax returns, payroll and commission reports, timesheets) and
+  tools (`qb_tool/`, `flex_tool/`, `qc_tool`). Sensitive; never copy it out.
+  The OpenClaw agents run on the EC2 box (see above).
+- `sync-memory-to-ec2.sh` — mirrors the Claude Code memory directory to
+  `/home/ubuntu/.claude/projects/-home-ubuntu/memory` on the EC2 box (run
+  by hand). `~/.claude/rex-knowledge-sync.sh` sends a redacted copy to Rex
+  nightly (see OpenClaw and Rex).
 
 **Secrets and sensitive data on this machine** — never copy them anywhere,
 never print them into a session: `~/credentials/`, `~/gmail-token.json`,
@@ -145,7 +230,7 @@ never print them into a session: `~/credentials/`, `~/gmail-token.json`,
 To finish identifying what runs and how, on the Chromebook:
 
 ```
-systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep; cat ~/sync-memory-to-ec2.sh; ls ~/'Open Claw' | head -30
+systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep
 ```
 
 ### Vercel
@@ -224,3 +309,5 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` + owner | Build guards so one push is one build: `ignoreCommand` in `golf/vercel.json` for golf_bets (PR #58), and the owner set an Ignored Build Step on workspace-recruiterasst and reliant-prescreen excluding `golf/`. | Vercel | done |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` | Cap lifted about 19:20 UTC, roughly 20 hours after it bit. PR #63 (a service worker cache bump) was the golf-touching push that carried PRs #47–#62 to production; golf_bets reported "Deployment has completed" at 19:22 UTC. | Vercel | live |
 | 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (teleported to the Chromebook) | Identified OpenClaw on the EC2 box and its agent Rex (Telegram assistant for Charles and Susan): model, instructions, knowledge sync, tools. Next: upgrade Rex's model, load his knowledge index at startup, add read-only LaborEdge and QuickBooks skills, replace the generic SOUL.md. | EC2 (OpenClaw) | inventoried |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 1: own model Opus 4.7 (sub-agents Sonnet 4.6), knowledge index read at startup plus answering rules in `AGENTS.md`, accuracy-first `SOUL.md`. Owner raised `bootstrapMaxChars` to 24000 and restarted the gateway at 12:56 EDT; test run confirmed Opus 4.7. Pending: LaborEdge and QuickBooks read-only skills. | EC2 (OpenClaw) | live |
