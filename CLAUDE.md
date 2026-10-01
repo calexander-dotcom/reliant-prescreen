@@ -69,7 +69,10 @@ Owner-maintained.
 |---|---|---|---|---|---|
 | `car_watch.py` | cron, hourly (`0 * * * *`), user `ubuntu` | `/home/ubuntu/car_watch` | — | retired | Remove the cron line and the directory; the `.env` there holds SendGrid and MarketCheck API keys — revoke them. |
 | OpenClaw gateway — Telegram/WhatsApp AI agents, including **Rex** | OpenClaw, user `ubuntu` | `/home/ubuntu/.openclaw/` | Telegram bots | owner | See **OpenClaw and Rex** below. |
-| *everything else* | ? | ? | ? | ? | **Owner to fill in.** |
+| LaborEdge app (`laboredge-server.js`) — holds the working LE auth (`leAuth()`) | node, user `ubuntu`, up since about 2026-09-11 | `/home/ubuntu/laboredge-app/` | `*:8084` | owner | Seen running 2026-10-01; how it is started not checked. |
+| LE job board (`server.js`) | node, user `ubuntu` | `/home/ubuntu/le-jobboard/` | ? | owner | Feeds le.synergymedicalstaffing.com; `search_jobs` below reads it. |
+| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists` | node, user `ubuntu` | `/home/ubuntu/le-mcp/le-mcp-server/` | `8099`, path `/mcp/<MCP_AUTH_TOKEN>` | owner | Not yet connected to Rex. |
+| *everything else* (about 25 node ports listening) | ? | ? | ? | ? | **Owner to fill in.** |
 
 To fill this in, **SSH into the instance first** (the user there is
 `ubuntu`; the owner's Chromebook prompt reads `calexander@penguin`, which is
@@ -122,9 +125,9 @@ was given on 2026-09-10). As found on 2026-10-01:
   skips.
 - **Tools:** skills `synergy-gmail` (search/read/draft in Charles's or
   Susan's mailbox; no send), `synergy-drive` (read-only, as Charles),
-  `synergy-paychex` (Paychex Flex, read-only); plus shell, web search and
-  fetch. **No LaborEdge or QuickBooks skill** — their credentials sit in
-  `workspace/credentials/`, so Rex improvises those API calls.
+  `synergy-paychex` (Paychex Flex, read-only), `synergy-quickbooks` (added
+  2026-10-01, below); plus shell, web search and fetch. **No LaborEdge
+  skill yet** — `TOOLS.md` tells him not to hand-write LE API calls.
 - **Known weakness:** wrong answers to Susan on basics (e.g. the 2026-09-10
   benefits question answered from a dead rate sheet). Fixes in progress — see
   the work log.
@@ -145,11 +148,29 @@ was given on 2026-09-10). As found on 2026-10-01:
 `anthropic/claude-opus-4-7`, fallback Sonnet 4.6, sub-agents Sonnet 4.6 (in
 his `agents.list` entry; other agents untouched) — live after the owner's
 restart at 12:56 EDT, confirmed by a test question in an isolated session
-(`rex-upgrade-test-20261001`) that ran on Opus 4.7 and cited its source; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
+(`rex-upgrade-test-20261001`) that ran on Opus 4.7 and cited its source;
+new skill `workspace/skills/synergy-quickbooks/` (`qb.js`: customers,
+invoice, invoices, open-balances, payments, raw `query`) — SELECT-only by
+code, reuses `credentials/qbo.json` + `qbo-token.json` and the same refresh
+logic as `workspace/qbo.js`; tested live (Rex answered an A/R question with
+the right five invoices and total); Brave web-search plugin
+`@openclaw/brave-plugin` 2026.9.7 installed (owner-approved) — **loads at the
+next gateway restart**, and is newer than the 2026.5.7 core, so check the log
+after that restart; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
 and adds rules for answering (open the whole note, fetch live data, cite the
 source, say "I'm not sure"); `SOUL.md` replaced with an accuracy-first one.
-`bootstrapMaxChars` raised to 24000 (owner). **Not done, waiting on the
-owner:** read-only LaborEdge and QuickBooks skills.
+`bootstrapMaxChars` raised to 24000 (owner). **Not done:** connecting Rex to
+the LaborEdge MCP server above — it needs the server's `MCP_AUTH_TOKEN` put
+into OpenClaw's config, which a session's permission check would not allow;
+the owner to do or approve.
+
+**Knowledge-sync redaction fix (2026-10-01):** `rex-knowledge-redact.py`
+matched only a capitalised `Basic` header, so the LE deal-service client
+credential in `project_laboredge_api.md` (written `basic …`) reached Rex.
+The pattern is now case-insensitive and also a residual check; a re-sync at
+13:11 EDT cleaned Rex's copy. The original note, the plain mirror that
+`sync-memory-to-ec2.sh` keeps on the box, and old Rex session logs still hold
+it — owner to decide whether to scrub the note and ask LaborEdge to rotate it.
 
 Rules for sessions: the gateway is shared by every agent above, so change
 only Rex's own entry and files unless the owner says otherwise, back up
@@ -311,3 +332,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (teleported to the Chromebook) | Identified OpenClaw on the EC2 box and its agent Rex (Telegram assistant for Charles and Susan): model, instructions, knowledge sync, tools. Next: upgrade Rex's model, load his knowledge index at startup, add read-only LaborEdge and QuickBooks skills, replace the generic SOUL.md. | EC2 (OpenClaw) | inventoried |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 1: own model Opus 4.7 (sub-agents Sonnet 4.6), knowledge index read at startup plus answering rules in `AGENTS.md`, accuracy-first `SOUL.md`. Owner raised `bootstrapMaxChars` to 24000 and restarted the gateway at 12:56 EDT; test run confirmed Opus 4.7. Pending: LaborEdge and QuickBooks read-only skills. | EC2 (OpenClaw) | live |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB live; Brave pending restart; LE pending |
