@@ -71,7 +71,7 @@ Owner-maintained.
 | OpenClaw gateway — Telegram/WhatsApp AI agents, including **Rex** | OpenClaw, user `ubuntu` | `/home/ubuntu/.openclaw/` | Telegram bots | owner | See **OpenClaw and Rex** below. |
 | LaborEdge app (`laboredge-server.js`) — holds the working LE auth (`leAuth()`) | node, user `ubuntu`, up since about 2026-09-11 | `/home/ubuntu/laboredge-app/` | `*:8084` | owner | Seen running 2026-10-01; how it is started not checked. |
 | LE job board (`server.js`) | node, user `ubuntu` | `/home/ubuntu/le-jobboard/` | ? | owner | Feeds le.synergymedicalstaffing.com; `search_jobs` below reads it. |
-| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists` | node, user `ubuntu` | `/home/ubuntu/le-mcp/le-mcp-server/` | `8099`, path `/mcp/<MCP_AUTH_TOKEN>` | owner | Not yet connected to Rex. |
+| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists` | node, user `ubuntu` | `/home/ubuntu/le-mcp/le-mcp-server/` | `127.0.0.1:8099` behind nginx at `https://le-mcp.synergymedicalstaffing.com/mcp/<MCP_AUTH_TOKEN>` | owner | Connected to Rex 2026-10-01. Rejects any Host but the public name (`Invalid Host: 127.0.0.1`), so clients must use the https URL. |
 | *everything else* (about 25 node ports listening) | ? | ? | ? | ? | **Owner to fill in.** |
 
 To fill this in, **SSH into the instance first** (the user there is
@@ -126,8 +126,8 @@ was given on 2026-09-10). As found on 2026-10-01:
 - **Tools:** skills `synergy-gmail` (search/read/draft in Charles's or
   Susan's mailbox; no send), `synergy-drive` (read-only, as Charles),
   `synergy-paychex` (Paychex Flex, read-only), `synergy-quickbooks` (added
-  2026-10-01, below); plus shell, web search and fetch. **No LaborEdge
-  skill yet** — `TOOLS.md` tells him not to hand-write LE API calls.
+  2026-10-01, below), the LaborEdge MCP tools (`laboredge__*`, added
+  2026-10-01, below); plus shell, web search and fetch.
 - **Known weakness:** wrong answers to Susan on basics (e.g. the 2026-09-10
   benefits question answered from a dead rate sheet). Fixes in progress — see
   the work log.
@@ -162,10 +162,18 @@ search had never worked before, as no key was ever set. **Pin the plugin to
 the core's version** whenever OpenClaw is updated; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
 and adds rules for answering (open the whole note, fetch live data, cite the
 source, say "I'm not sure"); `SOUL.md` replaced with an accuracy-first one.
-`bootstrapMaxChars` raised to 24000 (owner). **Not done:** connecting Rex to
-the LaborEdge MCP server above — it needs the server's `MCP_AUTH_TOKEN` put
-into OpenClaw's config, which a session's permission check would not allow;
-the owner to do or approve.
+`bootstrapMaxChars` raised to 24000 (owner). **LaborEdge:** the owner ran a
+script that copied the LE MCP server's token into OpenClaw's `mcp.servers.laboredge`
+(the token was never shown to a session); the URL is the public https name
+above. `mcp.servers` is shared by every agent, so on the owner's instruction
+("Rex only for now") every other agent has `tools: {deny: ["bundle-mcp"]}`
+in its `agents.list` entry — **a new agent gets the LE tools unless given the
+same deny**. Tested: Rex counted 36 Working candidates via `master_lists` +
+`search_candidates_by_status`; Barb-Marcia sees no `laboredge__` tools.
+Rex's `MEMORY.md` had Onboarding/Working swapped (2321/2325 — the mix-up
+behind the 66 expired OIG/SAM credentials); corrected 2026-10-01 with a
+warning. `CLAUDE_CODE_PROMPT.md` and `LE_OUTREACH_SPEC.md` in his workspace
+still carry the old mapping.
 
 **Knowledge-sync redaction fix (2026-10-01):** `rex-knowledge-redact.py`
 matched only a capitalised `Basic` header, so the LE deal-service client
@@ -336,4 +344,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (teleported to the Chromebook) | Identified OpenClaw on the EC2 box and its agent Rex (Telegram assistant for Charles and Susan): model, instructions, knowledge sync, tools. Next: upgrade Rex's model, load his knowledge index at startup, add read-only LaborEdge and QuickBooks skills, replace the generic SOUL.md. | EC2 (OpenClaw) | inventoried |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 1: own model Opus 4.7 (sub-agents Sonnet 4.6), knowledge index read at startup plus answering rules in `AGENTS.md`, accuracy-first `SOUL.md`. Owner raised `bootstrapMaxChars` to 24000 and restarted the gateway at 12:56 EDT; test run confirmed Opus 4.7. Pending: LaborEdge and QuickBooks read-only skills. | EC2 (OpenClaw) | live |
-| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB live; web search live; LE pending |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB, web search and LaborEdge (Rex only) live |
