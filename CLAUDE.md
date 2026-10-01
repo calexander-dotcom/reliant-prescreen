@@ -154,9 +154,11 @@ invoice, invoices, open-balances, payments, raw `query`) — SELECT-only by
 code, reuses `credentials/qbo.json` + `qbo-token.json` and the same refresh
 logic as `workspace/qbo.js`; tested live (Rex answered an A/R question with
 the right five invoices and total); Brave web-search plugin
-`@openclaw/brave-plugin` 2026.9.7 installed (owner-approved) — **loads at the
-next gateway restart**, and is newer than the 2026.5.7 core, so check the log
-after that restart; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
+`@openclaw/brave-plugin` installed (owner-approved) — 2026.9.7 failed to load
+on the 2026.5.7 core (missing module), so it was pinned to **2026.5.7**, which
+loads; web search still fails with `missing_brave_api_key` until the owner
+stores a Brave Search API key (`openclaw configure --section web`). **Pin the
+plugin to the core's version** whenever OpenClaw is updated; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
 and adds rules for answering (open the whole note, fetch live data, cite the
 source, say "I'm not sure"); `SOUL.md` replaced with an accuracy-first one.
 `bootstrapMaxChars` raised to 24000 (owner). **Not done:** connecting Rex to
@@ -332,4 +334,4 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (teleported to the Chromebook) | Identified OpenClaw on the EC2 box and its agent Rex (Telegram assistant for Charles and Susan): model, instructions, knowledge sync, tools. Next: upgrade Rex's model, load his knowledge index at startup, add read-only LaborEdge and QuickBooks skills, replace the generic SOUL.md. | EC2 (OpenClaw) | inventoried |
 | 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 1: own model Opus 4.7 (sub-agents Sonnet 4.6), knowledge index read at startup plus answering rules in `AGENTS.md`, accuracy-first `SOUL.md`. Owner raised `bootstrapMaxChars` to 24000 and restarted the gateway at 12:56 EDT; test run confirmed Opus 4.7. Pending: LaborEdge and QuickBooks read-only skills. | EC2 (OpenClaw) | live |
-| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB live; Brave pending restart; LE pending |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB live; Brave loads, needs API key; LE pending |
