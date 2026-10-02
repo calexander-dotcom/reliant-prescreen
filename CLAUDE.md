@@ -59,14 +59,20 @@ The owner is Charles.
 ### EC2 instance (Ubuntu)
 
 Separate from the Chromebook below, which turned out to be where most of
-the automation lives. What runs here is still unknown to the sessions; the
-Chromebook holds `sync-memory-to-ec2.sh` and an SSH key for this box.
+the automation lives. Apart from OpenClaw (next section), what runs here is
+still unknown to the sessions; the Chromebook holds `sync-memory-to-ec2.sh`,
+`~/.claude/rex-knowledge-sync.sh` and SSH access to this box (the `ec2`
+host alias in `~/.ssh/config`, and `~/.ssh/openclaw-key.pem`).
 Owner-maintained.
 
 | What | How it runs | Path | Ports / domains | Owned by | Notes |
 |---|---|---|---|---|---|
 | `car_watch.py` | cron, hourly (`0 * * * *`), user `ubuntu` | `/home/ubuntu/car_watch` | — | retired | Remove the cron line and the directory; the `.env` there holds SendGrid and MarketCheck API keys — revoke them. |
-| *everything else* | ? | ? | ? | ? | **Owner to fill in.** |
+| OpenClaw gateway — Telegram/WhatsApp AI agents, including **Rex** | OpenClaw, user `ubuntu` | `/home/ubuntu/.openclaw/` | Telegram bots | owner | See **OpenClaw and Rex** below. |
+| LaborEdge app (`laboredge-server.js`) — holds the working LE auth (`leAuth()`) | node, user `ubuntu`, up since about 2026-09-11 | `/home/ubuntu/laboredge-app/` | `*:8084` | owner | Seen running 2026-10-01; how it is started not checked. |
+| LE job board (`server.js`) | node, user `ubuntu` | `/home/ubuntu/le-jobboard/` | ? | owner | Feeds le.synergymedicalstaffing.com; `search_jobs` below reads it. |
+| **LaborEdge MCP server** — read-only tools `search_jobs`, `search_candidates_by_status`, `get_candidate`, `search_assignments`, `master_lists`; added 2026-10-01: `find_candidate` (email/phone live, name from the LaborEdge app's index), `get_deal_sheets`, `get_journal` | pm2 app `le-mcp-server`, user `ubuntu`; logs in to LE as `api_synergy_compliance` | `/home/ubuntu/le-mcp/le-mcp-server/` | `127.0.0.1:8099` behind nginx at `https://le-mcp.synergymedicalstaffing.com/mcp/<MCP_AUTH_TOKEN>` | owner | Connected to Rex 2026-10-01. Rejects any Host but the public name (`Invalid Host: 127.0.0.1`), so clients must use the https URL. |
+| *everything else* (about 25 node ports listening) | ? | ? | ? | ? | **Owner to fill in.** |
 
 To fill this in, **SSH into the instance first** (the user there is
 `ubuntu`; the owner's Chromebook prompt reads `calexander@penguin`, which is
@@ -76,6 +82,128 @@ will write it up here:
 ```
 crontab -l; sudo ls /etc/cron.d; systemctl list-units --type=service --state=running --no-pager; systemctl list-timers --all --no-pager; docker ps 2>/dev/null; pm2 list 2>/dev/null; sudo ss -ltnp; ls -la ~
 ```
+
+### OpenClaw and Rex (on the EC2 box) — the team's Telegram AI agents
+
+Inventoried 2026-10-01 by a local Claude Code session on the Chromebook,
+read-only, from `~/.openclaw/openclaw.json`, the agent folders and session
+logs. **OpenClaw** is an agent framework that connects LLM agents to chat
+apps. One gateway on the EC2 box serves several agents, each bound to its own
+Telegram bot:
+
+| Agent id | Bot account | Who talks to it | Workspace |
+|---|---|---|---|
+| `rex` | `rex` (@Synergy_staffing_bot) | Charles and Susan (allowlist; separate conversation each) | `~/.openclaw/workspace` |
+| `recruiter` ("Barb") | `barb` | recruiters, incl. Angela | `~/.openclaw/workspace-recruiterasst` |
+| `barb-marcia`, `barb-tracey`, `barb-ann` | `default`, `tracey`, `ann` | Marcia, Tracey, Ann | `~/.openclaw/workspace-recruiterasst` |
+| `atlas` | `atlas` | Charles | `~/openclaw-trading/workspace` |
+| `alexanderfambot` | WhatsApp (channel disabled) | family | `~/openclaw/workspace/alexanderfambot` |
+| `main` | — | — | `~/openclaw/workspace` (the default) |
+
+There is also an agent folder `~/.openclaw/agents/claude-code` (not in the
+agent list) and an `~/.openclaw/acpx` folder — possibly a bridge that runs
+Claude Code as an OpenClaw agent; not investigated.
+
+**Rex** is the back-office assistant for Charles and **Susan** (Susan's access
+was given on 2026-09-10). As found on 2026-10-01:
+
+- **Model:** global default `anthropic/claude-sonnet-4-6`, fallback Haiku 4.5;
+  sub-agents and cron jobs run Haiku 4.5. Rex has no per-agent override.
+- **Instructions:** `agents/rex/agent/agent.md`, and in the workspace
+  `SOUL.md` (OpenClaw's generic template), `IDENTITY.md`, `USER.md` (Charles +
+  Susan), `AGENTS.md` (red lines: LaborEdge and other APIs GET-only; email
+  drafts only; never reveal credentials), `TOOLS.md`, `MEMORY.md`.
+  `SOUL-rex.md` is a separate candidate-texting persona, not his main soul.
+- **Knowledge:** the Chromebook's Claude Code memory
+  (`~/.claude/projects/-home-calexander/memory/`) is copied nightly to
+  `workspace/memory/knowledge/` by the user systemd timer
+  `rex-knowledge-sync.timer` (02:30) → `~/.claude/rex-knowledge-sync.sh` →
+  `~/.claude/rex-knowledge-redact.py`, which blanks credentials and refuses to
+  ship if anything secret-shaped survives. `MEMORY.md` arrives as `INDEX.md`.
+  **Anything written into that memory directory reaches Rex** — never put a
+  raw secret there. Rex reaches it only through memory search, which he often
+  skips.
+- **Tools:** skills `synergy-gmail` (search/read/draft in Charles's or
+  Susan's mailbox; no send), `synergy-drive` (read-only, as Charles),
+  `synergy-paychex` (Paychex Flex, read-only), `synergy-quickbooks` (added
+  2026-10-01, below), the LaborEdge MCP tools (`laboredge__*`, added
+  2026-10-01, below); plus shell, web search and fetch.
+- **Known weakness:** wrong answers to Susan on basics (e.g. the 2026-09-10
+  benefits question answered from a dead rate sheet). Fixes in progress — see
+  the work log.
+- **Prompt size limit:** OpenClaw injects each workspace file into the prompt
+  only up to `agents.defaults.bootstrapMaxChars` (default 12,000 characters).
+  Rex's `MEMORY.md` is about 15,900, so until 2026-10-01 it was cut mid-way
+  through the "Benefits 2026–27" section and the Paychex section never reached
+  him. The owner raised the limit to 24,000 on 2026-10-01; Rex's was the only
+  file over 12,000 in any workspace, so no other agent changed.
+- **Gateway:** user systemd service `openclaw-gateway.service` (port 18790),
+  OpenClaw 2026.5.7 installed (2026.9.4 available; 5.7's catalogue stops at
+  Opus 4.7). Config changes need `systemctl --user restart
+  openclaw-gateway.service`, which briefly drops every agent. Brave web search
+  is configured but its plugin is not installed, so Rex's web search is dead.
+
+**Changed 2026-10-01** (backups in
+`~/.openclaw/backups/20261001-rex-upgrade/`): Rex's own model set to
+`anthropic/claude-opus-4-7`, fallback Sonnet 4.6, sub-agents Sonnet 4.6 (in
+his `agents.list` entry; other agents untouched) — live after the owner's
+restart at 12:56 EDT, confirmed by a test question in an isolated session
+(`rex-upgrade-test-20261001`) that ran on Opus 4.7 and cited its source;
+new skill `workspace/skills/synergy-quickbooks/` (`qb.js`: customers,
+invoice, invoices, open-balances, payments, raw `query`) — SELECT-only by
+code, reuses `credentials/qbo.json` + `qbo-token.json` and the same refresh
+logic as `workspace/qbo.js`; tested live (Rex answered an A/R question with
+the right five invoices and total); Brave web-search plugin
+`@openclaw/brave-plugin` installed (owner-approved) — 2026.9.7 failed to load
+on the 2026.5.7 core (missing module), so it was pinned to **2026.5.7**, which
+loads; the owner stored the Brave key with `openclaw configure --section web`
+at about 13:35 EDT and a test search worked (no restart needed) — Rex's web
+search had never worked before, as no key was ever set. **Pin the plugin to
+the core's version** whenever OpenClaw is updated; `AGENTS.md` startup now reads `memory/knowledge/INDEX.md`
+and adds rules for answering (open the whole note, fetch live data, cite the
+source, say "I'm not sure"); `SOUL.md` replaced with an accuracy-first one.
+`bootstrapMaxChars` raised to 24000 (owner). **LaborEdge:** the owner ran a
+script that copied the LE MCP server's token into OpenClaw's `mcp.servers.laboredge`
+(the token was never shown to a session); the URL is the public https name
+above. `mcp.servers` is shared by every agent, so on the owner's instruction
+("Rex only for now") every other agent has `tools: {deny: ["bundle-mcp"]}`
+in its `agents.list` entry — **a new agent gets the LE tools unless given the
+same deny**. Tested: Rex counted 36 Working candidates via `master_lists` +
+`search_candidates_by_status`; Barb-Marcia sees no `laboredge__` tools.
+Rex's `MEMORY.md` had Onboarding/Working swapped (2321/2325 — the mix-up
+behind the 66 expired OIG/SAM credentials); corrected 2026-10-01 with a
+warning. `CLAUDE_CODE_PROMPT.md` and `LE_OUTREACH_SPEC.md` in his workspace
+still carry the old mapping.
+
+**LaborEdge MCP tools added 2026-10-01** (in `le-mcp-server/server.js`, backup
+`server.js.bak-20261001`; restarted with `pm2 restart le-mcp-server`). Request
+shapes copied from code already live (GET-only rule): `find_candidate`,
+`get_deal_sheets` (`candidates/dealsheet/details`, ≤10 ids) and `get_journal`
+(`candidates/journal/sync`, one day per call). Tested through Rex: lookup and
+deal sheets work; **`get_journal` gets 403 `permission.denied`** because the
+server's LE user `api_synergy_compliance` was never granted journal access
+(LE enabled it for `api_synergy_recruiter` and `api_synergy_testing`, ticket
+59576). The name index (`laboredge-app/.laboredge-candidate-index.json`) was
+last built 2026-05-20 and holds 6,242 candidates — stale.
+
+**Exposed credentials (2026-10-01):** `~/le-mcp/wf-le.js` hardcodes the
+`api_synergy_recruiter` password and the LE client `basic` value as fallbacks;
+a session's grep printed both into its transcript. Owner to have LaborEdge
+rotate them and remove the fallbacks (the server reads `LE_*` env vars).
+
+**Knowledge-sync redaction fix (2026-10-01):** `rex-knowledge-redact.py`
+matched only a capitalised `Basic` header, so the LE deal-service client
+credential in `project_laboredge_api.md` (written `basic …`) reached Rex.
+The pattern is now case-insensitive and also a residual check; a re-sync at
+13:11 EDT cleaned Rex's copy. The original note, the plain mirror that
+`sync-memory-to-ec2.sh` keeps on the box, and old Rex session logs still hold
+it — owner to decide whether to scrub the note and ask LaborEdge to rotate it.
+
+Rules for sessions: the gateway is shared by every agent above, so change
+only Rex's own entry and files unless the owner says otherwise, back up
+before editing (`~/.openclaw/backups/<date>-<reason>/`), and use value-mode
+`openclaw config set` then `openclaw config validate` (`config patch` fails
+on an old schema complaint).
 
 ### Chromebook Linux container (`penguin`, user `calexander`) — where most of the owner's automation lives
 
@@ -94,15 +222,22 @@ on this machine are among the agents this file is for — and they read
 |---|---|---|---|---|
 | LE SMS Dashboard (recruiter comms) | user systemd service `le-sms-dashboard.service`, up since about 2026-09-09 | `~/le-sms-dashboard.js` | `*:8085` | Log `~/le-sms-dashboard.log`. The only thing listening on the machine. |
 
-**Ran today — scheduler not yet identified** (there is no cron daemon on
-the box; most likely user systemd timers or a supervising process — see the
-commands below):
+**Scheduled by user systemd timers** (`systemctl --user list-timers`, checked
+2026-10-01 — this is the scheduler the 2026-09-15 inventory could not find):
 
-| What | Evidence | Path |
+| Timer | When | What it runs |
 |---|---|---|
-| Twilio email watch | log and state written 2026-09-15 11:37 | `~/twilio-email-watch.js` |
-| Twilio campaign watch | log and state written 2026-09-15 08:17 | `~/twilio-campaign-watch.js` |
-| LaborEdge job data check | log written 2026-09-15 08:01 | `~/le-job-data-check.js` |
+| `twilio-email-watch.timer` | hourly at :37 | `~/twilio-email-watch.js` — scan for new Twilio support emails |
+| `twilio-campaign-watch.timer` | daily 08:17 ET | `~/twilio-campaign-watch.js` — Synergy's Twilio 10DLC campaign and number status |
+| `le-job-data-check.timer` | daily 08:00 ET | `~/le-job-data-check.js` — LaborEdge job-data check |
+| `contract-autofill.timer` | every 5 minutes | fills contracts emailed to rex@ by an allowlisted sender and replies with the completed file |
+| `contract-drafter.timer` | every 5 minutes | drafts signed client/VMS agreements from calexander@'s inbox to Ann + contracts@ |
+| `rex-knowledge-sync.timer` | daily 02:30 | redacted copy of Claude Code memory to Rex (see OpenClaw and Rex) |
+| `claude-archive.timer` | Mondays 06:15 | weekly archive of Claude Code sessions (`~/.claude/archive-sessions.sh`, `archive-to-drive.js`) |
+
+On the EC2 box the `ubuntu` user's systemd has only `openclaw-gateway.service`
+and `qb-selftest.path` (re-tests the /qb invoice tool when its files change);
+its other services run under **pm2** (e.g. `le-mcp-server`) — not yet listed.
 
 **Installed but not running:**
 
@@ -131,10 +266,15 @@ watchers and one-off scripts. Do not assume any of these is dead or alive:
   website-down work?), `workflow-portal/`, `oe-console/`,
   `new-hire-benefits/`, `signnow-work/`, `nursys/`, `mr-promote/`,
   `sms_work/`, `workflows/`, `le-text-extension/` and
-  `synergy-comms-extension/` (Chrome extensions), `Open Claw/` (touched
-  2026-09-15 — **unidentified**).
-- `sync-memory-to-ec2.sh` — this machine pushes something to the EC2 box
-  and holds a key for it in `~/.ssh/`.
+  `synergy-comms-extension/` (Chrome extensions), and `Open Claw/` —
+  despite the name, **not** OpenClaw itself: a working folder of business
+  documents (tax returns, payroll and commission reports, timesheets) and
+  tools (`qb_tool/`, `flex_tool/`, `qc_tool`). Sensitive; never copy it out.
+  The OpenClaw agents run on the EC2 box (see above).
+- `sync-memory-to-ec2.sh` — mirrors the Claude Code memory directory to
+  `/home/ubuntu/.claude/projects/-home-ubuntu/memory` on the EC2 box (run
+  by hand). `~/.claude/rex-knowledge-sync.sh` sends a redacted copy to Rex
+  nightly (see OpenClaw and Rex).
 
 **Secrets and sensitive data on this machine** — never copy them anywhere,
 never print them into a session: `~/credentials/`, `~/gmail-token.json`,
@@ -145,7 +285,7 @@ never print them into a session: `~/credentials/`, `~/gmail-token.json`,
 To finish identifying what runs and how, on the Chromebook:
 
 ```
-systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep; cat ~/sync-memory-to-ec2.sh; ls ~/'Open Claw' | head -30
+systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | grep -E "node|python" | grep -v grep
 ```
 
 ### Vercel
@@ -208,6 +348,7 @@ systemctl --user list-timers --all --no-pager; ps -eo pid,user,etimes,args | gre
 | MarketCheck API key | same | car listings | revoke if nothing else uses it |
 | Redis Cloud connection string | Vercel env of golf_bets (injected by the integration) | shared golf rounds | active |
 | GHIN login | typed on the phone; token kept in the browser only | golf app's GHIN import | nothing stored server-side |
+| Brave Search API key ("Synergy oClaw") | `~/.openclaw/openclaw.json` on the EC2 box, set via `openclaw configure --section web`; owner's Brave account (api-dashboard.search.brave.com) | web search for the OpenClaw agents (Rex) | active (stored 2026-10-01); the plan's monthly usage limit was "No limit" — owner advised to set a cap |
 | Golf Genius API key (`GOLF_GENIUS_API_KEY`) | Vercel env of golf_bets (Production, type Secret); read server-side only, never in the browser or repo | golf app's Golf Genius read: foursome auto-fill and live score cross-check | active (added by owner 2026-09-30) |
 
 ## Active work log
@@ -219,8 +360,11 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | One Downs app (renamed from Golf Bets 2026-09-21), ongoing features | Vercel | live |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
-| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
+| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | scheduler (user systemd timers) and `Open Claw` identified 2026-10-01; EC2 pm2 apps still to list |
 | 2026-09-21 | `claude/golf-gambling-tracker-2xn3ty` | Vercel's daily deployment limit hit at ~23:30 UTC; golf PRs #47–#62 ended up merged into the production branch but unbuilt. | Vercel | resolved 2026-09-22 |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` + owner | Build guards so one push is one build: `ignoreCommand` in `golf/vercel.json` for golf_bets (PR #58), and the owner set an Ignored Build Step on workspace-recruiterasst and reliant-prescreen excluding `golf/`. | Vercel | done |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` | Cap lifted about 19:20 UTC, roughly 20 hours after it bit. PR #63 (a service worker cache bump) was the golf-touching push that carried PRs #47–#62 to production; golf_bets reported "Deployment has completed" at 19:22 UTC. | Vercel | live |
 | 2026-09-30 | `claude/golf-gambling-tracker-2xn3ty` | Golf Genius live integration: type a foursome GGID at round setup → the app auto-fills the four players, handicaps and course; scores poll in during play (~15s) and cross-check hand entry, flagging any clash in pulsing red without overwriting your card. Read-only — Golf Genius has no score-write API. Needs `GOLF_GENIUS_API_KEY` (added to Vercel by owner 2026-09-30). | Vercel | built; key live in Vercel |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (teleported to the Chromebook) | Identified OpenClaw on the EC2 box and its agent Rex (Telegram assistant for Charles and Susan): model, instructions, knowledge sync, tools. Next: upgrade Rex's model, load his knowledge index at startup, add read-only LaborEdge and QuickBooks skills, replace the generic SOUL.md. | EC2 (OpenClaw) | inventoried |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 1: own model Opus 4.7 (sub-agents Sonnet 4.6), knowledge index read at startup plus answering rules in `AGENTS.md`, accuracy-first `SOUL.md`. Owner raised `bootstrapMaxChars` to 24000 and restarted the gateway at 12:56 EDT; test run confirmed Opus 4.7. Pending: LaborEdge and QuickBooks read-only skills. | EC2 (OpenClaw) | live |
+| 2026-10-01 | `claude/dreamy-shannon-4ozf1l` (Chromebook) | Rex upgrade, part 2: read-only QuickBooks skill (tested live), Brave web-search plugin installed (loads at next restart), knowledge-sync redactor fixed for lowercase `basic` credentials and Rex's copy re-synced. Found the read-only LaborEdge MCP server on the box; connecting it to Rex waits on the owner. | EC2 (OpenClaw), Chromebook | QB, web search and LaborEdge (Rex only) live |
