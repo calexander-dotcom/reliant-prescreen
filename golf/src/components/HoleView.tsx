@@ -33,7 +33,7 @@ import {
   setGreenie,
   setStartHole,
 } from "@/lib/mutations";
-import type { BetConfig, Round } from "@/lib/types";
+import type { BetConfig, OneDownConfig, Round } from "@/lib/types";
 import { MoneyInput } from "./MoneyInput";
 import { ScoreStepper } from "./ScoreStepper";
 import { StartHoleGrid } from "./StartHolePicker";
@@ -103,6 +103,68 @@ function HoleStrip({
   );
 }
 
+/**
+ * The greenie buttons for one par 3: each player, then Nobody and Carry over.
+ * Shared by the pop-up that appears when the scores are in and the inline card
+ * that stays on the Hole tab to review or change the answer. Tapping the chosen
+ * one again takes the answer back.
+ */
+function GreenieChooser({
+  round,
+  config,
+  hole,
+  shown,
+  update,
+}: {
+  round: Round;
+  config: OneDownConfig;
+  hole: number;
+  /** The number on the tee marker, for the group's label. */
+  shown: number;
+  update: (next: Round) => void;
+}) {
+  const winners = config.greenieWinners ?? {};
+  const answered = hole in winners;
+  const winner = winners[hole];
+  const carry = winner === GREENIE_CARRY;
+  const nobody = answered && winner === null;
+  return (
+    <div
+      role="group"
+      aria-label={`Greenie on hole ${shown}`}
+      className="flex flex-wrap gap-2"
+    >
+      {round.players.map((player) => (
+        <Button
+          key={player.id}
+          variant={winner === player.id ? "primary" : "secondary"}
+          onClick={() =>
+            update(
+              setGreenie(round, config.id, hole, winner === player.id ? undefined : player.id),
+            )
+          }
+        >
+          {player.name.split(" ")[0]}
+        </Button>
+      ))}
+      <Button
+        variant={nobody ? "primary" : "ghost"}
+        onClick={() => update(setGreenie(round, config.id, hole, nobody ? undefined : null))}
+      >
+        Nobody
+      </Button>
+      <Button
+        variant={carry ? "primary" : "ghost"}
+        onClick={() =>
+          update(setGreenie(round, config.id, hole, carry ? undefined : GREENIE_CARRY))
+        }
+      >
+        Carry over
+      </Button>
+    </div>
+  );
+}
+
 export function HoleView({
   round,
   comp,
@@ -150,6 +212,25 @@ export function HoleView({
     setStartPutOff(true);
     try {
       sessionStorage.setItem(startPutOffKey, "1");
+    } catch {
+      // Private mode or blocked storage: it just asks again next time.
+    }
+  };
+  // And the greenie pop-up that appears once a par 3's scores are in: put it off
+  // and it stops asking on that hole for the session, leaving the inline card.
+  const greeniePutOffKey = `onedowns.greeniePutOff.${round.id}`;
+  const [greeniesPutOff, setGreeniesPutOff] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(sessionStorage.getItem(greeniePutOffKey) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const putOffGreenie = (key: string) => {
+    const next = new Set(greeniesPutOff).add(key);
+    setGreeniesPutOff(next);
+    try {
+      sessionStorage.setItem(greeniePutOffKey, JSON.stringify([...next]));
     } catch {
       // Private mode or blocked storage: it just asks again next time.
     }
@@ -222,6 +303,28 @@ export function HoleView({
       result.outcome.teeFlips.unanswered.includes(hole) &&
       !flipsPutOff.has(`${result.config.id}:${hole}`),
   );
+
+  /*
+   * The greenie pop-up: on a par 3, once every player's score is in and the
+   * greenie has not been answered, ask who won it then and there — like the tee
+   * flip. Held back while the start-hole or tee-flip dialog is up so two never
+   * stack, and dismissable with "Ask me later" (the inline card still asks).
+   */
+  const greenieToAsk =
+    info?.par === 3 && !askStartHole && !flipToAsk
+      ? comp.betResults.find(
+          (result): result is Extract<typeof result, { kind: "onedown" }> =>
+            result.kind === "onedown" &&
+            result.outcome.greenies.enabled &&
+            !(hole in (result.config.greenieWinners ?? {})) &&
+            round.players.every(
+              (player) => (comp.cells[player.id]?.[hole]?.gross ?? null) !== null,
+            ) &&
+            !greeniesPutOff.has(`${result.config.id}:${hole}`),
+        )
+      : undefined;
+  const greenieCarriedIn =
+    greenieToAsk?.outcome.greenies.holes.find((h) => h.hole === hole)?.carriedIn ?? 0;
 
   /*
    * One to play: what each way the hole that closes a nine (or the round) can go
@@ -349,6 +452,54 @@ export function HoleView({
               <Button
                 variant="ghost"
                 onClick={() => putOffFlip(`${flipToAsk.config.id}:${hole}`)}
+              >
+                Ask me later
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {greenieToAsk ? (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="greenie-title"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <h2 id="greenie-title" className="text-lg font-bold text-turf-900">
+              Who won the greenie on hole {shown}?
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              Closest to the hole takes it for their side, worth a bet. Nobody won
+              it? Carry it over to the next par 3.
+              {greenieCarriedIn > 0
+                ? ` ${
+                    greenieCarriedIn === 1
+                      ? "A greenie is"
+                      : `${greenieCarriedIn} greenies are`
+                  } already carrying over — the winner takes ${
+                    greenieCarriedIn === 1 ? "both" : "them all"
+                  }.`
+                : ""}
+            </p>
+            <div className="mt-4">
+              <GreenieChooser
+                round={round}
+                config={greenieToAsk.config}
+                hole={hole}
+                shown={shown}
+                update={update}
+              />
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => putOffGreenie(`${greenieToAsk.config.id}:${hole}`)}
               >
                 Ask me later
               </Button>
@@ -725,54 +876,14 @@ export function HoleView({
                   </Banner>
                 )
               ) : null}
-              <div
-                role="group"
-                aria-label={`Greenie on hole ${shown}`}
-                className="mt-3 flex flex-wrap gap-2"
-              >
-                {round.players.map((player) => (
-                  <Button
-                    key={player.id}
-                    variant={winner === player.id ? "primary" : "secondary"}
-                    onClick={() =>
-                      update(
-                        setGreenie(
-                          round,
-                          result.config.id,
-                          hole,
-                          winner === player.id ? undefined : player.id,
-                        ),
-                      )
-                    }
-                  >
-                    {player.name.split(" ")[0]}
-                  </Button>
-                ))}
-                <Button
-                  variant={nobody ? "primary" : "ghost"}
-                  onClick={() =>
-                    update(
-                      setGreenie(round, result.config.id, hole, nobody ? undefined : null),
-                    )
-                  }
-                >
-                  Nobody
-                </Button>
-                <Button
-                  variant={carry ? "primary" : "ghost"}
-                  onClick={() =>
-                    update(
-                      setGreenie(
-                        round,
-                        result.config.id,
-                        hole,
-                        carry ? undefined : GREENIE_CARRY,
-                      ),
-                    )
-                  }
-                >
-                  Carry over
-                </Button>
+              <div className="mt-3">
+                <GreenieChooser
+                  round={round}
+                  config={result.config}
+                  hole={hole}
+                  shown={shown}
+                  update={update}
+                />
               </div>
             </Card>
           );
