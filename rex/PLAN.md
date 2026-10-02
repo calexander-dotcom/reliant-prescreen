@@ -8,6 +8,12 @@ Written 2026-10-01 evening by the session on branch `claude/dreamy-shannon-4ozf1
 web, teleported to the Chromebook). Read `CLAUDE.md` → "OpenClaw and Rex" first for what exists.
 Tick items here as they are done, in the same change as the work.
 
+**Live tracker:** https://claude.ai/artifact/XNrkcnd3wAUm8G6QQcnTCs ("Rex Rollout", private to Charles). Its task list is the
+artifact's database — collection `tasks` (fields `section`, `order`, `title`, `detail`, `status`
+todo|doing|blocked|done, `owner`, `note`, `updated`) and `log` (`at`, `text`). A session with the
+Artifact tools updates it with `ArtifactData` (read the doc, then write with its `if_version`).
+Keep this file and the tracker in step.
+
 **Rules that apply to every step:** the OpenClaw gateway on the EC2 box is shared by eight agents —
 change only Rex unless Charles says otherwise; back up to `~/.openclaw/backups/<date>-<reason>/`
 before editing; external APIs are read-only (GET, or a POST read whose shape is copied from code
