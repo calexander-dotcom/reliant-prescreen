@@ -62,14 +62,34 @@ export interface OneDownStack {
   playerTotals: Record<PlayerId, number>;
 }
 
+/**
+ * The answer stored for a par 3 nobody won whose value rolls forward to
+ * whoever wins the next par 3. Kept in `greenieWinners` alongside the player
+ * ids and `null` (nobody), so the pop-up reads one field. A player id can
+ * never be this string — ids are UUIDs, `gg-…` or GHIN numbers.
+ *
+ * `types.ts` spells the same literal into `OneDownConfig.greenieWinners` rather
+ * than importing this value, to keep the types module free of runtime imports.
+ */
+export const GREENIE_CARRY = "carry" as const;
+
+/** What the pop-up can record for a par 3: a winner, nobody, or a carry-over. */
+export type GreenieAnswer = PlayerId | null | typeof GREENIE_CARRY;
+
 /** One par 3's greenie. */
 export interface GreenieHole {
   hole: number;
-  /** The player who was closest; null for nobody; undefined when not asked yet. */
+  /** The player who was closest; null for nobody or a carry; undefined when not asked yet. */
   winnerId: PlayerId | null | undefined;
+  /** Nobody won it and its value rolls on to the next par 3 a side takes. */
+  carry: boolean;
+  /** Carry-over greenies riding onto this hole as it is reached, before it is resolved. */
+  carriedIn: number;
   /** Which side the greenie went to, once answered and the winner is in the game. */
   side: 0 | 1 | null;
-  /** Money for this greenie alone. Sums to zero. */
+  /** Greenie-values that settle here: carriedIn + 1 when a side wins it, else 0. */
+  greeniesWon: number;
+  /** Money for this hole's greenie(s) alone, carry-over included. Sums to zero. */
   amounts: Record<PlayerId, number>;
 }
 
@@ -78,16 +98,19 @@ export interface GreenieHole {
  * the stake. They net between the sides — three to one is two greenies'
  * worth — and one side taking every par 3 of the round doubles the lot: at
  * $10 a man, four for four is $80 each, not $40. A greenie nobody won is a
- * hole nobody swept.
+ * hole nobody swept; one carried over rolls its value to whoever wins the
+ * next par 3, so that winner collects two (or more) at once.
  */
 export interface GreenieOutcome {
   enabled: boolean;
   /** Every par 3 in the round, in order. */
   holes: GreenieHole[];
-  /** Greenies to side A, greenies to side B. */
+  /** Greenie-values to side A, to side B — a carried-over win counts for all it collected. */
   counts: [number, number];
   /** Par 3s still waiting for an answer. */
   unanswered: number[];
+  /** Carry-over greenies nobody has won yet — riding on the next par 3. */
+  carrying: number;
   /** The side that took every par 3, once all are answered; null otherwise. */
   sweptBy: 0 | 1 | null;
   /** The doubling, per player. Zeros unless swept. */
@@ -266,36 +289,70 @@ function evaluateGreenies(
   const counts: [number, number] = [0, 0];
   const unanswered: number[] = [];
   const totals = zero();
+  // Greenie-values waiting to be won, from par 3s marked carry-over. The next
+  // side to take a par 3 collects them on top of its own.
+  let carried = 0;
 
   if (enabled) {
+    const winners = config.greenieWinners ?? {};
     for (let hole = 1; hole <= holeCount; hole += 1) {
       if (parFor(hole) !== 3) continue;
-      const winners = config.greenieWinners ?? {};
-      const winnerId = hole in winners ? winners[hole] : undefined;
-      const side = winnerId ? sideOf(winnerId) : null;
-      let amounts = zero();
-      if (winnerId === undefined) unanswered.push(hole);
-      if (side !== null) {
-        counts[side] += 1;
-        // One greenie is one bet's worth to the side that took it.
-        amounts = matchPayout(
-          { status: side === 0 ? "won-a" : "won-b", amount: config.amount },
-          config.sides,
-          config.stakeMode,
-          playerIds,
-        );
-        for (const id of playerIds) totals[id] += amounts[id] ?? 0;
+      const raw = hole in winners ? winners[hole] : undefined;
+      const carriedIn = carried;
+
+      // Not asked yet — leave the carry riding and move on.
+      if (raw === undefined) {
+        unanswered.push(hole);
+        holes.push({ hole, winnerId: undefined, carry: false, carriedIn, side: null, greeniesWon: 0, amounts: zero() });
+        continue;
       }
-      holes.push({ hole, winnerId, side, amounts });
+      // Nobody won it, carry its value to the next par 3 a side takes.
+      if (raw === GREENIE_CARRY) {
+        carried += 1;
+        holes.push({ hole, winnerId: null, carry: true, carriedIn, side: null, greeniesWon: 0, amounts: zero() });
+        continue;
+      }
+      // Nobody won it and the value is void; anything already carried rides on.
+      if (raw === null) {
+        holes.push({ hole, winnerId: null, carry: false, carriedIn, side: null, greeniesWon: 0, amounts: zero() });
+        continue;
+      }
+      // A player was closest.
+      const side = sideOf(raw);
+      if (side === null) {
+        // The winner is no longer on a side; nothing settles, the carry rides.
+        holes.push({ hole, winnerId: raw, carry: false, carriedIn, side: null, greeniesWon: 0, amounts: zero() });
+        continue;
+      }
+      const greeniesWon = carriedIn + 1;
+      carried = 0;
+      counts[side] += greeniesWon;
+      // One greenie is one bet's worth to the side that took it; a carry-over
+      // win is worth that many times over. Scaling the per-player split keeps
+      // it to exact cents and summing to zero however the stake divides.
+      const single = matchPayout(
+        { status: side === 0 ? "won-a" : "won-b", amount: config.amount },
+        config.sides,
+        config.stakeMode,
+        playerIds,
+      );
+      const amounts = zero();
+      for (const id of playerIds) {
+        amounts[id] = (single[id] ?? 0) * greeniesWon;
+        totals[id] += amounts[id];
+      }
+      holes.push({ hole, winnerId: raw, carry: false, carriedIn, side, greeniesWon, amounts });
     }
   }
 
-  // A sweep is every par 3 of the round to one side — nothing unanswered,
-  // nothing to nobody — and it doubles: pay the lot again.
+  // A sweep is every par 3 of the round won outright by one side — nothing
+  // unanswered, to nobody, or carried — and it doubles: pay the lot again. A
+  // carry or nobody hole has side null, so `every` already excludes it.
+  const cleanSweep = unanswered.length === 0 && carried === 0;
   const sweptBy: 0 | 1 | null =
-    holes.length > 0 && unanswered.length === 0 && holes.every((h) => h.side === 0)
+    holes.length > 0 && cleanSweep && holes.every((h) => h.side === 0)
       ? 0
-      : holes.length > 0 && unanswered.length === 0 && holes.every((h) => h.side === 1)
+      : holes.length > 0 && cleanSweep && holes.every((h) => h.side === 1)
         ? 1
         : null;
   const sweepBonus = zero();
@@ -314,6 +371,7 @@ function evaluateGreenies(
     holes,
     counts,
     unanswered,
+    carrying: carried,
     sweptBy,
     sweepBonus,
     totals,
