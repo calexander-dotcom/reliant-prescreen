@@ -1,6 +1,7 @@
 import { balanceOnto, normalizeAmounts, teamTransfer, zeroAmounts } from "./bets/ledger";
 import { normaliseStartHole } from "./holes";
 import { MAX_PRESSES_PER_HOLE, pressCounts } from "./bets/onedown";
+import type { GreenieAnswer } from "./bets/onedown";
 import type { PlayerId, Round } from "./types";
 
 /**
@@ -359,14 +360,15 @@ export function setPerspective(round: Round, playerId: PlayerId | null): Round {
 }
 
 /**
- * Who won the greenie on a par 3: a player, null for nobody, or undefined to
- * take the answer back.
+ * Who won the greenie on a par 3: a player, null for nobody, the sentinel
+ * GREENIE_CARRY to carry its value to the next par 3, or undefined to take the
+ * answer back.
  */
 export function setGreenie(
   round: Round,
   betId: string,
   hole: number,
-  winnerId: PlayerId | null | undefined,
+  winnerId: GreenieAnswer | undefined,
 ): Round {
   return touch({
     ...round,

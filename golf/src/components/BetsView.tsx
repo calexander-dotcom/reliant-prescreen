@@ -556,9 +556,13 @@ function OneDownBody({
                   <span className="font-semibold">{marker(greenie.hole)}</span>{" "}
                   {greenie.winnerId === undefined
                     ? "—"
-                    : greenie.winnerId === null
-                      ? "nobody"
-                      : nameOf(greenie.winnerId).split(" ")[0]}
+                    : greenie.carry
+                      ? "carry"
+                      : greenie.winnerId === null
+                        ? "nobody"
+                        : `${nameOf(greenie.winnerId).split(" ")[0]}${
+                            greenie.greeniesWon > 1 ? ` ×${greenie.greeniesWon}` : ""
+                          }`}
                 </li>
               ))}
             </ul>

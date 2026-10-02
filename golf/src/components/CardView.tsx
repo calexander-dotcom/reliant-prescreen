@@ -110,8 +110,13 @@ export function CardView({
     const green = greenieByHole.get(hole);
     if (!green) return null;
     if (green.winnerId === undefined) return { name: "—", tone: "muted" };
+    // Nobody won it, carried to the next par 3.
+    if (green.carry) return { name: "carry", tone: "carry" };
     if (!green.winnerId || green.side === null) return { name: "none", tone: "muted" };
-    const name = round.players.find((player) => player.id === green.winnerId)?.name.split(" ")[0] ?? "?";
+    const first =
+      round.players.find((player) => player.id === green.winnerId)?.name.split(" ")[0] ?? "?";
+    // A carry-over win took more than one greenie — mark how many.
+    const name = green.greeniesWon > 1 ? `${first} ×${green.greeniesWon}` : first;
     return { name, tone: green.side === usSideIndex ? "us" : "them" };
   };
 
@@ -524,7 +529,7 @@ function PressCell({ count }: { count: number }) {
 /** The greenie on a par 3: whose it is, coloured by whether it is our side. */
 interface GreenieView {
   name: string;
-  tone: "us" | "them" | "muted";
+  tone: "us" | "them" | "muted" | "carry";
 }
 
 /** The greenie winner on a par 3, in green when ours, red when theirs. */
@@ -535,7 +540,9 @@ function GreenieCell({ info }: { info: GreenieView | null }) {
       ? "text-turf-700"
       : info.tone === "them"
         ? "text-red-700"
-        : "text-neutral-400";
+        : info.tone === "carry"
+          ? "text-amber-700"
+          : "text-neutral-400";
   return (
     <td className={`whitespace-nowrap px-1 py-1.5 text-center text-xs font-semibold ${cls}`}>
       {info.name}

@@ -115,10 +115,18 @@ function oneDownLines(
       won.length === 0
         ? "Greenies: none yet"
         : `Greenies: ${won
-            .map((greenie) => `${marker(greenie.hole)} ${nameOf(greenie.winnerId as PlayerId)}`)
+            .map(
+              (greenie) =>
+                `${marker(greenie.hole)} ${nameOf(greenie.winnerId as PlayerId)}${
+                  greenie.greeniesWon > 1 ? ` ×${greenie.greeniesWon}` : ""
+                }`,
+            )
             .join(", ")}`;
     if (greenies.sweptBy !== null) {
       line += ` — swept by ${config.sides[greenies.sweptBy].name}, doubled`;
+    }
+    if (greenies.carrying > 0) {
+      line += ` · ${greenies.carrying} carrying over`;
     }
     if (won.length > 0) line += ` — ${up(greenies.sideTotals[0])}`;
     lines.push(line);

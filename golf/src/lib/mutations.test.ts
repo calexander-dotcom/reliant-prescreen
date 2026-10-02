@@ -8,6 +8,7 @@ import {
   clearHoleMoney,
   removePlayer,
   setBanker,
+  setGreenie,
   setManualAmount,
   setManualPresses,
   setPressesBefore,
@@ -15,6 +16,7 @@ import {
   setStartHole,
   setTeeFlipWinner,
 } from "./mutations";
+import { GREENIE_CARRY } from "./bets/onedown";
 import { defaultOneDown } from "./bets/defaults";
 import type { Player, Round } from "./types";
 
@@ -291,6 +293,23 @@ describe("setTeeFlipWinner", () => {
     const bet = setTeeFlipWinner(legacy, "od1", 10, "p3").bets[0];
     expect(bet.kind === "onedown" ? bet.teeFlipWinnerId : "kept").toBeUndefined();
     expect(bet.kind === "onedown" ? bet.teeFlipWinners : null).toEqual({ 10: "p3" });
+  });
+});
+
+describe("setGreenie", () => {
+  const withOneDown: Round = { ...base, bets: [defaultOneDown(players, "od1")] };
+  const winners = (round: Round) => {
+    const bet = round.bets[0];
+    return bet.kind === "onedown" ? bet.greenieWinners : undefined;
+  };
+
+  it("records a winner, nobody, a carry-over, and takes an answer back", () => {
+    const won = setGreenie(withOneDown, "od1", 3, "p1");
+    expect(winners(won)).toEqual({ 3: "p1" });
+    expect(winners(setGreenie(won, "od1", 3, null))).toEqual({ 3: null });
+    expect(winners(setGreenie(won, "od1", 3, GREENIE_CARRY))).toEqual({ 3: "carry" });
+    expect(winners(setGreenie(won, "od1", 3, undefined))).toEqual({});
+    expect(winners(setGreenie(won, "nope", 3, null))).toEqual({ 3: "p1" });
   });
 });
 

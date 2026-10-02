@@ -161,14 +161,18 @@ export interface OneDownConfig {
   /**
    * Greenies on the par 3s: closest to the hole wins one for their side,
    * worth the stake, netted between the sides at the end. One side taking
-   * every par 3 of the round doubles them. Undefined means on.
+   * every par 3 of the round doubles them, and a par 3 nobody wins can be
+   * carried over to the next. Undefined means on.
    */
   greenies?: boolean;
   /**
-   * Who won the greenie on each par 3: a player id, or null for nobody.
-   * A hole with no entry has not been answered yet.
+   * Who won the greenie on each par 3: a player id, or null for nobody. The
+   * sentinel string "carry" (GREENIE_CARRY in bets/onedown) marks a par 3
+   * nobody won whose value rolls forward to whoever wins the next par 3 — the
+   * literal is spelled here rather than imported to keep this module free of
+   * runtime imports. A hole with no entry has not been answered yet.
    */
-  greenieWinners?: Record<number, PlayerId | null>;
+  greenieWinners?: Record<number, PlayerId | null | "carry">;
   /**
    * Decide alternate holes, starting with the first of each nine — 1, 3, 5,
    * 7, 9 and 10, 12, 14, 16, 18 — on the sides' aggregate, both partners'

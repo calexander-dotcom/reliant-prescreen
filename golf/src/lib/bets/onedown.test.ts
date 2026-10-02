@@ -598,6 +598,71 @@ describe("greenies", () => {
     );
     expect(outcome.greenies.totals).toEqual({ a1: 500, a2: 500, b1: -500, b2: -500 });
   });
+
+  it("carries a greenie nobody won onto the next par 3's winner", () => {
+    const outcome = withGreenies({ 3: "carry", 7: "a1" });
+    const three = outcome.greenies.holes.find((h) => h.hole === 3)!;
+    const seven = outcome.greenies.holes.find((h) => h.hole === 7)!;
+    expect(three.carry).toBe(true);
+    expect(three.greeniesWon).toBe(0);
+    // Hole 7 takes its own greenie plus the one carried from 3.
+    expect(seven.carriedIn).toBe(1);
+    expect(seven.greeniesWon).toBe(2);
+    expect(outcome.greenies.counts).toEqual([2, 0]);
+    expect(outcome.greenies.carrying).toBe(0);
+    // Two greenies' worth to A: +$20 each a man.
+    expect(outcome.greenies.totals).toEqual({ a1: 2000, a2: 2000, b1: -2000, b2: -2000 });
+    expect(outcome.totals).toEqual(outcome.greenies.totals);
+  });
+
+  it("stacks consecutive carries onto the winner", () => {
+    const outcome = withGreenies({ 3: "carry", 7: "carry", 12: "a1" });
+    const twelve = outcome.greenies.holes.find((h) => h.hole === 12)!;
+    expect(twelve.carriedIn).toBe(2);
+    expect(twelve.greeniesWon).toBe(3);
+    expect(outcome.greenies.counts).toEqual([3, 0]);
+    expect(outcome.greenies.totals.a1).toBe(3000);
+  });
+
+  it("a carry breaks the sweep — no doubling", () => {
+    const outcome = withGreenies({ 3: "carry", 7: "a1", 12: "a2", 16: "a1" });
+    expect(outcome.greenies.sweptBy).toBeNull();
+    expect(outcome.greenies.sweepBonus).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+    // Four greenie-values to A, not doubled: $40 a man, not the $80 of a clean sweep.
+    expect(outcome.greenies.counts).toEqual([4, 0]);
+    expect(outcome.greenies.totals.a1).toBe(4000);
+  });
+
+  it("leaves a carried greenie nobody later wins on the table", () => {
+    const outcome = withGreenies({ 3: "a1", 7: "carry", 12: null, 16: null });
+    // Nobody at 12 or 16 collects the carry; it is left riding at the end.
+    expect(outcome.greenies.carrying).toBe(1);
+    expect(outcome.greenies.counts).toEqual([1, 0]);
+    expect(outcome.greenies.totals.a1).toBe(1000);
+  });
+
+  it("collects a carry on the last par 3", () => {
+    const outcome = withGreenies({ 3: "a1", 7: "a2", 12: "carry", 16: "b1" });
+    const sixteen = outcome.greenies.holes.find((h) => h.hole === 16)!;
+    expect(sixteen.greeniesWon).toBe(2);
+    expect(sixteen.side).toBe(1);
+    expect(outcome.greenies.counts).toEqual([2, 2]);
+    expect(outcome.greenies.carrying).toBe(0);
+    // Two to A, two to B: all square.
+    expect(outcome.greenies.totals).toEqual({ a1: 0, a2: 0, b1: 0, b2: 0 });
+  });
+
+  it("scales a carry-over win when the stake is per side", () => {
+    const outcome = evaluateOneDown(
+      config({ stakeMode: "per-side", autoPressAt: 0, greenieWinners: { 3: "carry", 7: "a1" } }),
+      18,
+      through(),
+      ids,
+      par,
+    );
+    // One per-side greenie is $5 a man; the carry-over doubles it to $10.
+    expect(outcome.greenies.totals).toEqual({ a1: 1000, a2: 1000, b1: -1000, b2: -1000 });
+  });
 });
 
 describe("presses called before a hole, ahead of time", () => {

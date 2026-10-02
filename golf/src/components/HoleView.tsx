@@ -11,6 +11,7 @@ import {
 import { ledgerRunning } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
 import {
+  GREENIE_CARRY,
   MAX_PRESSES_PER_HOLE,
   closeoutScenarios,
   pressesBefore,
@@ -261,8 +262,8 @@ export function HoleView({
     // running tally when any have been won.
     const g = bet.outcome.greenies;
     const greenies =
-      g.enabled && g.counts[0] + g.counts[1] > 0
-        ? { counts: g.counts, totals: g.totals }
+      g.enabled && (g.counts[0] + g.counts[1] > 0 || g.carrying > 0)
+        ? { counts: g.counts, totals: g.totals, carrying: g.carrying }
         : null;
     return { sides: bet.config.sides, scenarios, includesOverall, greenies, onCourse };
   })();
@@ -546,6 +547,11 @@ export function HoleView({
                   </td>
                   <td className="px-1 py-1.5 text-left text-xs text-neutral-500">
                     {closeout.includesOverall ? "final" : "so far"}
+                    {closeout.greenies!.carrying > 0 ? (
+                      <span className="block text-amber-700">
+                        {closeout.greenies!.carrying} carrying
+                      </span>
+                    ) : null}
                   </td>
                   {[0, 1].map((side) => {
                     const count = closeout.greenies!.counts[side];
@@ -666,30 +672,58 @@ export function HoleView({
           const winners = result.config.greenieWinners ?? {};
           const answered = hole in winners;
           const winner = winners[hole];
+          const carry = winner === GREENIE_CARRY;
+          const nobody = answered && winner === null;
           const scoresIn = round.players.every(
             (player) => (comp.cells[player.id]?.[hole]?.gross ?? null) !== null,
           );
           const [sideA, sideB] = result.config.sides;
+          const playerWinner = winner && winner !== GREENIE_CARRY ? winner : null;
           const wonBy =
-            winner && sideA.playerIds.includes(winner)
+            playerWinner && sideA.playerIds.includes(playerWinner)
               ? sideA.name
-              : winner && sideB.playerIds.includes(winner)
+              : playerWinner && sideB.playerIds.includes(playerWinner)
                 ? sideB.name
                 : null;
+          // What this par 3 is worth once answered: its own greenie plus any
+          // carried onto it. Read from the engine so the wording matches the money.
+          const greenieHole = result.outcome.greenies.holes.find((h) => h.hole === hole);
+          const greeniesWon = greenieHole?.greeniesWon ?? 0;
+          const carriedIn = greenieHole?.carriedIn ?? 0;
+          // Is this the last par 3? A carry here has nowhere to land.
+          const par3s = comp.holes.filter((h) => h.par === 3).map((h) => h.number);
+          const isLastPar3 = par3s.length > 0 && par3s[par3s.length - 1] === hole;
           return (
             <Card key={`greenie-${result.config.id}`}>
-              <SectionTitle hint="Closest to the hole takes a greenie for their side, worth a bet. Every par 3 to one side doubles them.">
+              <SectionTitle hint="Closest to the hole takes a greenie for their side, worth a bet. Nobody won it? Carry it over to the next par 3. Every par 3 to one side doubles them.">
                 Greenie
               </SectionTitle>
-              {!answered && scoresIn ? (
+              {!answered && carriedIn > 0 ? (
+                <Banner tone="warn">
+                  {carriedIn === 1
+                    ? "A greenie is carrying over — whoever wins this par 3 takes both."
+                    : `${carriedIn} greenies are carrying over — whoever wins this par 3 takes them all.`}
+                </Banner>
+              ) : null}
+              {!answered && scoresIn && carriedIn === 0 ? (
                 <Banner tone="warn">Scores are in — who won the greenie?</Banner>
               ) : null}
               {answered ? (
-                <Banner tone={winner ? "good" : undefined}>
-                  {winner
-                    ? `${round.players.find((p) => p.id === winner)?.name ?? "—"} — a greenie to ${wonBy ?? "nobody in the game"}.`
-                    : "Nobody won this one."}
-                </Banner>
+                carry ? (
+                  <Banner tone="warn">
+                    Nobody won it — {carriedIn > 0 ? `${carriedIn + 1} greenies carry` : "it carries"} over to the next par 3
+                    {isLastPar3 ? ", but this is the last one, so it is left on the table." : "."}
+                  </Banner>
+                ) : nobody ? (
+                  <Banner>Nobody won this one.</Banner>
+                ) : (
+                  <Banner tone={wonBy ? "good" : undefined}>
+                    {round.players.find((p) => p.id === playerWinner)?.name ?? "—"} —{" "}
+                    {greeniesWon > 1
+                      ? `${greeniesWon} greenies to ${wonBy ?? "nobody in the game"} with the carryover.`
+                      : `a greenie to ${wonBy ?? "nobody in the game"}.`}
+                  </Banner>
+                )
               ) : null}
               <div
                 role="group"
@@ -715,19 +749,29 @@ export function HoleView({
                   </Button>
                 ))}
                 <Button
-                  variant={answered && winner === null ? "primary" : "ghost"}
+                  variant={nobody ? "primary" : "ghost"}
+                  onClick={() =>
+                    update(
+                      setGreenie(round, result.config.id, hole, nobody ? undefined : null),
+                    )
+                  }
+                >
+                  Nobody
+                </Button>
+                <Button
+                  variant={carry ? "primary" : "ghost"}
                   onClick={() =>
                     update(
                       setGreenie(
                         round,
                         result.config.id,
                         hole,
-                        answered && winner === null ? undefined : null,
+                        carry ? undefined : GREENIE_CARRY,
                       ),
                     )
                   }
                 >
-                  Nobody
+                  Carry over
                 </Button>
               </div>
             </Card>
