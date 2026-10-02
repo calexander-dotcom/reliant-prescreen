@@ -222,15 +222,22 @@ on this machine are among the agents this file is for — and they read
 |---|---|---|---|---|
 | LE SMS Dashboard (recruiter comms) | user systemd service `le-sms-dashboard.service`, up since about 2026-09-09 | `~/le-sms-dashboard.js` | `*:8085` | Log `~/le-sms-dashboard.log`. The only thing listening on the machine. |
 
-**Ran today — scheduler not yet identified** (there is no cron daemon on
-the box; most likely user systemd timers or a supervising process — see the
-commands below):
+**Scheduled by user systemd timers** (`systemctl --user list-timers`, checked
+2026-10-01 — this is the scheduler the 2026-09-15 inventory could not find):
 
-| What | Evidence | Path |
+| Timer | When | What it runs |
 |---|---|---|
-| Twilio email watch | log and state written 2026-09-15 11:37 | `~/twilio-email-watch.js` |
-| Twilio campaign watch | log and state written 2026-09-15 08:17 | `~/twilio-campaign-watch.js` |
-| LaborEdge job data check | log written 2026-09-15 08:01 | `~/le-job-data-check.js` |
+| `twilio-email-watch.timer` | hourly at :37 | `~/twilio-email-watch.js` — scan for new Twilio support emails |
+| `twilio-campaign-watch.timer` | daily 08:17 ET | `~/twilio-campaign-watch.js` — Synergy's Twilio 10DLC campaign and number status |
+| `le-job-data-check.timer` | daily 08:00 ET | `~/le-job-data-check.js` — LaborEdge job-data check |
+| `contract-autofill.timer` | every 5 minutes | fills contracts emailed to rex@ by an allowlisted sender and replies with the completed file |
+| `contract-drafter.timer` | every 5 minutes | drafts signed client/VMS agreements from calexander@'s inbox to Ann + contracts@ |
+| `rex-knowledge-sync.timer` | daily 02:30 | redacted copy of Claude Code memory to Rex (see OpenClaw and Rex) |
+| `claude-archive.timer` | Mondays 06:15 | weekly archive of Claude Code sessions (`~/.claude/archive-sessions.sh`, `archive-to-drive.js`) |
+
+On the EC2 box the `ubuntu` user's systemd has only `openclaw-gateway.service`
+and `qb-selftest.path` (re-tests the /qb invoice tool when its files change);
+its other services run under **pm2** (e.g. `le-mcp-server`) — not yet listed.
 
 **Installed but not running:**
 
@@ -353,7 +360,7 @@ Append a row when you start, deploy, or finish something. Newest last.
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | One Downs app (renamed from Golf Bets 2026-09-21), ongoing features | Vercel | live |
 | 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Retired `car_watch.py` (PR #24) | EC2 cron — owner removing | done in repo; box and keys pending |
 | 2026-09-15 | `claude/website-down-notifications-j6toqp` | Site-down notifications / 503 triage | **unknown** | in progress — that session to fill in |
-| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | partial — scheduler and `Open Claw` to identify; EC2 still pending |
+| 2026-09-15 | `claude/golf-gambling-tracker-2xn3ty` | Inventory of the owner's Chromebook container from two pastes: the SMS dashboard service, three watchers that ran today by a scheduler not yet identified, an inert cron file, and the toolkit on disk | Chromebook | scheduler (user systemd timers) and `Open Claw` identified 2026-10-01; EC2 pm2 apps still to list |
 | 2026-09-21 | `claude/golf-gambling-tracker-2xn3ty` | Vercel's daily deployment limit hit at ~23:30 UTC; golf PRs #47–#62 ended up merged into the production branch but unbuilt. | Vercel | resolved 2026-09-22 |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` + owner | Build guards so one push is one build: `ignoreCommand` in `golf/vercel.json` for golf_bets (PR #58), and the owner set an Ignored Build Step on workspace-recruiterasst and reliant-prescreen excluding `golf/`. | Vercel | done |
 | 2026-09-22 | `claude/golf-gambling-tracker-2xn3ty` | Cap lifted about 19:20 UTC, roughly 20 hours after it bit. PR #63 (a service worker cache bump) was the golf-touching push that carried PRs #47–#62 to production; golf_bets reported "Deployment has completed" at 19:22 UTC. | Vercel | live |
