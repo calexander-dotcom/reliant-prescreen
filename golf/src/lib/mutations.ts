@@ -382,6 +382,11 @@ export function setGreenie(
   });
 }
 
+/** Show or hide the card's team-net column for this round (display only). */
+export function setTeamNet(round: Round, on: boolean): Round {
+  return touch({ ...round, teamNet: on });
+}
+
 /**
  * Which hole the group teed off on.
  *

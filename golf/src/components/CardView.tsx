@@ -1,6 +1,7 @@
 "use client";
 
 import type { BetResult, RoundComputation } from "@/lib/bets";
+import { teamNetForHole } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
 import {
@@ -10,6 +11,7 @@ import {
   standingEntries,
   type StandingEntry,
 } from "@/lib/bets/onedown";
+import { setTeamNet } from "@/lib/mutations";
 import { Standing } from "./Standing";
 import { formatCompact } from "@/lib/money";
 import type { Round } from "@/lib/types";
@@ -25,11 +27,14 @@ export function CardView({
   round,
   comp,
   onPickHole,
+  update,
   readOnly = false,
 }: {
   round: Round;
   comp: RoundComputation;
   onPickHole: (hole: number) => void;
+  /** Lets the scorer toggle the team-net column; absent on a follower's card. */
+  update?: (next: Round) => void;
   /** Followers get the same card without the invitation to tap it. */
   readOnly?: boolean;
 }) {
@@ -120,6 +125,23 @@ export function CardView({
     return { name, tone: green.side === usSideIndex ? "us" : "them" };
   };
 
+  // Team net (display only): on the odd on-course holes every player's net
+  // added together, on the even holes the single best. One number per hole for
+  // a side playing a combined round; off unless this round turned it on.
+  const showTeamNet = round.teamNet === true;
+  const onCourseOf = new Map(comp.holes.map((hole) => [hole.number, hole.onCourse]));
+  const teamNetAt = (hole: number): number | null =>
+    teamNetForHole(
+      round.players.map((player) => comp.cells[player.id]?.[hole]?.net ?? null),
+      onCourseOf.get(hole) ?? hole,
+    );
+  const teamNetTotal = (holeList: RoundComputation["holes"]): number | null => {
+    const values = holeList
+      .map((hole) => teamNetAt(hole.number))
+      .filter((value): value is number => value !== null);
+    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) : null;
+  };
+
   return (
     <div className="space-y-4">
       {comp.unbalancedHoles.length > 0 ? (
@@ -142,13 +164,30 @@ export function CardView({
       ) : null}
 
       <Card className="overflow-x-auto">
-        <SectionTitle
-          hint={`Score on top, that hole's money underneath.${
-            readOnly ? "" : " Tap a hole to edit it."
-          }`}
-        >
-          Scorecard
-        </SectionTitle>
+        <div className="flex items-start justify-between gap-3">
+          <SectionTitle
+            hint={`Score on top, that hole's money underneath.${
+              readOnly ? "" : " Tap a hole to edit it."
+            }`}
+          >
+            Scorecard
+          </SectionTitle>
+          {update && !readOnly ? (
+            <button
+              type="button"
+              onClick={() => update(setTeamNet(round, !showTeamNet))}
+              aria-pressed={showTeamNet}
+              title="Odd holes add all players' net together; even holes count the best net ball."
+              className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset ${
+                showTeamNet
+                  ? "bg-turf-700 text-white ring-turf-700"
+                  : "bg-white text-turf-700 ring-turf-300"
+              }`}
+            >
+              Team net {showTeamNet ? "on" : "off"}
+            </button>
+          ) : null}
+        </div>
         <table className="tabular w-full min-w-[20rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
@@ -175,6 +214,14 @@ export function CardView({
                   ) : null}
                 </>
               ) : null}
+              {showTeamNet ? (
+                <th className="px-1 py-2 text-center font-semibold">
+                  Team
+                  <span className="block text-[0.6rem] font-normal leading-none text-neutral-400">
+                    net
+                  </span>
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -195,6 +242,7 @@ export function CardView({
                   sidesAt={oneDown ? sidesAt : null}
                   pressesAt={oneDown ? pressesAt : null}
                   greenieAt={showGreenies ? greenieAt : null}
+                  teamNetAt={showTeamNet ? teamNetAt : null}
                   flipNote={flipNoteFor(groupIndex)}
                   flipColSpan={flipColSpan}
                 />
@@ -217,6 +265,12 @@ export function CardView({
                   <td />
                   <td />
                   <td />
+                </>
+              ) : null}
+              {showTeamNet ? (
+                <>
+                  {showGreenies ? <td /> : null}
+                  <td className="px-1 py-2 text-center">{teamNetTotal(comp.holes) ?? "–"}</td>
                 </>
               ) : null}
             </tr>
@@ -335,7 +389,11 @@ export function CardView({
           The money row adds up the hand-entered holes plus every nassau, press
           and skin that has settled. The Out and In rows carry each nine&apos;s
           share under the score; Overall is the whole-round bet. A hole that does not
-          net to zero is left out until it does.
+          net to zero is left out until it does. A score shown as 5/4 is gross then
+          net, where a handicap stroke falls.
+          {showTeamNet
+            ? " Team net is this side playing together: the odd holes add every ball, the even holes count the best one."
+            : ""}
           {oneDown && usSide && themSide
             ? ` Sides is what decided each hole — ${usSide.name} then ${themSide.name}: the best ball, or on an aggregate hole (marked agg) both partners added together${
                 oneDown.config.basis === "net" ? ", net" : ""
@@ -361,6 +419,7 @@ function HoleGroup({
   sidesAt,
   pressesAt,
   greenieAt,
+  teamNetAt,
   flipNote,
   flipColSpan,
 }: {
@@ -375,6 +434,8 @@ function HoleGroup({
   pressesAt: ((hole: number) => number) | null;
   /** Who took the greenie on a par 3, when the game plays greenies. */
   greenieAt: ((hole: number) => GreenieView | null) | null;
+  /** The team's net for the hole, when the team-net column is on. */
+  teamNetAt: ((hole: number) => number | null) | null;
   /** The tee-flip line for this nine, shown on the row it teed off on. */
   flipNote: string | null;
   /** Columns the flip line spans. */
@@ -389,6 +450,14 @@ function HoleGroup({
 }) {
   const subtotal = (playerId: string) =>
     holes.reduce((sum, hole) => sum + (comp.cells[playerId]?.[hole.number]?.gross ?? 0), 0);
+
+  const teamSubtotal = (): number | null => {
+    if (!teamNetAt) return null;
+    const values = holes
+      .map((hole) => teamNetAt(hole.number))
+      .filter((value): value is number => value !== null);
+    return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) : null;
+  };
 
   return (
     <>
@@ -443,9 +512,14 @@ function HoleGroup({
                     ) : (
                       cell?.gross ?? "–"
                     )}
-                    {cell && cell.gross !== null && cell.strokes > 0 ? (
-                      <span className="align-super text-[0.6rem] text-turf-600">
-                        {"•".repeat(Math.min(cell.strokes, 3))}
+                    {cell && cell.gross !== null && cell.strokes > 0 && cell.net !== null ? (
+                      <span
+                        className="text-[0.8rem] font-normal text-turf-600"
+                        title={`net ${cell.net} (${cell.strokes} stroke${
+                          cell.strokes > 1 ? "s" : ""
+                        })`}
+                      >
+                        /{cell.net}
                       </span>
                     ) : null}
                     {fromGg ? (
@@ -475,6 +549,11 @@ function HoleGroup({
             ) : null}
             {pressesAt ? <PressCell count={pressesAt(hole.number)} /> : null}
             {greenieAt ? <GreenieCell info={greenieAt(hole.number)} /> : null}
+            {teamNetAt ? (
+              <td className="tabular px-1 py-1.5 text-center text-xs font-semibold text-neutral-800">
+                {teamNetAt(hole.number) ?? "–"}
+              </td>
+            ) : null}
           </tr>
         );
       })}
@@ -503,6 +582,12 @@ function HoleGroup({
         {sidesAt ? <td /> : null}
         {standingAt ? <td /> : null}
         {pressesAt ? <td /> : null}
+        {teamNetAt ? (
+          <>
+            {greenieAt ? <td /> : null}
+            <td className="tabular px-1 py-1.5 text-center text-xs">{teamSubtotal() ?? "–"}</td>
+          </>
+        ) : null}
       </tr>
     </>
   );
