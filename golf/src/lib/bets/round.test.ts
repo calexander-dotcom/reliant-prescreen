@@ -9,6 +9,7 @@ import {
   holeResultFor,
   sideScoresFor,
   teamNetForHole,
+  teamNetPar,
 } from "./index";
 
 const course: Course = {
@@ -483,6 +484,26 @@ describe("teamNetForHole", () => {
     expect(teamNetForHole([4, null, 6], 1)).toBeNull();
     expect(teamNetForHole([4, null, 6], 2)).toBeNull();
     expect(teamNetForHole([], 1)).toBeNull();
+  });
+});
+
+describe("teamNetPar", () => {
+  const nine = (start: number) =>
+    Array.from({ length: 9 }, (_, i) => ({ par: 4, onCourse: start + i }));
+
+  it("counts every ball on the odd holes, one on the even, for three players", () => {
+    // Front: 5 odd × (3×4) + 4 even × 4 = 60 + 16.
+    expect(teamNetPar(nine(1), 3)).toBe(76);
+    // Back: 4 odd × (3×4) + 5 even × 4 = 48 + 20.
+    expect(teamNetPar(nine(10), 3)).toBe(68);
+  });
+
+  it("scales with the field and the pars", () => {
+    // Two players, front all par 4: 5 odd × (2×4) + 4 even × 4 = 40 + 16.
+    expect(teamNetPar(nine(1), 2)).toBe(56);
+    // A par-5 on an odd hole counts three times over.
+    expect(teamNetPar([{ par: 5, onCourse: 1 }], 3)).toBe(15);
+    expect(teamNetPar([{ par: 5, onCourse: 2 }], 3)).toBe(5);
   });
 });
 

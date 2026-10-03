@@ -483,6 +483,22 @@ export function teamNetForHole(nets: Array<number | null>, onCourse: number): nu
     : Math.min(...values);
 }
 
+/**
+ * Even par for the team-net format over these holes: each odd on-course hole
+ * counts every ball (so `playerCount × par`), each even hole one ball (`par`) —
+ * the number a side shoots when everyone makes net par. The front nine runs
+ * higher than the back, since it carries the extra odd (aggregate) hole.
+ */
+export function teamNetPar(
+  holes: Array<{ par: number; onCourse: number }>,
+  playerCount: number,
+): number {
+  return holes.reduce(
+    (sum, hole) => sum + hole.par * (hole.onCourse % 2 === 1 ? playerCount : 1),
+    0,
+  );
+}
+
 /** Sanity check used by the UI: every engine must move money zero-sum. */
 export function totalsAreZeroSum(totals: Record<PlayerId, number>): boolean {
   return sumCents(Object.values(totals)) === 0;
