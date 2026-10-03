@@ -1,7 +1,7 @@
 "use client";
 
 import type { BetResult, RoundComputation } from "@/lib/bets";
-import { teamNetForHole } from "@/lib/bets";
+import { teamNetForHole, teamNetPar } from "@/lib/bets";
 import { ledgerStatus } from "@/lib/bets/ledger";
 import { perspectiveSign } from "@/lib/bets/nassau";
 import {
@@ -270,7 +270,12 @@ export function CardView({
               {showTeamNet ? (
                 <>
                   {showGreenies ? <td /> : null}
-                  <td className="px-1 py-2 text-center">{teamNetTotal(comp.holes) ?? "–"}</td>
+                  <td className="px-1 py-2 text-center">
+                    <div>{teamNetTotal(comp.holes) ?? "–"}</div>
+                    <div className="text-[0.6rem] font-normal leading-none text-neutral-400">
+                      par {teamNetPar(comp.holes, round.players.length)}
+                    </div>
+                  </td>
                 </>
               ) : null}
             </tr>
@@ -392,7 +397,7 @@ export function CardView({
           net to zero is left out until it does. A score shown as 5/4 is gross then
           net, where a handicap stroke falls.
           {showTeamNet
-            ? " Team net is this side playing together: the odd holes add every ball, the even holes count the best one."
+            ? " Team net is this side playing together: the odd holes add every ball, the even holes count the best one. Its even-par target — three balls at par on the odd holes, one on the even — shows under each nine's total, so the front reads higher than the back."
             : ""}
           {oneDown && usSide && themSide
             ? ` Sides is what decided each hole — ${usSide.name} then ${themSide.name}: the best ball, or on an aggregate hole (marked agg) both partners added together${
@@ -585,7 +590,12 @@ function HoleGroup({
         {teamNetAt ? (
           <>
             {greenieAt ? <td /> : null}
-            <td className="tabular px-1 py-1.5 text-center text-xs">{teamSubtotal() ?? "–"}</td>
+            <td className="tabular px-1 py-1.5 text-center text-xs">
+              <div>{teamSubtotal() ?? "–"}</div>
+              <div className="text-[0.6rem] font-normal normal-case leading-none text-neutral-400">
+                par {teamNetPar(holes, round.players.length)}
+              </div>
+            </td>
           </>
         ) : null}
       </tr>
