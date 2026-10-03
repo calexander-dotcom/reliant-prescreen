@@ -289,6 +289,13 @@ export interface Round {
   /** Free-text notes for the round. */
   notes?: string;
   /**
+   * Show a team-net column on the card for this round: on the odd holes every
+   * player's net score added together, on the even holes the single best net.
+   * A read-out for a side playing a combined round — it changes no bet. Off
+   * unless set, so it never clutters an ordinary card.
+   */
+  teamNet?: boolean;
+  /**
    * Set once this round is being shared read-only.
    *
    * `token` is what lets this device keep publishing, so it must never leave

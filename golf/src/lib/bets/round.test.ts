@@ -8,6 +8,7 @@ import {
   holeResultAggregate,
   holeResultFor,
   sideScoresFor,
+  teamNetForHole,
 } from "./index";
 
 const course: Course = {
@@ -467,6 +468,21 @@ describe("greenies in the round", () => {
     const oneDownResult = result.betResults[0];
     expect(oneDownResult.kind === "onedown" && oneDownResult.outcome.greenies.holes).toEqual([]);
     expect(result.grandTotals.p1).toBe(0);
+  });
+});
+
+describe("teamNetForHole", () => {
+  it("adds every ball on an odd hole, takes the best on an even hole", () => {
+    expect(teamNetForHole([4, 5, 6], 1)).toBe(15);
+    expect(teamNetForHole([4, 5, 6], 17)).toBe(15);
+    expect(teamNetForHole([4, 5, 6], 2)).toBe(4);
+    expect(teamNetForHole([4, 5, 6], 18)).toBe(4);
+  });
+
+  it("waits for every ball before it reads, and is null with none", () => {
+    expect(teamNetForHole([4, null, 6], 1)).toBeNull();
+    expect(teamNetForHole([4, null, 6], 2)).toBeNull();
+    expect(teamNetForHole([], 1)).toBeNull();
   });
 });
 

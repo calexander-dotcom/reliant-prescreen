@@ -201,6 +201,7 @@ export default function RoundPage() {
           <CardView
             round={round}
             comp={comp}
+            update={update}
             onPickHole={(picked) => {
               setHole(picked);
               setTab("hole");

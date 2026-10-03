@@ -469,6 +469,20 @@ export function holeResultAggregate(
   return compareSides(a, b);
 }
 
+/**
+ * A side playing a combined round reads one number per hole: on the odd
+ * on-course holes every ball added together (aggregate), on the even holes the
+ * single best (lowest) ball. Null until every player has a score — a sum is not
+ * a sum with a ball missing, and the column reads as the hole's team score.
+ */
+export function teamNetForHole(nets: Array<number | null>, onCourse: number): number | null {
+  if (nets.length === 0 || nets.some((value) => value === null)) return null;
+  const values = nets as number[];
+  return onCourse % 2 === 1
+    ? values.reduce((sum, value) => sum + value, 0)
+    : Math.min(...values);
+}
+
 /** Sanity check used by the UI: every engine must move money zero-sum. */
 export function totalsAreZeroSum(totals: Record<PlayerId, number>): boolean {
   return sumCents(Object.values(totals)) === 0;

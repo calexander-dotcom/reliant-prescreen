@@ -9,6 +9,7 @@ import {
   removePlayer,
   setBanker,
   setGreenie,
+  setTeamNet,
   setManualAmount,
   setManualPresses,
   setPressesBefore,
@@ -310,6 +311,14 @@ describe("setGreenie", () => {
     expect(winners(setGreenie(won, "od1", 3, GREENIE_CARRY))).toEqual({ 3: "carry" });
     expect(winners(setGreenie(won, "od1", 3, undefined))).toEqual({});
     expect(winners(setGreenie(won, "nope", 3, null))).toEqual({ 3: "p1" });
+  });
+});
+
+describe("setTeamNet", () => {
+  it("toggles the team-net column flag for the round", () => {
+    expect(base.teamNet).toBeUndefined();
+    expect(setTeamNet(base, true).teamNet).toBe(true);
+    expect(setTeamNet(setTeamNet(base, true), false).teamNet).toBe(false);
   });
 });
 
